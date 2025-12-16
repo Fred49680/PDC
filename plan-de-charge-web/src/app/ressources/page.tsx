@@ -34,10 +34,36 @@ export default function RessourcesPage() {
     actif: true,
   })
 
+  // Liste prédéfinie des compétences
+  const competencesPredéfinies = [
+    'ADMIN',
+    'AUTO',
+    'BE_IES',
+    'ENCADREMENT',
+    'ESSAIS',
+    'FIBRE OPTIQUE',
+    'HSE_CRP',
+    'IEG',
+    'IES',
+    'INSTRUM',
+    'MAGASIN',
+    'PACK',
+    'PREPA',
+    'REDACTION_RA',
+    'RELEVE',
+    'ROB',
+    'SERVITUDE',
+    'SS4',
+    'TRACAGE',
+  ]
+
   const [competenceForm, setCompetenceForm] = useState({
     ressourceId: '',
     competence: '',
+    competencePersonnalisee: '',
     niveau: '',
+    type_comp: 'S', // 'P' = Principale, 'S' = Secondaire
+    useCustom: false, // true si on utilise une compétence personnalisée
   })
 
   const [isEditing, setIsEditing] = useState(false)
@@ -117,7 +143,10 @@ export default function RessourcesPage() {
     setCompetenceForm({
       ressourceId,
       competence: '',
+      competencePersonnalisee: '',
       niveau: '',
+      type_comp: 'S',
+      useCustom: false,
     })
     setSelectedRessource(ressourceId)
     setShowCompetenceForm(true)
@@ -126,16 +155,57 @@ export default function RessourcesPage() {
   const handleSubmitCompetence = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await saveCompetence(competenceForm.ressourceId, competenceForm.competence, competenceForm.niveau || undefined)
+      // Utiliser la compétence personnalisée si useCustom est true, sinon la compétence sélectionnée
+      const competenceToSave = competenceForm.useCustom 
+        ? competenceForm.competencePersonnalisee.trim()
+        : competenceForm.competence
+
+      if (!competenceToSave) {
+        alert('Veuillez sélectionner ou saisir une compétence')
+        return
+      }
+
+      // Vérifier si on essaie d'ajouter une compétence principale alors qu'il en existe déjà une
+      if (competenceForm.type_comp === 'P') {
+        const resCompetences = competences.get(competenceForm.ressourceId) || []
+        const existingPrincipal = resCompetences.find(c => c.type_comp === 'P')
+        
+        if (existingPrincipal) {
+          const confirmReplace = confirm(
+            `Une compétence principale existe déjà pour cette ressource : "${existingPrincipal.competence}".\n\n` +
+            `Voulez-vous remplacer "${existingPrincipal.competence}" par "${competenceToSave}" comme compétence principale ?`
+          )
+          
+          if (!confirmReplace) {
+            return // L'utilisateur a annulé
+          }
+          
+          // Si l'utilisateur confirme, on pourrait soit :
+          // 1. Passer l'ancienne en secondaire automatiquement (à faire côté backend si nécessaire)
+          // 2. Laisser l'utilisateur gérer manuellement
+          // Pour l'instant, on continue et l'utilisateur devra gérer manuellement les conflits
+        }
+      }
+
+      await saveCompetence(
+        competenceForm.ressourceId, 
+        competenceToSave, 
+        competenceForm.niveau || undefined,
+        competenceForm.type_comp || 'S'
+      )
       setCompetenceForm({
         ressourceId: '',
         competence: '',
+        competencePersonnalisee: '',
         niveau: '',
+        type_comp: 'S',
+        useCustom: false,
       })
       setShowCompetenceForm(false)
       setSelectedRessource(null)
     } catch (err) {
       console.error('[RessourcesPage] Erreur ajout compétence:', err)
+      alert('Erreur lors de l\'ajout de la compétence. Veuillez réessayer.')
     }
   }
 
@@ -304,7 +374,14 @@ export default function RessourcesPage() {
                 onClick={() => {
                   setShowCompetenceForm(false)
                   setSelectedRessource(null)
-                  setCompetenceForm({ ressourceId: '', competence: '', niveau: '' })
+                  setCompetenceForm({ 
+                    ressourceId: '', 
+                    competence: '', 
+                    competencePersonnalisee: '',
+                    niveau: '', 
+                    type_comp: 'S',
+                    useCustom: false,
+                  })
                 }}
                 className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
               >
@@ -316,14 +393,51 @@ export default function RessourcesPage() {
                 <label className="block text-sm font-semibold text-gray-700">
                   Compétence <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={competenceForm.competence}
-                  onChange={(e) => setCompetenceForm({ ...competenceForm, competence: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
+                <select
+                  value={competenceForm.useCustom ? '__CUSTOM__' : competenceForm.competence}
+                  onChange={(e) => {
+                    if (e.target.value === '__CUSTOM__') {
+                      setCompetenceForm({ ...competenceForm, useCustom: true, competence: '' })
+                    } else {
+                      setCompetenceForm({ ...competenceForm, useCustom: false, competence: e.target.value, competencePersonnalisee: '' })
+                    }
+                  }}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
                   required
-                  placeholder="Ex: IES, INSTRUM, etc."
-                />
+                >
+                  <option value="" className="text-gray-500">Sélectionner une compétence...</option>
+                  {competencesPredéfinies.map((comp) => (
+                    <option key={comp} value={comp} className="text-gray-900">
+                      {comp}
+                    </option>
+                  ))}
+                  <option value="__CUSTOM__" className="text-gray-500 italic">➕ Autre (saisir manuellement)...</option>
+                </select>
+                {competenceForm.useCustom && (
+                  <input
+                    type="text"
+                    value={competenceForm.competencePersonnalisee}
+                    onChange={(e) => setCompetenceForm({ ...competenceForm, competencePersonnalisee: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500 mt-2"
+                    placeholder="Saisir une compétence personnalisée..."
+                    required={competenceForm.useCustom}
+                    autoFocus
+                  />
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={competenceForm.type_comp}
+                  onChange={(e) => setCompetenceForm({ ...competenceForm, type_comp: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
+                  required
+                >
+                  <option value="S" className="text-gray-900">Secondaire</option>
+                  <option value="P" className="text-gray-900">Principale</option>
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">Niveau (optionnel)</label>
@@ -460,21 +574,38 @@ export default function RessourcesPage() {
                                 <span className="text-sm font-semibold text-gray-700">Compétences:</span>
                               </div>
                               <div className="flex flex-wrap gap-2">
-                                {resCompetences.map((comp) => (
-                                  <span
-                                    key={comp.id}
-                                    className="px-3 py-1 bg-green-50 text-green-800 rounded-lg text-xs font-medium flex items-center gap-2"
-                                  >
-                                    {comp.competence}
-                                    {comp.niveau && <span className="text-green-600">({comp.niveau})</span>}
-                                    <button
-                                      onClick={() => deleteCompetence(comp.id)}
-                                      className="text-red-500 hover:text-red-700"
+                                {resCompetences
+                                  .sort((a, b) => {
+                                    // Trier : principales d'abord (P), puis secondaires (S)
+                                    const typeA = a.type_comp || 'S'
+                                    const typeB = b.type_comp || 'S'
+                                    if (typeA === 'P' && typeB !== 'P') return -1
+                                    if (typeA !== 'P' && typeB === 'P') return 1
+                                    return 0
+                                  })
+                                  .map((comp) => (
+                                    <span
+                                      key={comp.id}
+                                      className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                                        comp.type_comp === 'P'
+                                          ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
+                                          : 'bg-green-50 text-green-800 border border-green-200'
+                                      }`}
                                     >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </span>
-                                ))}
+                                      {comp.type_comp === 'P' && (
+                                        <span className="font-bold" title="Compétence principale">⭐</span>
+                                      )}
+                                      {comp.competence}
+                                      {comp.niveau && <span className="opacity-75">({comp.niveau})</span>}
+                                      <button
+                                        onClick={() => deleteCompetence(comp.id)}
+                                        className="text-red-500 hover:text-red-700 ml-1"
+                                        title="Supprimer cette compétence"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </span>
+                                  ))}
                               </div>
                             </div>
                           )}

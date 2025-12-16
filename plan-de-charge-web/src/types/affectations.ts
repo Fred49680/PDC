@@ -20,6 +20,7 @@ export interface RessourceCompetence {
   ressource_id: string
   competence: string
   niveau?: string
+  type_comp?: string // 'P' = Principale, 'S' = Secondaire
   created_at: Date
 }
 

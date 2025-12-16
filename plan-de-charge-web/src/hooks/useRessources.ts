@@ -88,6 +88,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
             ressource_id: comp.ressource_id,
             competence: comp.competence,
             niveau: comp.niveau,
+            type_comp: comp.type_comp || 'S',
             created_at: new Date(comp.created_at),
           })
         })
@@ -169,7 +170,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
   )
 
   const saveCompetence = useCallback(
-    async (ressourceId: string, competence: string, niveau?: string) => {
+    async (ressourceId: string, competence: string, niveau?: string, typeComp?: string) => {
       try {
         setError(null)
 
@@ -179,6 +180,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
           ressource_id: ressourceId,
           competence,
           niveau,
+          type_comp: typeComp || 'S',
         })
 
         if (insertError) throw insertError
