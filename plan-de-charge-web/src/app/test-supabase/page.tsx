@@ -17,13 +17,24 @@ export default function TestSupabasePage() {
   })
 
   useEffect(() => {
+    console.log('🟢 [TEST-SUPABASE] useEffect déclenché')
+    console.log('🟢 [TEST-SUPABASE] Environnement:', typeof window !== 'undefined' ? 'CLIENT' : 'SERVER')
+    
     const testConnection = async () => {
+      console.log('🟢 [TEST-SUPABASE] testConnection() appelé')
+      
       try {
+        console.log('🟢 [TEST-SUPABASE] Étape 1: Vérification variables d\'environnement...')
         // Vérifier que les variables d'environnement sont définies
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+        console.log('🟢 [TEST-SUPABASE] NEXT_PUBLIC_SUPABASE_URL:', url ? '✅ Définie (' + url.substring(0, 30) + '...)' : '❌ MANQUANTE')
+        console.log('🟢 [TEST-SUPABASE] NEXT_PUBLIC_SUPABASE_ANON_KEY:', key ? '✅ Définie (longueur: ' + key.length + ')' : '❌ MANQUANTE')
+        console.log('🟢 [TEST-SUPABASE] Toutes les variables NEXT_PUBLIC_*:', Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC_')).map(k => `${k}=${process.env[k]?.substring(0, 20)}...`))
+
         if (!url || !key) {
+          console.error('❌ [TEST-SUPABASE] Variables manquantes - Arrêt du test')
           setStatus({
             loading: false,
             success: false,
@@ -31,34 +42,49 @@ export default function TestSupabasePage() {
             details: {
               url: url ? '✅ Définie' : '❌ Manquante',
               key: key ? '✅ Définie (masquée)' : '❌ Manquante',
-              note: 'Redémarrez le serveur avec "npm run dev" après avoir créé/modifié .env.local'
+              note: 'Redémarrez le serveur avec "npm run dev" après avoir créé/modifié .env.local',
+              envCheck: 'Vérifiez dans Vercel: Settings → Environment Variables'
             }
           })
           return
         }
 
+        console.log('✅ [TEST-SUPABASE] Variables OK - Création client Supabase...')
         // Créer le client Supabase
         const supabase = createClient()
+        console.log('✅ [TEST-SUPABASE] Client Supabase créé:', supabase ? 'OK' : 'ERREUR')
 
+        console.log('🟢 [TEST-SUPABASE] Étape 2: Test connexion de base (table sites)...')
         // Test 1 : Connexion de base
         const { data: testData, error: testError } = await supabase
           .from('sites')
           .select('count')
           .limit(1)
 
+        console.log('🟢 [TEST-SUPABASE] Résultat test connexion:', {
+          hasData: !!testData,
+          hasError: !!testError,
+          errorCode: testError?.code,
+          errorMessage: testError?.message
+        })
+
         if (testError) {
+          console.warn('⚠️ [TEST-SUPABASE] Erreur lors du test:', testError)
           // Si la table n'existe pas, c'est normal (schéma pas encore exécuté)
           if (testError.code === 'PGRST116' || testError.message.includes('does not exist')) {
+            console.log('✅ [TEST-SUPABASE] Connexion OK mais table inexistante (normal)')
             setStatus({
               loading: false,
               success: true,
               message: '✅ Connexion Supabase OK (table "sites" pas encore créée)',
               details: {
                 url: url,
-                error: 'Table "sites" introuvable - Exécutez le schéma SQL dans Supabase Dashboard'
+                error: 'Table "sites" introuvable - Exécutez le schéma SQL dans Supabase Dashboard',
+                connectionStatus: '✅ Connexion réussie'
               }
             })
           } else {
+            console.error('❌ [TEST-SUPABASE] Erreur de connexion:', testError)
             setStatus({
               loading: false,
               success: false,
@@ -66,31 +92,48 @@ export default function TestSupabasePage() {
               details: {
                 code: testError.code,
                 message: testError.message,
-                hint: testError.hint
+                hint: testError.hint,
+                fullError: JSON.stringify(testError, null, 2)
               }
             })
           }
           return
         }
 
+        console.log('✅ [TEST-SUPABASE] Connexion OK - Lecture des données...')
         // Test 2 : Lecture d'une table (si elle existe)
         const { data: sites, error: sitesError } = await supabase
           .from('sites')
           .select('*')
           .limit(5)
 
+        console.log('🟢 [TEST-SUPABASE] Résultat lecture sites:', {
+          hasData: !!sites,
+          dataLength: sites?.length || 0,
+          hasError: !!sitesError,
+          errorCode: sitesError?.code,
+          errorMessage: sitesError?.message
+        })
+
         if (sitesError) {
+          console.error('❌ [TEST-SUPABASE] Erreur lors de la lecture:', sitesError)
           setStatus({
             loading: false,
             success: false,
             message: '❌ Erreur lors de la lecture',
             details: {
               code: sitesError.code,
-              message: sitesError.message
+              message: sitesError.message,
+              hint: sitesError.hint
             }
           })
           return
         }
+
+        console.log('✅ [TEST-SUPABASE] SUCCÈS COMPLET !', {
+          sitesCount: sites?.length || 0,
+          firstSite: sites?.[0]
+        })
 
         // Succès !
         setStatus({
@@ -105,19 +148,29 @@ export default function TestSupabasePage() {
         })
 
       } catch (err: any) {
+        console.error('❌ [TEST-SUPABASE] Erreur inattendue (catch):', err)
+        console.error('❌ [TEST-SUPABASE] Type:', typeof err)
+        console.error('❌ [TEST-SUPABASE] Message:', err?.message)
+        console.error('❌ [TEST-SUPABASE] Stack:', err?.stack)
+        console.error('❌ [TEST-SUPABASE] Erreur complète:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2))
+        
         setStatus({
           loading: false,
           success: false,
           message: '❌ Erreur inattendue',
           details: {
-            error: err.message,
-            stack: err.stack
+            error: err?.message || 'Erreur inconnue',
+            stack: err?.stack,
+            type: typeof err,
+            name: err?.name
           }
         })
       }
     }
 
+    console.log('🟢 [TEST-SUPABASE] Appel de testConnection()...')
     testConnection()
+    console.log('🟢 [TEST-SUPABASE] useEffect terminé')
   }, [])
 
   return (

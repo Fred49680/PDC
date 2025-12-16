@@ -8,24 +8,39 @@ export default function Home() {
   const [supabaseUrl, setSupabaseUrl] = useState<string>('')
 
   useEffect(() => {
+    console.log('🔵 [HOME] useEffect déclenché')
+    console.log('🔵 [HOME] Environnement:', typeof window !== 'undefined' ? 'CLIENT' : 'SERVER')
+    
     // Vérifier la connexion Supabase
     const checkSupabase = async () => {
+      console.log('🔵 [HOME] checkSupabase() appelé')
+      
       try {
+        console.log('🔵 [HOME] Lecture des variables d\'environnement...')
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+        console.log('🔵 [HOME] NEXT_PUBLIC_SUPABASE_URL:', url ? '✅ Définie (' + url.substring(0, 30) + '...)' : '❌ MANQUANTE')
+        console.log('🔵 [HOME] NEXT_PUBLIC_SUPABASE_ANON_KEY:', key ? '✅ Définie (longueur: ' + key.length + ')' : '❌ MANQUANTE')
+        console.log('🔵 [HOME] process.env complet:', Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC_')))
+
         if (url && key) {
+          console.log('✅ [HOME] Variables OK - Connexion Supabase possible')
           setSupabaseUrl(url)
           setSupabaseStatus('connected')
         } else {
+          console.error('❌ [HOME] Variables manquantes - URL:', !!url, 'KEY:', !!key)
           setSupabaseStatus('error')
         }
-      } catch (error) {
+      } catch (error: any) {
+        console.error('❌ [HOME] Erreur dans checkSupabase:', error)
+        console.error('❌ [HOME] Stack:', error?.stack)
         setSupabaseStatus('error')
       }
     }
 
     checkSupabase()
+    console.log('🔵 [HOME] useEffect terminé')
   }, [])
 
   return (
