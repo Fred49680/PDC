@@ -25,12 +25,25 @@
 Lors de l'import ou dans les paramètres du projet :
 
 - **Framework Preset** : `Next.js` (détecté automatiquement)
-- **Root Directory** : `plan-de-charge-web` ⚠️ **IMPORTANT**
-- **Build Command** : `npm run build` (par défaut)
-- **Output Directory** : `.next` (par défaut)
-- **Install Command** : `npm install` (par défaut)
+- **Root Directory** : `plan-de-charge-web` ⚠️ **IMPORTANT** (à configurer dans l'interface Vercel, pas dans `vercel.json`)
+- **Build Command** : Configuré automatiquement via `vercel.json` (utilise `cd plan-de-charge-web && npm run build`)
+- **Output Directory** : Configuré automatiquement via `vercel.json` (utilise `plan-de-charge-web/.next`)
+- **Install Command** : Configuré automatiquement via `vercel.json` (utilise `cd plan-de-charge-web && npm install`)
 
-### 2.2. Variables d'environnement
+**Note :** Le fichier `vercel.json` configure automatiquement les commandes pour pointer vers le sous-dossier `plan-de-charge-web`. Le `Root Directory` doit être configuré dans l'interface Vercel (`Project Settings` → `General` → `Root Directory`).
+
+### 2.2. Configurer le Root Directory dans Vercel
+
+**⚠️ CRITIQUE :** Le `Root Directory` doit être configuré dans l'interface Vercel :
+
+1. **Aller dans** : `Project Settings` → `General`
+2. **Trouver la section** : `Root Directory`
+3. **Définir** : `plan-de-charge-web`
+4. **Sauvegarder**
+
+**Pourquoi ?** Le fichier `vercel.json` ne peut pas contenir `rootDirectory` (ce n'est pas une propriété valide). Il doit être configuré dans l'interface Vercel.
+
+### 2.3. Variables d'environnement
 
 **⚠️ CRITIQUE :** Ajouter ces variables dans Vercel :
 
@@ -60,7 +73,7 @@ Vercel doit pointer vers le dossier `plan-de-charge-web` qui contient :
 - ✅ `src/app/`
 - ✅ `.env.local` (localement, pas sur Vercel)
 
-### 3.2. Si le projet est à la racine du repo
+### 3.2. Si le projet est dans un sous-dossier
 
 Si votre structure est :
 ```
@@ -72,8 +85,12 @@ plan de charge/
   └── autres fichiers...
 ```
 
-**Alors dans Vercel, définir** :
-- **Root Directory** : `plan-de-charge-web`
+**Alors dans Vercel** :
+1. **Aller dans** : `Project Settings` → `General`
+2. **Définir Root Directory** : `plan-de-charge-web`
+3. **Sauvegarder**
+
+**Note :** Le fichier `vercel.json` configure déjà les commandes de build pour pointer vers ce dossier, mais le `Root Directory` doit être défini dans l'interface Vercel.
 
 ---
 
