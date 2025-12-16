@@ -3,7 +3,7 @@
 import { ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, Users, Calendar, LayoutDashboard, Home, Building2 } from 'lucide-react'
+import { BarChart3, Users, Calendar, LayoutDashboard, Home, Building2, MapPin } from 'lucide-react'
 
 interface LayoutProps {
   children: ReactNode
@@ -20,6 +20,7 @@ export function Layout({ children }: LayoutProps) {
     { href: '/affectations', label: 'Affectations', icon: Users },
     { href: '/absences', label: 'Absences', icon: Calendar },
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/admin/sites', label: 'Sites', icon: MapPin },
   ]
 
   const isActive = (href: string) => {

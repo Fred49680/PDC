@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Layout } from '@/components/Common/Layout'
-import { CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, AlertCircle, Building2 } from 'lucide-react'
+import { CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, AlertCircle, Building2, MapPin } from 'lucide-react'
 
 export default function Home() {
   const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking')
@@ -103,7 +103,7 @@ export default function Home() {
         </div>
 
         {/* Navigation rapide - Cartes modernes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Link
             href="/affaires"
             className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-indigo-300 hover:-translate-y-1"
@@ -220,6 +220,26 @@ export default function Home() {
               Vue d'ensemble et statistiques en temps réel
             </p>
             <div className="mt-4 text-orange-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+              Accéder <span>→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/sites"
+            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-cyan-300 hover:-translate-y-1"
+          >
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <MapPin className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 group-hover:text-cyan-600 transition-colors">
+                Sites
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Administrer les sites et leurs régions
+            </p>
+            <div className="mt-4 text-cyan-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
               Accéder <span>→</span>
             </div>
           </Link>
