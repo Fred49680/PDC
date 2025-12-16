@@ -6,6 +6,9 @@ import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { format, addMonths, startOfMonth, endOfMonth } from 'date-fns'
 import type { Precision } from '@/types/charge'
 
+// Forcer le rendu dynamique pour éviter le pré-rendu statique
+export const dynamic = 'force-dynamic'
+
 export default function ChargePage() {
   const [affaireId, setAffaireId] = useState('')
   const [site, setSite] = useState('')

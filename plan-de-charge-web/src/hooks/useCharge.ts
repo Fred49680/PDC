@@ -14,12 +14,20 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  const supabase = createClient()
+  // Créer le client de manière lazy (seulement côté client)
+  const getSupabaseClient = () => {
+    if (typeof window === 'undefined') {
+      throw new Error('Supabase client can only be created on the client side')
+    }
+    return createClient()
+  }
 
   const loadPeriodes = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire depuis affaire_id
       const { data: affaireData, error: affaireError } = await supabase
@@ -49,7 +57,7 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
     } finally {
       setLoading(false)
     }
-  }, [affaireId, site, supabase])
+  }, [affaireId, site])
 
   useEffect(() => {
     if (affaireId && site) {
@@ -60,6 +68,8 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
   const savePeriode = useCallback(async (periode: Partial<PeriodeCharge>) => {
     try {
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire
       const { data: affaireData, error: affaireError } = await supabase
@@ -98,11 +108,13 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
       console.error('[useCharge] Erreur savePeriode:', err)
       throw err
     }
-  }, [affaireId, site, supabase, loadPeriodes])
+  }, [affaireId, site, loadPeriodes])
 
   const deletePeriode = useCallback(async (periodeId: string) => {
     try {
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       const { error: deleteError } = await supabase
         .from('periodes_charge')
@@ -118,7 +130,7 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
       console.error('[useCharge] Erreur deletePeriode:', err)
       throw err
     }
-  }, [supabase, loadPeriodes])
+  }, [loadPeriodes])
 
   const consolidate = useCallback(async () => {
     // TODO: Implémenter la consolidation

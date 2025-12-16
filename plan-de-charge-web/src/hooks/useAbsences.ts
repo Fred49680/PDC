@@ -16,12 +16,20 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  const supabase = createClient()
+  // Créer le client de manière lazy (seulement côté client)
+  const getSupabaseClient = () => {
+    if (typeof window === 'undefined') {
+      throw new Error('Supabase client can only be created on the client side')
+    }
+    return createClient()
+  }
 
   const loadAbsences = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       let query = supabase
         .from('absences')
@@ -55,7 +63,7 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options, supabase])
+  }, [options])
 
   useEffect(() => {
     loadAbsences()
@@ -64,6 +72,8 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
   const saveAbsence = useCallback(async (absence: Partial<Absence>) => {
     try {
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       const { data, error: upsertError } = await supabase
         .from('absences')
@@ -82,11 +92,13 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
       console.error('[useAbsences] Erreur saveAbsence:', err)
       throw err
     }
-  }, [supabase, loadAbsences])
+  }, [loadAbsences])
 
   const deleteAbsence = useCallback(async (absenceId: string) => {
     try {
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       const { error: deleteError } = await supabase
         .from('absences')
@@ -102,7 +114,7 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
       console.error('[useAbsences] Erreur deleteAbsence:', err)
       throw err
     }
-  }, [supabase, loadAbsences])
+  }, [loadAbsences])
 
   return {
     absences,

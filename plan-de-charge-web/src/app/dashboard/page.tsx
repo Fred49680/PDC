@@ -6,6 +6,9 @@ import { Loading } from '@/components/Common/Loading'
 import { createClient } from '@/lib/supabase/client'
 import { BarChart3, Users, Calendar, AlertCircle } from 'lucide-react'
 
+// Forcer le rendu dynamique pour éviter le pré-rendu statique
+export const dynamic = 'force-dynamic'
+
 export default function DashboardPage() {
   const [stats, setStats] = useState({
     totalAffaires: 0,
@@ -16,13 +19,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const supabase = createClient()
-
   useEffect(() => {
     const loadStats = async () => {
       try {
         setLoading(true)
         setError(null)
+
+        // Créer le client seulement côté client
+        if (typeof window === 'undefined') {
+          return
+        }
+
+        const supabase = createClient()
 
         // Compter les affaires
         const { count: countAffaires } = await supabase
@@ -60,7 +68,7 @@ export default function DashboardPage() {
     }
 
     loadStats()
-  }, [supabase])
+  }, [])
 
   if (loading) {
     return (

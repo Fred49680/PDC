@@ -7,6 +7,9 @@ import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
+// Forcer le rendu dynamique pour éviter le pré-rendu statique
+export const dynamic = 'force-dynamic'
+
 export default function AbsencesPage() {
   const [ressourceId, setRessourceId] = useState('')
   const [site, setSite] = useState('')

@@ -16,12 +16,20 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  const supabase = createClient()
+  // Créer le client de manière lazy (seulement côté client)
+  const getSupabaseClient = () => {
+    if (typeof window === 'undefined') {
+      throw new Error('Supabase client can only be created on the client side')
+    }
+    return createClient()
+  }
 
   const loadAffectations = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire
       const { data: affaireData, error: affaireError } = await supabase
@@ -57,10 +65,12 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
     } finally {
       setLoading(false)
     }
-  }, [affaireId, site, competence, supabase])
+  }, [affaireId, site, competence])
 
   const loadRessources = useCallback(async () => {
     try {
+      const supabase = getSupabaseClient()
+
       const { data, error: queryError } = await supabase
         .from('ressources')
         .select('*')
@@ -74,7 +84,7 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
     } catch (err) {
       console.error('[useAffectations] Erreur loadRessources:', err)
     }
-  }, [site, supabase])
+  }, [site])
 
   useEffect(() => {
     if (affaireId && site) {
@@ -86,6 +96,8 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
   const saveAffectation = useCallback(async (affectation: Partial<Affectation>) => {
     try {
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire
       const { data: affaireData, error: affaireError } = await supabase
@@ -122,11 +134,13 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
       console.error('[useAffectations] Erreur saveAffectation:', err)
       throw err
     }
-  }, [affaireId, site, supabase, loadAffectations])
+  }, [affaireId, site, loadAffectations])
 
   const deleteAffectation = useCallback(async (affectationId: string) => {
     try {
       setError(null)
+
+      const supabase = getSupabaseClient()
 
       const { error: deleteError } = await supabase
         .from('affectations')
@@ -142,7 +156,7 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
       console.error('[useAffectations] Erreur deleteAffectation:', err)
       throw err
     }
-  }, [supabase, loadAffectations])
+  }, [loadAffectations])
 
   return {
     affectations,
