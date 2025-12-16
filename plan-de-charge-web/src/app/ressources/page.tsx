@@ -7,14 +7,14 @@ import { useSites } from '@/hooks/useSites'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award } from 'lucide-react'
+import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star } from 'lucide-react'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
 
 export default function RessourcesPage() {
   const [filters, setFilters] = useState({ site: '', actif: true })
-  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence } =
+  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch } =
     useRessources({
       site: filters.site || undefined,
       actif: filters.actif,
@@ -57,14 +57,11 @@ export default function RessourcesPage() {
     'TRACAGE',
   ]
 
-  const [competenceForm, setCompetenceForm] = useState({
-    ressourceId: '',
-    competence: '',
-    competencePersonnalisee: '',
-    niveau: '',
-    type_comp: 'S', // 'P' = Principale, 'S' = Secondaire
-    useCustom: false, // true si on utilise une compétence personnalisée
-  })
+  // État pour gérer les compétences sélectionnées (toggle)
+  // Structure: Map<competence, { selected: boolean, principale: boolean }>
+  const [competencesSelection, setCompetencesSelection] = useState<Map<string, { selected: boolean; principale: boolean }>>(new Map())
+  const [competencesPersonnalisees, setCompetencesPersonnalisees] = useState<Array<{ nom: string; principale: boolean }>>([])
+  const [competenceFormRessourceId, setCompetenceFormRessourceId] = useState<string | null>(null)
 
   const [isEditing, setIsEditing] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -140,72 +137,162 @@ export default function RessourcesPage() {
   }
 
   const handleAddCompetence = (ressourceId: string) => {
-    setCompetenceForm({
-      ressourceId,
-      competence: '',
-      competencePersonnalisee: '',
-      niveau: '',
-      type_comp: 'S',
-      useCustom: false,
+    // Charger les compétences existantes pour cette ressource
+    const existingCompetences = competences.get(ressourceId) || []
+    const newSelection = new Map<string, { selected: boolean; principale: boolean }>()
+    
+    // Initialiser toutes les compétences prédéfinies comme non sélectionnées
+    competencesPredéfinies.forEach(comp => {
+      const existing = existingCompetences.find(c => c.competence === comp)
+      newSelection.set(comp, {
+        selected: !!existing,
+        principale: existing?.type_comp === 'P' || false,
+      })
     })
-    setSelectedRessource(ressourceId)
+    
+    // Séparer les compétences personnalisées
+    const customComps = existingCompetences.filter(c => !competencesPredéfinies.includes(c.competence))
+    
+    setCompetencesSelection(newSelection)
+    setCompetencesPersonnalisees(
+      customComps.length > 0 
+        ? customComps.map(c => ({ nom: c.competence, principale: c.type_comp === 'P' }))
+        : [{ nom: '', principale: false }]
+    )
+    setCompetenceFormRessourceId(ressourceId)
     setShowCompetenceForm(true)
   }
 
-  const handleSubmitCompetence = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      // Utiliser la compétence personnalisée si useCustom est true, sinon la compétence sélectionnée
-      const competenceToSave = competenceForm.useCustom 
-        ? competenceForm.competencePersonnalisee.trim()
-        : competenceForm.competence
+  const handleToggleCompetence = (competence: string) => {
+    const newSelection = new Map(competencesSelection)
+    const current = newSelection.get(competence) || { selected: false, principale: false }
+    
+    newSelection.set(competence, {
+      selected: !current.selected,
+      principale: current.selected && current.principale ? false : current.principale, // Si on désélectionne, ne pas garder principale
+    })
+    
+    // Si on vient de cocher une compétence qui est marquée principale, s'assurer qu'elle reste principale
+    // Sinon, la logique reste cohérente
+    
+    setCompetencesSelection(newSelection)
+  }
 
-      if (!competenceToSave) {
-        alert('Veuillez sélectionner ou saisir une compétence')
+  const handleSetPrincipale = (competence: string) => {
+    const newSelection = new Map(competencesSelection)
+    
+    // D'abord, décocher toutes les principales existantes
+    competencesSelection.forEach((value, key) => {
+      if (value.selected && value.principale) {
+        newSelection.set(key, { selected: value.selected, principale: false })
+      }
+    })
+    
+    // Décocher aussi les compétences personnalisées principales
+    setCompetencesPersonnalisees(prev => 
+      prev.map(c => ({ ...c, principale: false }))
+    )
+    
+    // Cocher la nouvelle principale
+    const current = newSelection.get(competence) || { selected: false, principale: false }
+    if (current.selected) {
+      newSelection.set(competence, { selected: true, principale: true })
+    }
+    
+    setCompetencesSelection(newSelection)
+  }
+
+  const handleToggleCompetencePersonnalisee = (index: number, value: string) => {
+    const newCustom = [...competencesPersonnalisees]
+    newCustom[index] = { nom: value, principale: newCustom[index]?.principale || false }
+    setCompetencesPersonnalisees(newCustom)
+  }
+
+  const handleAddCustomCompetence = () => {
+    setCompetencesPersonnalisees([...competencesPersonnalisees, { nom: '', principale: false }])
+  }
+
+  const handleRemoveCustomCompetence = (index: number) => {
+    const newCustom = competencesPersonnalisees.filter((_, i) => i !== index)
+    if (newCustom.length === 0) {
+      newCustom.push({ nom: '', principale: false })
+    }
+    setCompetencesPersonnalisees(newCustom)
+  }
+
+  const handleSetPrincipalePersonnalisee = (index: number) => {
+    // Ne faire que si la compétence personnalisée n'est pas vide
+    if (!competencesPersonnalisees[index]?.nom.trim()) {
+      return
+    }
+
+    // Décocher toutes les principales existantes (prédéfinies)
+    const newSelection = new Map(competencesSelection)
+    competencesSelection.forEach((value, key) => {
+      if (value.selected && value.principale) {
+        newSelection.set(key, { selected: value.selected, principale: false })
+      }
+    })
+    setCompetencesSelection(newSelection)
+    
+    // Décocher toutes les principales personnalisées sauf celle sélectionnée
+    setCompetencesPersonnalisees(prev => 
+      prev.map((c, i) => ({ ...c, principale: i === index && c.nom.trim() !== '' }))
+    )
+  }
+
+  const handleSubmitCompetences = async () => {
+    if (!competenceFormRessourceId) return
+
+    try {
+      // Construire la liste des compétences à sauvegarder
+      const competencesToSave: Array<{ competence: string; type_comp: string }> = []
+
+      // Ajouter les compétences prédéfinies sélectionnées
+      competencesSelection.forEach((value, competence) => {
+        if (value.selected) {
+          competencesToSave.push({
+            competence,
+            type_comp: value.principale ? 'P' : 'S',
+          })
+        }
+      })
+
+      // Ajouter les compétences personnalisées (non vides)
+      competencesPersonnalisees.forEach(custom => {
+        const trimmedNom = custom.nom.trim()
+        if (trimmedNom) {
+          competencesToSave.push({
+            competence: trimmedNom,
+            type_comp: custom.principale ? 'P' : 'S',
+          })
+        }
+      })
+
+      // Vérifier qu'il n'y a qu'une seule principale
+      const principales = competencesToSave.filter(c => c.type_comp === 'P')
+      if (principales.length > 1) {
+        alert('Erreur : Une seule compétence principale est autorisée. Veuillez décocher les autres compétences principales.')
         return
       }
-
-      // Vérifier si on essaie d'ajouter une compétence principale alors qu'il en existe déjà une
-      if (competenceForm.type_comp === 'P') {
-        const resCompetences = competences.get(competenceForm.ressourceId) || []
-        const existingPrincipal = resCompetences.find(c => c.type_comp === 'P')
-        
-        if (existingPrincipal) {
-          const confirmReplace = confirm(
-            `Une compétence principale existe déjà pour cette ressource : "${existingPrincipal.competence}".\n\n` +
-            `Voulez-vous remplacer "${existingPrincipal.competence}" par "${competenceToSave}" comme compétence principale ?`
-          )
-          
-          if (!confirmReplace) {
-            return // L'utilisateur a annulé
-          }
-          
-          // Si l'utilisateur confirme, on pourrait soit :
-          // 1. Passer l'ancienne en secondaire automatiquement (à faire côté backend si nécessaire)
-          // 2. Laisser l'utilisateur gérer manuellement
-          // Pour l'instant, on continue et l'utilisateur devra gérer manuellement les conflits
-        }
+      
+      if (principales.length === 0 && competencesToSave.length > 0) {
+        // Avertir mais ne pas bloquer (on peut avoir uniquement des secondaires)
+        console.warn('Aucune compétence principale sélectionnée. Toutes les compétences seront enregistrées comme secondaires.')
       }
 
-      await saveCompetence(
-        competenceForm.ressourceId, 
-        competenceToSave, 
-        competenceForm.niveau || undefined,
-        competenceForm.type_comp || 'S'
-      )
-      setCompetenceForm({
-        ressourceId: '',
-        competence: '',
-        competencePersonnalisee: '',
-        niveau: '',
-        type_comp: 'S',
-        useCustom: false,
-      })
+      // Sauvegarder toutes les compétences en une fois
+      await saveCompetencesBatch(competenceFormRessourceId, competencesToSave)
+
+      // Réinitialiser le formulaire
+      setCompetencesSelection(new Map())
+      setCompetencesPersonnalisees([{ nom: '', principale: false }])
+      setCompetenceFormRessourceId(null)
       setShowCompetenceForm(false)
       setSelectedRessource(null)
     } catch (err) {
-      console.error('[RessourcesPage] Erreur ajout compétence:', err)
-      alert('Erreur lors de l\'ajout de la compétence. Veuillez réessayer.')
+      console.error('[RessourcesPage] Erreur sauvegarde compétences:', err)
+      alert('Erreur lors de la sauvegarde des compétences. Veuillez réessayer.')
     }
   }
 
@@ -362,107 +449,162 @@ export default function RessourcesPage() {
           </div>
         )}
 
-        {/* Formulaire compétence - Design moderne */}
+        {/* Formulaire compétence - Toggle system */}
         {showCompetenceForm && (
           <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-1 h-8 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-                <h2 className="text-2xl font-bold text-gray-800">Ajouter une compétence</h2>
+                <h2 className="text-2xl font-bold text-gray-800">Gérer les compétences</h2>
               </div>
               <button
                 onClick={() => {
                   setShowCompetenceForm(false)
                   setSelectedRessource(null)
-                  setCompetenceForm({ 
-                    ressourceId: '', 
-                    competence: '', 
-                    competencePersonnalisee: '',
-                    niveau: '', 
-                    type_comp: 'S',
-                    useCustom: false,
-                  })
+                  setCompetencesSelection(new Map())
+                  setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                  setCompetenceFormRessourceId(null)
                 }}
                 className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>
             </div>
-            <form onSubmit={handleSubmitCompetence} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Compétence <span className="text-red-500">*</span>
+
+            <div className="space-y-6">
+              {/* Compétences prédéfinies */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-4">
+                  Compétences prédéfinies
                 </label>
-                <select
-                  value={competenceForm.useCustom ? '__CUSTOM__' : competenceForm.competence}
-                  onChange={(e) => {
-                    if (e.target.value === '__CUSTOM__') {
-                      setCompetenceForm({ ...competenceForm, useCustom: true, competence: '' })
-                    } else {
-                      setCompetenceForm({ ...competenceForm, useCustom: false, competence: e.target.value, competencePersonnalisee: '' })
-                    }
-                  }}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
-                  required
-                >
-                  <option value="" className="text-gray-500">Sélectionner une compétence...</option>
-                  {competencesPredéfinies.map((comp) => (
-                    <option key={comp} value={comp} className="text-gray-900">
-                      {comp}
-                    </option>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {competencesPredéfinies.map((comp) => {
+                    const compState = competencesSelection.get(comp) || { selected: false, principale: false }
+                    return (
+                      <div
+                        key={comp}
+                        className={`p-3 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                          compState.selected
+                            ? compState.principale
+                              ? 'bg-blue-100 border-blue-400 shadow-md'
+                              : 'bg-green-50 border-green-300'
+                            : 'bg-white border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => handleToggleCompetence(comp)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="checkbox"
+                              checked={compState.selected}
+                              onChange={() => handleToggleCompetence(comp)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500 cursor-pointer"
+                            />
+                            <span className="text-sm font-medium text-gray-900">{comp}</span>
+                          </div>
+                          {compState.selected && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSetPrincipale(comp)
+                              }}
+                              className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                                compState.principale
+                                  ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                                  : 'bg-white border-gray-300 hover:border-blue-400 text-gray-400 hover:text-blue-500'
+                              }`}
+                              title={compState.principale ? 'Compétence principale (cliquer pour retirer)' : 'Marquer comme principale'}
+                            >
+                              <Star className={`w-4 h-4 ${compState.principale ? 'fill-white' : ''}`} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Compétences personnalisées */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Compétences personnalisées
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCompetence}
+                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Ajouter
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {competencesPersonnalisees.map((custom, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        value={custom.nom}
+                        onChange={(e) => handleToggleCompetencePersonnalisee(index, e.target.value)}
+                        className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
+                        placeholder="Nom de la compétence personnalisée..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSetPrincipalePersonnalisee(index)}
+                        disabled={!custom.nom.trim()}
+                        className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
+                          custom.principale
+                            ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                            : custom.nom.trim()
+                            ? 'bg-white border-gray-300 hover:border-blue-400 text-gray-400 hover:text-blue-500'
+                            : 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+                        }`}
+                        title={custom.principale ? 'Compétence principale (cliquer pour retirer)' : custom.nom.trim() ? 'Marquer comme principale' : 'Saisir d\'abord un nom'}
+                      >
+                        <Star className={`w-5 h-5 ${custom.principale ? 'fill-white' : ''}`} />
+                      </button>
+                      {competencesPersonnalisees.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomCompetence(index)}
+                          className="w-10 h-10 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300 flex items-center justify-center transition-all"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   ))}
-                  <option value="__CUSTOM__" className="text-gray-500 italic">➕ Autre (saisir manuellement)...</option>
-                </select>
-                {competenceForm.useCustom && (
-                  <input
-                    type="text"
-                    value={competenceForm.competencePersonnalisee}
-                    onChange={(e) => setCompetenceForm({ ...competenceForm, competencePersonnalisee: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500 mt-2"
-                    placeholder="Saisir une compétence personnalisée..."
-                    required={competenceForm.useCustom}
-                    autoFocus
-                  />
-                )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={competenceForm.type_comp}
-                  onChange={(e) => setCompetenceForm({ ...competenceForm, type_comp: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
-                  required
-                >
-                  <option value="S" className="text-gray-900">Secondaire</option>
-                  <option value="P" className="text-gray-900">Principale</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Niveau (optionnel)</label>
-                <select
-                  value={competenceForm.niveau}
-                  onChange={(e) => setCompetenceForm({ ...competenceForm, niveau: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
-                >
-                  <option value="" className="text-gray-500">Sélectionner...</option>
-                  <option value="Junior" className="text-gray-900">Junior</option>
-                  <option value="Confirmé" className="text-gray-900">Confirmé</option>
-                  <option value="Senior" className="text-gray-900">Senior</option>
-                  <option value="Expert" className="text-gray-900">Expert</option>
-                </select>
-              </div>
-              <div className="md:col-span-2 flex items-center gap-4">
+
+              {/* Boutons d'action */}
+              <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => {
+                    setShowCompetenceForm(false)
+                    setSelectedRessource(null)
+                    setCompetencesSelection(new Map())
+                    setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                    setCompetenceFormRessourceId(null)
+                  }}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitCompetences}
                   className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
                 >
                   <Award className="w-5 h-5" />
-                  Ajouter la compétence
+                  Enregistrer les compétences
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         )}
 

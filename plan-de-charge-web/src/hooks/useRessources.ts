@@ -218,6 +218,55 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     [getSupabaseClient, loadRessources]
   )
 
+  // Sauvegarder toutes les compétences d'une ressource en une fois (remplace les existantes)
+  const saveCompetencesBatch = useCallback(
+    async (ressourceId: string, competences: Array<{ competence: string; type_comp: string; niveau?: string }>) => {
+      try {
+        setError(null)
+
+        const supabase = getSupabaseClient()
+
+        // Vérifier qu'il n'y a qu'une seule compétence principale
+        const principales = competences.filter(c => c.type_comp === 'P')
+        if (principales.length > 1) {
+          throw new Error('Une ressource ne peut avoir qu\'une seule compétence principale')
+        }
+
+        // Supprimer toutes les compétences existantes pour cette ressource
+        const { error: deleteError } = await supabase
+          .from('ressources_competences')
+          .delete()
+          .eq('ressource_id', ressourceId)
+
+        if (deleteError) throw deleteError
+
+        // Insérer les nouvelles compétences si la liste n'est pas vide
+        if (competences.length > 0) {
+          const competencesToInsert = competences.map(c => ({
+            ressource_id: ressourceId,
+            competence: c.competence,
+            type_comp: c.type_comp || 'S',
+            niveau: c.niveau || null,
+          }))
+
+          const { error: insertError } = await supabase
+            .from('ressources_competences')
+            .insert(competencesToInsert)
+
+          if (insertError) throw insertError
+        }
+
+        // Recharger la liste
+        await loadRessources()
+      } catch (err: any) {
+        setError(err)
+        console.error('[useRessources] Erreur saveCompetencesBatch:', err)
+        throw err
+      }
+    },
+    [getSupabaseClient, loadRessources]
+  )
+
   useEffect(() => {
     loadRessources()
   }, [loadRessources])
@@ -232,5 +281,6 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     deleteRessource,
     saveCompetence,
     deleteCompetence,
+    saveCompetencesBatch,
   }
 }
