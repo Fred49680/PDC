@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useRessources } from '@/hooks/useRessources'
+import { useSites } from '@/hooks/useSites'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -18,12 +19,16 @@ export default function RessourcesPage() {
       site: filters.site || undefined,
       actif: filters.actif,
     })
+  
+  // Charger les sites pour le select
+  const { sites: sitesList, loading: sitesLoading } = useSites({ actif: true })
 
   const [formData, setFormData] = useState({
     id: '',
     nom: '',
     site: '',
     type_contrat: '',
+    responsable: '',
     date_debut_contrat: '',
     date_fin_contrat: '',
     actif: true,
@@ -54,6 +59,7 @@ export default function RessourcesPage() {
         nom: '',
         site: '',
         type_contrat: '',
+        responsable: '',
         date_debut_contrat: '',
         date_fin_contrat: '',
         actif: true,
@@ -71,6 +77,7 @@ export default function RessourcesPage() {
       nom: ressource.nom,
       site: ressource.site,
       type_contrat: ressource.type_contrat || '',
+      responsable: ressource.responsable || '',
       date_debut_contrat: ressource.date_debut_contrat
         ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
         : '',
@@ -97,6 +104,7 @@ export default function RessourcesPage() {
       nom: '',
       site: '',
       type_contrat: '',
+      responsable: '',
       date_debut_contrat: '',
       date_fin_contrat: '',
       actif: true,
@@ -182,13 +190,20 @@ export default function RessourcesPage() {
                 <label className="block text-sm font-semibold text-gray-700">
                   Site <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.site}
                   onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium"
                   required
-                />
+                  disabled={sitesLoading}
+                >
+                  <option value="">Sélectionner un site...</option>
+                  {sitesList.map((site) => (
+                    <option key={site.id} value={site.site}>
+                      {site.site}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">Type de contrat</label>
@@ -203,6 +218,16 @@ export default function RessourcesPage() {
                   <option value="ETT">ETT</option>
                   <option value="Interim">Intérim</option>
                 </select>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Responsable</label>
+                <input
+                  type="text"
+                  value={formData.responsable}
+                  onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  placeholder="Nom du responsable"
+                />
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">Date début contrat</label>
@@ -252,6 +277,7 @@ export default function RessourcesPage() {
                       nom: '',
                       site: '',
                       type_contrat: '',
+                      responsable: '',
                       date_debut_contrat: '',
                       date_fin_contrat: '',
                       actif: true,
@@ -406,13 +432,18 @@ export default function RessourcesPage() {
                               </span>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-4">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-4">
                             <div>
                               <span className="font-semibold">Site:</span> {ressource.site}
                             </div>
                             {ressource.type_contrat && (
                               <div>
                                 <span className="font-semibold">Contrat:</span> {ressource.type_contrat}
+                              </div>
+                            )}
+                            {ressource.responsable && (
+                              <div>
+                                <span className="font-semibold">Responsable:</span> {ressource.responsable}
                               </div>
                             )}
                             {ressource.date_fin_contrat && (

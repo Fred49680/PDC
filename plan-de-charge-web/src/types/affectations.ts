@@ -7,6 +7,7 @@ export interface Ressource {
   nom: string
   site: string
   type_contrat?: string
+  responsable?: string
   date_debut_contrat?: Date
   date_fin_contrat?: Date
   actif: boolean
