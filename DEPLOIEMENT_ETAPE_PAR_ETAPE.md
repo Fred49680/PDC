@@ -83,12 +83,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 ## 📋 Étape 6 : Vérifier les paramètres de build
 
 Le fichier `vercel.json` configure automatiquement :
-- ✅ **Build Command** : `cd plan-de-charge-web && npm run build`
-- ✅ **Output Directory** : `plan-de-charge-web/.next`
-- ✅ **Install Command** : `cd plan-de-charge-web && npm install`
+- ✅ **Build Command** : `npm run build` (exécuté depuis le Root Directory)
+- ✅ **Output Directory** : `.next` (dans le Root Directory)
+- ✅ **Install Command** : `npm install` (exécuté depuis le Root Directory)
 - ✅ **Framework** : Détecté automatiquement (Next.js)
 
-**Vous n'avez rien à modifier ici**, c'est déjà configuré !
+**⚠️ IMPORTANT :** Le `vercel.json` est configuré pour fonctionner avec le Root Directory `plan-de-charge-web`. Si le Root Directory est configuré dans Vercel, les commandes s'exécutent déjà depuis ce dossier, donc pas besoin de `cd plan-de-charge-web`.
 
 ---
 
