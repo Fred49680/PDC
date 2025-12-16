@@ -4,8 +4,8 @@
 
 ### 1.1. Vérifier que le code est sur GitHub
 - ✅ Le code est déjà poussé sur `https://github.com/Fred49680/PDC.git`
-- ✅ Le fichier `vercel.json` est présent
 - ✅ Les fichiers Next.js sont dans `plan-de-charge-web/`
+- ✅ Le `package.json` est présent dans `plan-de-charge-web/`
 
 ### 1.2. Informations nécessaires pour Vercel
 
@@ -82,13 +82,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 
 ## 📋 Étape 6 : Vérifier les paramètres de build
 
-Le fichier `vercel.json` configure automatiquement :
-- ✅ **Build Command** : `npm run build` (exécuté depuis le Root Directory)
-- ✅ **Output Directory** : `.next` (dans le Root Directory)
-- ✅ **Install Command** : `npm install` (exécuté depuis le Root Directory)
-- ✅ **Framework** : Détecté automatiquement (Next.js)
+Vercel détecte automatiquement Next.js et configure :
+- ✅ **Build Command** : `npm run build` (automatique)
+- ✅ **Output Directory** : `.next` (automatique)
+- ✅ **Install Command** : `npm install` (automatique)
+- ✅ **Framework** : Next.js (détecté automatiquement)
 
-**⚠️ IMPORTANT :** Le `vercel.json` est configuré pour fonctionner avec le Root Directory `plan-de-charge-web`. Si le Root Directory est configuré dans Vercel, les commandes s'exécutent déjà depuis ce dossier, donc pas besoin de `cd plan-de-charge-web`.
+**✅ Aucune configuration supplémentaire nécessaire !** Vercel détecte automatiquement Next.js quand le Root Directory est correctement configuré.
 
 ---
 
