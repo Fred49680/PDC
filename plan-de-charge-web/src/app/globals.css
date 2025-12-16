@@ -67,3 +67,31 @@ body {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
+
+/* Amélioration du contraste pour les champs de formulaire */
+input[type="text"],
+input[type="date"],
+input[type="email"],
+input[type="number"],
+textarea,
+select {
+  color: #111827; /* text-gray-900 pour meilleur contraste */
+}
+
+/* Options des selects avec meilleur contraste */
+select option {
+  color: #111827; /* text-gray-900 */
+  background-color: #ffffff;
+}
+
+/* Placeholders avec contraste amélioré */
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280; /* text-gray-500 pour les placeholders */
+  opacity: 1;
+}
+
+/* Options désactivées dans les selects */
+select option:disabled {
+  color: #9ca3af; /* text-gray-400 */
+}

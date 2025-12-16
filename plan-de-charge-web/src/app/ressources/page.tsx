@@ -182,7 +182,7 @@ export default function RessourcesPage() {
                   type="text"
                   value={formData.nom}
                   onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900"
                   required
                 />
               </div>
@@ -193,13 +193,13 @@ export default function RessourcesPage() {
                 <select
                   value={formData.site}
                   onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
                   required
                   disabled={sitesLoading}
                 >
-                  <option value="">Sélectionner un site...</option>
+                  <option value="" className="text-gray-500">Sélectionner un site...</option>
                   {sitesList.map((site) => (
-                    <option key={site.id} value={site.site}>
+                    <option key={site.id} value={site.site} className="text-gray-900">
                       {site.site}
                     </option>
                   ))}
@@ -210,13 +210,13 @@ export default function RessourcesPage() {
                 <select
                   value={formData.type_contrat}
                   onChange={(e) => setFormData({ ...formData, type_contrat: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
                 >
-                  <option value="">Sélectionner...</option>
-                  <option value="CDI">CDI</option>
-                  <option value="CDD">CDD</option>
-                  <option value="ETT">ETT</option>
-                  <option value="Interim">Intérim</option>
+                  <option value="" className="text-gray-500">Sélectionner...</option>
+                  <option value="CDI" className="text-gray-900">CDI</option>
+                  <option value="CDD" className="text-gray-900">CDD</option>
+                  <option value="ETT" className="text-gray-900">ETT</option>
+                  <option value="Interim" className="text-gray-900">Intérim</option>
                 </select>
               </div>
               <div className="space-y-2">
@@ -225,7 +225,7 @@ export default function RessourcesPage() {
                   type="text"
                   value={formData.responsable}
                   onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
                   placeholder="Nom du responsable"
                 />
               </div>
@@ -235,7 +235,7 @@ export default function RessourcesPage() {
                   type="date"
                   value={formData.date_debut_contrat}
                   onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900"
                 />
               </div>
               <div className="space-y-2">
@@ -244,7 +244,7 @@ export default function RessourcesPage() {
                   type="date"
                   value={formData.date_fin_contrat}
                   onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900"
                 />
               </div>
               <div className="md:col-span-2 flex items-center gap-3">
@@ -320,7 +320,7 @@ export default function RessourcesPage() {
                   type="text"
                   value={competenceForm.competence}
                   onChange={(e) => setCompetenceForm({ ...competenceForm, competence: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
                   required
                   placeholder="Ex: IES, INSTRUM, etc."
                 />
@@ -330,13 +330,13 @@ export default function RessourcesPage() {
                 <select
                   value={competenceForm.niveau}
                   onChange={(e) => setCompetenceForm({ ...competenceForm, niveau: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
                 >
-                  <option value="">Sélectionner...</option>
-                  <option value="Junior">Junior</option>
-                  <option value="Confirmé">Confirmé</option>
-                  <option value="Senior">Senior</option>
-                  <option value="Expert">Expert</option>
+                  <option value="" className="text-gray-500">Sélectionner...</option>
+                  <option value="Junior" className="text-gray-900">Junior</option>
+                  <option value="Confirmé" className="text-gray-900">Confirmé</option>
+                  <option value="Senior" className="text-gray-900">Senior</option>
+                  <option value="Expert" className="text-gray-900">Expert</option>
                 </select>
               </div>
               <div className="md:col-span-2 flex items-center gap-4">
@@ -365,7 +365,7 @@ export default function RessourcesPage() {
                 type="text"
                 value={filters.site}
                 onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
                 placeholder="Filtrer par site..."
               />
             </div>
