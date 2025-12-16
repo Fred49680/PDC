@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Layout } from '@/components/Common/Layout'
-import { CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, AlertCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, AlertCircle, Building2 } from 'lucide-react'
 
 export default function Home() {
   const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking')
@@ -103,7 +103,47 @@ export default function Home() {
         </div>
 
         {/* Navigation rapide - Cartes modernes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Link
+            href="/affaires"
+            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-indigo-300 hover:-translate-y-1"
+          >
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">
+                Affaires
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Créez et gérez les affaires et leurs sites
+            </p>
+            <div className="mt-4 text-indigo-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+              Accéder <span>→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/ressources"
+            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-green-300 hover:-translate-y-1"
+          >
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 group-hover:text-green-600 transition-colors">
+                Ressources
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Créez et gérez les ressources et leurs compétences
+            </p>
+            <div className="mt-4 text-green-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+              Accéder <span>→</span>
+            </div>
+          </Link>
+
           <Link
             href="/charge"
             className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-blue-300 hover:-translate-y-1"

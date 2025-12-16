@@ -1,0 +1,149 @@
+'use client'
+
+import { useState, useCallback, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import type { Affaire } from '@/types/charge'
+
+interface UseAffairesOptions {
+  affaireId?: string
+  site?: string
+  actif?: boolean
+}
+
+export function useAffaires(options: UseAffairesOptions = {}) {
+  const [affaires, setAffaires] = useState<Affaire[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const getSupabaseClient = useCallback(() => {
+    if (typeof window === 'undefined') {
+      throw new Error('Supabase client can only be used on the client side')
+    }
+    return createClient()
+  }, [])
+
+  const loadAffaires = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const supabase = getSupabaseClient()
+
+      let query = supabase
+        .from('affaires')
+        .select('*')
+        .order('affaire_id', { ascending: true })
+
+      if (options.affaireId) {
+        query = query.eq('affaire_id', options.affaireId)
+      }
+
+      if (options.site) {
+        query = query.eq('site', options.site)
+      }
+
+      if (options.actif !== undefined) {
+        query = query.eq('actif', options.actif)
+      }
+
+      const { data, error: queryError } = await query
+
+      if (queryError) throw queryError
+
+      setAffaires(
+        (data || []).map((item) => ({
+          id: item.id,
+          affaire_id: item.affaire_id,
+          site: item.site,
+          libelle: item.libelle,
+          date_creation: new Date(item.date_creation),
+          date_modification: new Date(item.date_modification),
+          actif: item.actif ?? true,
+          created_by: item.created_by,
+          updated_by: item.updated_by,
+        }))
+      )
+    } catch (err: any) {
+      setError(err)
+      console.error('[useAffaires] Erreur:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [options.affaireId, options.site, options.actif, getSupabaseClient])
+
+  const saveAffaire = useCallback(
+    async (affaire: Partial<Affaire> & { affaire_id: string; site: string; libelle: string }) => {
+      try {
+        setError(null)
+
+        const supabase = getSupabaseClient()
+
+        const affaireData: any = {
+          affaire_id: affaire.affaire_id,
+          site: affaire.site,
+          libelle: affaire.libelle,
+          actif: affaire.actif ?? true,
+          date_modification: new Date().toISOString(),
+        }
+
+        if (affaire.id) {
+          // Mise à jour
+          const { error: updateError } = await supabase
+            .from('affaires')
+            .update(affaireData)
+            .eq('id', affaire.id)
+
+          if (updateError) throw updateError
+        } else {
+          // Création
+          const { error: insertError } = await supabase.from('affaires').insert(affaireData)
+
+          if (insertError) throw insertError
+        }
+
+        // Recharger la liste
+        await loadAffaires()
+      } catch (err: any) {
+        setError(err)
+        console.error('[useAffaires] Erreur saveAffaire:', err)
+        throw err
+      }
+    },
+    [getSupabaseClient, loadAffaires]
+  )
+
+  const deleteAffaire = useCallback(
+    async (id: string) => {
+      try {
+        setError(null)
+
+        const supabase = getSupabaseClient()
+
+        const { error: deleteError } = await supabase.from('affaires').delete().eq('id', id)
+
+        if (deleteError) throw deleteError
+
+        // Recharger la liste
+        await loadAffaires()
+      } catch (err: any) {
+        setError(err)
+        console.error('[useAffaires] Erreur deleteAffaire:', err)
+        throw err
+      }
+    },
+    [getSupabaseClient, loadAffaires]
+  )
+
+  useEffect(() => {
+    loadAffaires()
+  }, [loadAffaires])
+
+  return {
+    affaires,
+    loading,
+    error,
+    loadAffaires,
+    saveAffaire,
+    deleteAffaire,
+  }
+}
