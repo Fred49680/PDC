@@ -19,6 +19,23 @@ export function useSites(options: UseSitesOptions = {}) {
     if (typeof window === 'undefined') {
       throw new Error('Supabase client can only be used on the client side')
     }
+    
+    // Vérifier que les variables d'environnement sont disponibles
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    
+    if (!url || !key) {
+      console.error('[useSites] Variables d\'environnement manquantes:', {
+        url: !!url,
+        key: !!key,
+        urlValue: url ? url.substring(0, 30) + '...' : 'undefined',
+      })
+      throw new Error('Supabase environment variables are not available')
+    }
+    
+    // Logs de débogage
+    console.log('[useSites] Création du client Supabase - URL:', url.substring(0, 30) + '...', 'Key length:', key.length)
+    
     return createClient()
   }, [])
 
@@ -199,6 +216,27 @@ export function useSites(options: UseSitesOptions = {}) {
   }, [getSupabaseClient, loadSites])
 
   useEffect(() => {
+    // Vérifier que les variables d'environnement sont disponibles avant de charger
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    
+    if (!url || !key) {
+      console.warn('[useSites] Variables d\'environnement non disponibles, chargement différé')
+      setError(new Error('Variables d\'environnement Supabase non disponibles'))
+      setLoading(false)
+      return
+    }
+    
+    // Vérifier que l'URL est valide
+    const trimmedUrl = url.trim()
+    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+      console.error('[useSites] URL Supabase invalide:', trimmedUrl.substring(0, 50))
+      setError(new Error(`URL Supabase invalide: doit commencer par http:// ou https://`))
+      setLoading(false)
+      return
+    }
+    
+    // Charger les sites
     loadSites()
   }, [loadSites])
 
