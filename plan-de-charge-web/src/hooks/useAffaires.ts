@@ -53,9 +53,22 @@ export function useAffaires(options: UseAffairesOptions = {}) {
       setAffaires(
         (data || []).map((item) => ({
           id: item.id,
-          affaire_id: item.affaire_id,
+          affaire_id: item.affaire_id || '',
           site: item.site,
           libelle: item.libelle,
+          // Nouveaux champs
+          tranche: item.tranche || undefined,
+          affaire_nom: item.affaire_nom || undefined,
+          statut: item.statut || undefined,
+          compte: item.compte || undefined,
+          date_debut_dem: item.date_debut_dem ? new Date(item.date_debut_dem) : undefined,
+          date_fin_dem: item.date_fin_dem ? new Date(item.date_fin_dem) : undefined,
+          responsable: item.responsable || undefined,
+          budget_heures: item.budget_heures ? Number(item.budget_heures) : undefined,
+          raf: item.raf ? Number(item.raf) : undefined,
+          date_maj: item.date_maj ? new Date(item.date_maj) : undefined,
+          total_planifie: item.total_planifie ? Number(item.total_planifie) : undefined,
+          // Champs existants
           date_creation: new Date(item.date_creation),
           date_modification: new Date(item.date_modification),
           actif: item.actif ?? true,
@@ -72,17 +85,29 @@ export function useAffaires(options: UseAffairesOptions = {}) {
   }, [options.affaireId, options.site, options.actif, getSupabaseClient])
 
   const saveAffaire = useCallback(
-    async (affaire: Partial<Affaire> & { affaire_id: string; site: string; libelle: string }) => {
+    async (affaire: Partial<Affaire> & { site: string; libelle: string }) => {
       try {
         setError(null)
 
         const supabase = getSupabaseClient()
 
+        // Ne PAS inclure affaire_id dans les données (généré automatiquement par le trigger)
         const affaireData: any = {
-          affaire_id: affaire.affaire_id,
           site: affaire.site,
           libelle: affaire.libelle,
           actif: affaire.actif ?? true,
+          // Nouveaux champs pour génération AffaireID
+          tranche: affaire.tranche || null,
+          affaire_nom: affaire.affaire_nom || null,
+          statut: affaire.statut || 'Ouverte',
+          compte: affaire.compte || null,
+          date_debut_dem: affaire.date_debut_dem ? affaire.date_debut_dem.toISOString().split('T')[0] : null,
+          date_fin_dem: affaire.date_fin_dem ? affaire.date_fin_dem.toISOString().split('T')[0] : null,
+          responsable: affaire.responsable || null,
+          budget_heures: affaire.budget_heures || null,
+          raf: affaire.raf || null,
+          date_maj: affaire.date_maj ? affaire.date_maj.toISOString() : null,
+          total_planifie: affaire.total_planifie || null,
           date_modification: new Date().toISOString(),
         }
 
