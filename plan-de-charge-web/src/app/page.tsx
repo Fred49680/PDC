@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { Layout } from '@/components/Common/Layout'
+import { CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, AlertCircle } from 'lucide-react'
 
 export default function Home() {
   const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking')
@@ -10,11 +12,11 @@ export default function Home() {
   useEffect(() => {
     console.log('🔵 [HOME] useEffect déclenché')
     console.log('🔵 [HOME] Environnement:', typeof window !== 'undefined' ? 'CLIENT' : 'SERVER')
-    
+
     // Vérifier la connexion Supabase
     const checkSupabase = async () => {
       console.log('🔵 [HOME] checkSupabase() appelé')
-      
+
       try {
         console.log('🔵 [HOME] Lecture des variables d\'environnement...')
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -44,135 +46,105 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-16">
-        {/* Header */}
-        <header className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4">
-            Plan de Charge
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300">
-            Application de gestion de planification et d'affectation
-          </p>
-        </header>
+    <Layout>
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Plan de Charge - Application Web</h1>
 
-        {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12 max-w-4xl mx-auto">
-          {/* Supabase Status */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Connexion Supabase
-              </h2>
-              <div className={`w-3 h-3 rounded-full ${
-                supabaseStatus === 'connected' ? 'bg-green-500' :
-                supabaseStatus === 'error' ? 'bg-red-500' :
-                'bg-yellow-500 animate-pulse'
-              }`} />
-            </div>
-            {supabaseStatus === 'checking' && (
-              <p className="text-gray-600 dark:text-gray-400">Vérification en cours...</p>
-            )}
-            {supabaseStatus === 'connected' && (
-              <div>
-                <p className="text-green-600 dark:text-green-400 font-medium mb-2">
-                  ✅ Connecté
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 break-all">
-                  {supabaseUrl}
-                </p>
-              </div>
-            )}
-            {supabaseStatus === 'error' && (
-              <p className="text-red-600 dark:text-red-400">
-                ❌ Variables d'environnement manquantes
+        {/* Statut de connexion */}
+        <div className="bg-white rounded-lg shadow-sm p-6 border">
+          <h2 className="text-xl font-semibold mb-4">Statut de la connexion</h2>
+          <div className={`p-4 rounded-lg flex items-center gap-3 ${
+            supabaseStatus === 'connected' ? 'bg-green-50 border border-green-200' :
+            supabaseStatus === 'error' ? 'bg-red-50 border border-red-200' :
+            'bg-blue-50 border border-blue-200'
+          }`}>
+            {supabaseStatus === 'connected' && <CheckCircle2 className="w-6 h-6 text-green-500" />}
+            {supabaseStatus === 'error' && <XCircle className="w-6 h-6 text-red-500" />}
+            {supabaseStatus === 'checking' && <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />}
+            <div>
+              <p className={`font-semibold ${
+                supabaseStatus === 'connected' ? 'text-green-800' :
+                supabaseStatus === 'error' ? 'text-red-800' :
+                'text-blue-800'
+              }`}>
+                {supabaseStatus === 'connected' && '✅ Connexion Supabase OK'}
+                {supabaseStatus === 'error' && '❌ Erreur de connexion'}
+                {supabaseStatus === 'checking' && '🔄 Vérification en cours...'}
               </p>
-            )}
-          </div>
-
-          {/* Application Status */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Statut de l'Application
-            </h2>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <span className="text-green-500 mr-2">✓</span>
-                <span className="text-gray-700 dark:text-gray-300">Application déployée</span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-green-500 mr-2">✓</span>
-                <span className="text-gray-700 dark:text-gray-300">Next.js 16.0.10</span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-green-500 mr-2">✓</span>
-                <span className="text-gray-700 dark:text-gray-300">React 19.2.1</span>
-              </div>
+              {supabaseUrl && (
+                <p className="text-sm text-gray-600 mt-1">
+                  URL: {supabaseUrl.substring(0, 50)}...
+                </p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Navigation Cards */}
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 text-center">
-            Pages de Test
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Test Supabase */}
-            <Link
-              href="/test-supabase"
-              className="group bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-200 hover:border-blue-500 dark:hover:border-blue-400"
-            >
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
-                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Test Supabase
-                </h3>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400">
-                Tester la connexion à la base de données Supabase et afficher les données des sites.
-              </p>
-              <div className="mt-4 text-blue-600 dark:text-blue-400 font-medium group-hover:underline">
-                Accéder →
-              </div>
-            </Link>
-
-            {/* Page d'accueil (actuelle) */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 opacity-75">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Page d'Accueil
-                </h3>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400">
-                Vous êtes actuellement sur la page d'accueil de l'application.
-              </p>
-              <div className="mt-4 text-gray-500 dark:text-gray-500 font-medium">
-                Page actuelle
-              </div>
+        {/* Navigation rapide */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link
+            href="/charge"
+            className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <BarChart3 className="w-6 h-6 text-blue-500" />
+              <h3 className="text-lg font-semibold">Charge</h3>
             </div>
-          </div>
+            <p className="text-sm text-gray-600">
+              Gérer les besoins en ressources
+            </p>
+          </Link>
+
+          <Link
+            href="/affectations"
+            className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <Users className="w-6 h-6 text-green-500" />
+              <h3 className="text-lg font-semibold">Affectations</h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              Affecter les ressources aux affaires
+            </p>
+          </Link>
+
+          <Link
+            href="/absences"
+            className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar className="w-6 h-6 text-purple-500" />
+              <h3 className="text-lg font-semibold">Absences</h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              Gérer les absences et formations
+            </p>
+          </Link>
+
+          <Link
+            href="/dashboard"
+            className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <BarChart3 className="w-6 h-6 text-orange-500" />
+              <h3 className="text-lg font-semibold">Dashboard</h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              Vue d'ensemble et statistiques
+            </p>
+          </Link>
         </div>
 
-        {/* Footer */}
-        <footer className="mt-16 text-center text-gray-600 dark:text-gray-400">
-          <p className="mb-2">
-            Plan de Charge - Application de gestion
-          </p>
-          <p className="text-sm">
-            Déployé sur Vercel • Connecté à Supabase
-          </p>
-        </footer>
+        {/* Lien test */}
+        <div className="bg-white rounded-lg shadow-sm p-6 border">
+          <Link
+            href="/test-supabase"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            🧪 Tester la connexion Supabase
+          </Link>
+        </div>
       </div>
-    </div>
+    </Layout>
   )
 }
