@@ -180,23 +180,33 @@ export default function RessourcesPage() {
 
   const handleSetPrincipale = (competence: string) => {
     const newSelection = new Map(competencesSelection)
-    
-    // D'abord, décocher toutes les principales existantes
-    competencesSelection.forEach((value, key) => {
-      if (value.selected && value.principale) {
-        newSelection.set(key, { selected: value.selected, principale: false })
-      }
-    })
-    
-    // Décocher aussi les compétences personnalisées principales
-    setCompetencesPersonnalisees(prev => 
-      prev.map(c => ({ ...c, principale: false }))
-    )
-    
-    // Cocher la nouvelle principale
     const current = newSelection.get(competence) || { selected: false, principale: false }
-    if (current.selected) {
+    
+    // Si la compétence n'est pas sélectionnée, la sélectionner d'abord
+    if (!current.selected) {
       newSelection.set(competence, { selected: true, principale: true })
+    } else {
+      // Si elle est déjà sélectionnée, basculer principale/secondaire
+      newSelection.set(competence, { 
+        selected: true, 
+        principale: !current.principale 
+      })
+    }
+    
+    // Si on vient de marquer comme principale, décocher toutes les autres principales
+    const newState = newSelection.get(competence)
+    if (newState && newState.principale) {
+      // Décocher toutes les autres principales (prédéfinies)
+      newSelection.forEach((value, key) => {
+        if (key !== competence && value.selected && value.principale) {
+          newSelection.set(key, { selected: value.selected, principale: false })
+        }
+      })
+      
+      // Décocher toutes les principales personnalisées
+      setCompetencesPersonnalisees(prev => 
+        prev.map(c => ({ ...c, principale: false }))
+      )
     }
     
     setCompetencesSelection(newSelection)
