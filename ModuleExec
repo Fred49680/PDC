@@ -1,0 +1,1163 @@
+
+Option Explicit
+
+' =======================================================================================
+' MODULE : ModuleExec
+' Objectif : Encapsuler les optimisations globales (écran OFF, events OFF, calc manuel)
+'            pour accélérer les reconstructions lourdes (grille charge, affectations…)
+'            MODIFIÉ : Prend en compte le fichier externe DONNEES
+'
+' Fonctions fournies :
+'     BeginFastExec
+'     EndFastExec
+'     Cache des ListObjects (GetChargeTable, GetAffectationsTable, etc.)
+'
+' =======================================================================================
+Public IsOpening As Boolean
+Public mDashboardNeedsRefresh As Boolean
+Public mGanttNeedsRefresh As Boolean
+Private mModificationCount As Long
+Private mLastAutoCheck As Double
+Private Const AUTO_CHECK_INTERVAL_SEC As Long = 30
+Private Const MODIFICATIONS_BEFORE_AUTO_CHECK As Long = 10
+
+Private prevCalc As XlCalculation
+Private prevScreen As Boolean
+Private prevEvents As Boolean
+Private prevStatusBar As Variant
+Private FastExecDepth As Long
+
+' =======================================================================================
+' GESTION DU FICHIER EXTERNE DONNEES
+' =======================================================================================
+Private Const FICHIER_DONNEES As String = "PlanDeCharge_DONNEES.xlsm"
+Private Const CHEMIN_SERVEUR_DEFAUT As String = "\\Serveur\Partage\" ' À MODIFIER selon votre serveur
+Private mFichierDonnees As Workbook
+Private mCheminFichierDonnees As String
+
+' =======================================================================================
+' CACHE DES LISTOBJECTS
+' =======================================================================================
+Private mListObjectCache As Object  ' Dictionary pour cache des ListObjects
+Private Const CACHE_KEY_CHARGE As String = "TblPeriodes"
+Private Const CACHE_KEY_AFFECTATIONS As String = "TblAffectations"
+Private Const CACHE_KEY_RESSOURCES As String = "tblRessources"
+Private Const CACHE_KEY_RESSOURCES_COMP As String = "tblRessourcesComp"
+Private Const CACHE_KEY_ABSENCES As String = "TblAbsences"
+Private Const CACHE_KEY_ALERTES As String = "TblAlertes"
+Private Const CACHE_KEY_TRANSFERTS As String = "TblTransferts"
+Private Const CACHE_KEY_INTERIMS As String = "TblInterims"
+Private Const CACHE_KEY_CHANTIERS As String = "TblChantiers"
+Private Const CACHE_KEY_AFFAIRES As String = "tblAffaires"
+
+' Fonction pour obtenir le chemin du fichier DONNEES
+Private Function GetCheminFichierDonnees() As String
+    ' Si déjà défini, le retourner
+    If mCheminFichierDonnees <> "" Then
+        GetCheminFichierDonnees = mCheminFichierDonnees
+        Exit Function
+    End If
+    
+    ' Essayer de lire depuis la feuille Paramètres
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Paramètres")
+    If Not ws Is Nothing Then
+        Dim chemin As Variant
+        chemin = ws.Range("L3").value ' L3 pour le chemin du fichier DONNEES
+        If Not IsEmpty(chemin) And chemin <> "" Then
+            mCheminFichierDonnees = CStr(chemin)
+            GetCheminFichierDonnees = mCheminFichierDonnees
+            On Error GoTo 0
+            Exit Function
+        End If
+    End If
+    On Error GoTo 0
+    
+    ' Sinon, utiliser le chemin par défaut
+    mCheminFichierDonnees = CHEMIN_SERVEUR_DEFAUT & FICHIER_DONNEES
+    GetCheminFichierDonnees = mCheminFichierDonnees
+End Function
+
+' Fonction pour obtenir le fichier DONNEES (avec cache)
+Private Function GetFichierDonnees() As Workbook
+    On Error Resume Next
+    
+    ' Si déjà ouvert et en cache, le retourner
+    If Not mFichierDonnees Is Nothing Then
+        ' Vérifier que le fichier est toujours ouvert
+        Dim testName As String
+        testName = mFichierDonnees.name
+        If Err.Number = 0 Then
+            Set GetFichierDonnees = mFichierDonnees
+            Exit Function
+        End If
+        ' Fichier fermé, réinitialiser
+        Set mFichierDonnees = Nothing
+        Err.Clear
+    End If
+    
+    ' Essayer de trouver le fichier déjà ouvert
+    Dim wb As Workbook
+    For Each wb In Workbooks
+        If wb.name = FICHIER_DONNEES Then
+            Set mFichierDonnees = wb
+            Set GetFichierDonnees = wb
+            Exit Function
+        End If
+    Next wb
+    
+    ' Ouvrir le fichier (en lecture seule pour éviter les conflits)
+    Dim chemin As String
+    chemin = GetCheminFichierDonnees()
+    
+    ' Vérifier que le fichier existe
+    If Dir(chemin) = "" Then
+        Debug.Print "[GetFichierDonnees] Fichier DONNEES introuvable : " & chemin
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Ouvrir en lecture seule
+    Set mFichierDonnees = Workbooks.Open(chemin, ReadOnly:=True, UpdateLinks:=False, Notify:=False)
+    Set GetFichierDonnees = mFichierDonnees
+    
+    On Error GoTo 0
+End Function
+
+' Fonction pour fermer le fichier DONNEES (si nécessaire)
+Public Sub FermerFichierDonnees()
+    On Error Resume Next
+    If Not mFichierDonnees Is Nothing Then
+        mFichierDonnees.Close SaveChanges:=False
+        Set mFichierDonnees = Nothing
+    End If
+    On Error GoTo 0
+End Sub
+
+' =======================================================================================
+' FONCTIONS POUR CONSOLIDATION SUR FICHIER DONNEES (LECTURE/ÉCRITURE)
+' =======================================================================================
+
+' Fonction pour obtenir le fichier DONNEES en mode lecture/écriture (pour consolidation)
+' Retourne Nothing si le fichier ne peut pas être ouvert en écriture
+Public Function GetFichierDonneesReadWrite() As Workbook
+    On Error Resume Next
+    
+    Dim wb As Workbook
+    Dim chemin As String
+    
+    ' Vérifier si le fichier est déjà ouvert en mode lecture/écriture
+    If Not mFichierDonnees Is Nothing Then
+        ' Vérifier que le fichier est toujours ouvert
+        Dim testName As String
+        testName = mFichierDonnees.name
+        If Err.Number = 0 Then
+            ' Vérifier si le fichier est en lecture seule
+            If Not mFichierDonnees.ReadOnly Then
+                ' Déjà en mode lecture/écriture, parfait
+                Set GetFichierDonneesReadWrite = mFichierDonnees
+                Exit Function
+            Else
+                ' Fichier en lecture seule, il faut le fermer et le rouvrir
+                Debug.Print "[GetFichierDonneesReadWrite] Fichier en lecture seule, fermeture pour réouverture en écriture"
+                mFichierDonnees.Close SaveChanges:=False
+                Set mFichierDonnees = Nothing
+            End If
+        Else
+            ' Fichier fermé, réinitialiser
+            Set mFichierDonnees = Nothing
+        End If
+        Err.Clear
+    End If
+    
+    ' Chercher si le fichier est déjà ouvert ailleurs
+    For Each wb In Workbooks
+        If wb.name = FICHIER_DONNEES Then
+            If Not wb.ReadOnly Then
+                ' Fichier déjà ouvert en lecture/écriture
+                Set mFichierDonnees = wb
+                Set GetFichierDonneesReadWrite = wb
+                Exit Function
+            Else
+                ' Fichier ouvert en lecture seule, on ne peut pas l'utiliser
+                Debug.Print "[GetFichierDonneesReadWrite] Fichier déjà ouvert en lecture seule par un autre processus"
+            End If
+        End If
+    Next wb
+    
+    ' Ouvrir le fichier en mode lecture/écriture
+    chemin = GetCheminFichierDonnees()
+    
+    ' Vérifier que le fichier existe
+    If Dir(chemin) = "" Then
+        Debug.Print "[GetFichierDonneesReadWrite] Fichier DONNEES introuvable : " & chemin
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Essayer d'ouvrir en lecture/écriture
+    Set mFichierDonnees = Workbooks.Open(chemin, ReadOnly:=False, UpdateLinks:=False, Notify:=False)
+    
+    If Err.Number <> 0 Then
+        Debug.Print "[GetFichierDonneesReadWrite] ERREUR : Impossible d'ouvrir le fichier en écriture : " & Err.Description
+        Debug.Print "[GetFichierDonneesReadWrite] Le fichier est peut-être ouvert par un autre utilisateur ou verrouillé"
+        Err.Clear
+        Set mFichierDonnees = Nothing
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    Set GetFichierDonneesReadWrite = mFichierDonnees
+    Debug.Print "[GetFichierDonneesReadWrite] Fichier DONNEES ouvert en mode lecture/écriture"
+    
+    ' Invalider le cache car on a changé de mode d'ouverture
+    InvalidateListObjectCache
+    
+    On Error GoTo 0
+End Function
+
+' Fonction pour sauvegarder le fichier DONNEES après consolidation
+Public Sub SauvegarderFichierDonnees()
+    On Error Resume Next
+    
+    If Not mFichierDonnees Is Nothing Then
+        ' Vérifier que le fichier est toujours ouvert
+        Dim testName As String
+        testName = mFichierDonnees.name
+        If Err.Number = 0 Then
+            If Not mFichierDonnees.ReadOnly Then
+                mFichierDonnees.Save
+                If Err.Number = 0 Then
+                    Debug.Print "[SauvegarderFichierDonnees] Fichier DONNEES sauvegardé avec succès"
+                Else
+                    Debug.Print "[SauvegarderFichierDonnees] ERREUR lors de la sauvegarde : " & Err.Description
+                End If
+            Else
+                Debug.Print "[SauvegarderFichierDonnees] Fichier en lecture seule, impossible de sauvegarder"
+            End If
+        End If
+        Err.Clear
+    End If
+    
+    On Error GoTo 0
+End Sub
+
+' Initialisation du cache (lazy initialization)
+Private Function GetCache() As Object
+    If mListObjectCache Is Nothing Then
+        Set mListObjectCache = CreateObject("Scripting.Dictionary")
+        mListObjectCache.CompareMode = vbTextCompare
+    End If
+    Set GetCache = mListObjectCache
+End Function
+
+' Invalidation du cache (appeler après modifications)
+Public Sub InvalidateListObjectCache(Optional tableKey As String = "")
+    If mListObjectCache Is Nothing Then Exit Sub
+    
+    If tableKey = "" Then
+        ' Invalider tout le cache
+        Set mListObjectCache = Nothing
+    Else
+        ' Invalider une table spécifique
+        If GetCache().Exists(tableKey) Then
+            GetCache().Remove tableKey
+        End If
+    End If
+End Sub
+
+' Fonction générique pour récupérer un ListObject avec cache
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES, puis dans ThisWorkbook
+Private Function GetListObjectCached(sheetName As String, tableName As String, cacheKey As String) As ListObject
+    Dim cache As Object
+    Set cache = GetCache()
+    
+    ' Vérifier le cache
+    If cache.Exists(cacheKey) Then
+        Dim cachedLO As ListObject
+        Set cachedLO = cache(cacheKey)
+        
+        ' Vérifier que l'objet est toujours valide
+        If Not cachedLO Is Nothing Then
+            On Error Resume Next
+            Dim test As String
+            test = cachedLO.name
+            Dim testErr1 As Long
+            testErr1 = Err.Number
+            Err.Clear
+            
+            ' Vérifier aussi que la feuille existe toujours
+            Dim testSheet As Worksheet
+            Set testSheet = cachedLO.Parent
+            Dim testErr2 As Long
+            testErr2 = Err.Number
+            Err.Clear
+            
+            ' Vérifier que DataBodyRange est accessible
+            Dim testDataBody As Range
+            Set testDataBody = cachedLO.DataBodyRange
+            Dim testErr3 As Long
+            testErr3 = Err.Number
+            Err.Clear
+            On Error GoTo 0
+            
+            ' Si tout est OK, utiliser le cache
+            If testErr1 = 0 And testErr2 = 0 And testErr3 = 0 And Not testSheet Is Nothing Then
+                Set GetListObjectCached = cachedLO
+                Exit Function
+            End If
+        End If
+        
+        ' Cache invalide, le supprimer
+        cache.Remove cacheKey
+    End If
+    
+    ' =======================================================================================
+    ' CHERCHER D'ABORD DANS LE FICHIER DONNEES (EXTERNE)
+    ' =======================================================================================
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        On Error Resume Next
+        Dim wsDonnees As Worksheet
+        Set wsDonnees = wbDonnees.Worksheets(sheetName)
+        If Err.Number = 0 And Not wsDonnees Is Nothing Then
+            Dim loDonnees As ListObject
+            Set loDonnees = wsDonnees.ListObjects(tableName)
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                ' Table trouvée dans le fichier DONNEES
+                Set cache(cacheKey) = loDonnees
+                Set GetListObjectCached = loDonnees
+                Debug.Print "[GetListObjectCached] Table '" & tableName & "' trouvée dans fichier DONNEES (feuille '" & sheetName & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+        End If
+        Err.Clear
+        On Error GoTo 0
+        
+        ' Si pas trouvé dans la feuille spécifiée, chercher dans toutes les feuilles du fichier DONNEES
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees2 As ListObject
+            Set loDonnees2 = shDonnees.ListObjects(tableName)
+            If Err.Number = 0 And Not loDonnees2 Is Nothing Then
+                ' Table trouvée dans le fichier DONNEES
+                Set cache(cacheKey) = loDonnees2
+                Set GetListObjectCached = loDonnees2
+                Debug.Print "[GetListObjectCached] Table '" & tableName & "' trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' =======================================================================================
+    ' SI PAS TROUVÉ DANS DONNEES, CHERCHER DANS THISWORKBOOK (LOCAL)
+    ' =======================================================================================
+    ' D'abord, essayer la feuille spécifiée
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    If Err.Number = 0 And Not ws Is Nothing Then
+        Dim lo As ListObject
+        Set lo = ws.ListObjects(tableName)
+        If Err.Number = 0 And Not lo Is Nothing Then
+            ' Table trouvée dans la feuille spécifiée
+            Set cache(cacheKey) = lo
+            Set GetListObjectCached = lo
+            Debug.Print "[GetListObjectCached] Table '" & tableName & "' trouvée dans ThisWorkbook (feuille '" & sheetName & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+    End If
+    Err.Clear
+    On Error GoTo 0
+    
+    ' Si pas trouvé dans la feuille spécifiée, chercher automatiquement dans TOUTES les feuilles de ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim loAuto As ListObject
+        Set loAuto = sh.ListObjects(tableName)
+        If Err.Number = 0 And Not loAuto Is Nothing Then
+            ' Table trouvée dans une autre feuille
+            Set cache(cacheKey) = loAuto
+            Set GetListObjectCached = loAuto
+            Debug.Print "[GetListObjectCached] Table '" & tableName & "' trouvée automatiquement dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    ' Table introuvable dans ThisWorkbook
+    Debug.Print "[GetListObjectCached] Table '" & tableName & "' introuvable dans ThisWorkbook (cherchée dans feuille '" & sheetName & "' puis dans toutes les feuilles)"
+End Function
+
+' =======================================================================================
+' FONCTIONS PUBLIQUES POUR RÉCUPÉRER LES TABLES (AVEC CACHE)
+' =======================================================================================
+
+' Table des périodes de charge
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetChargeTable() As ListObject
+    On Error Resume Next
+    
+    ' Essayer d'abord avec le cache (qui peut pointer vers DONNEES ou ThisWorkbook)
+    ' La table "TblPeriodes" est dans la feuille "Charge"
+    Set GetChargeTable = GetListObjectCached("Charge", "TblPeriodes", CACHE_KEY_CHARGE)
+    If Not GetChargeTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Si pas trouvé via cache, chercher directement
+    ' GetListObjectCached cherche déjà dans DONNEES puis ThisWorkbook
+    ' Si toujours rien, chercher dans toutes les feuilles du fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblPeriodes")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetChargeTable = loDonnees
+                GetCache()(CACHE_KEY_CHARGE) = loDonnees
+                Debug.Print "[GetChargeTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans toutes les feuilles de ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblPeriodes")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetChargeTable = lo
+            GetCache()(CACHE_KEY_CHARGE) = lo
+            Debug.Print "[GetChargeTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetChargeTable] ERREUR : Table 'TblPeriodes' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des affectations
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetAffectationsTable() As ListObject
+    On Error Resume Next
+    
+    ' Essayer d'abord avec le cache
+    ' *** CORRECTION : Le premier paramètre est le nom de la feuille, pas de la table ***
+    Set GetAffectationsTable = GetListObjectCached("Affectations", "TblAffectations", CACHE_KEY_AFFECTATIONS)
+    If Not GetAffectationsTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblAffectations")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetAffectationsTable = loDonnees
+                GetCache()(CACHE_KEY_AFFECTATIONS) = loDonnees
+                Debug.Print "[GetAffectationsTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblAffectations")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetAffectationsTable = lo
+            GetCache()(CACHE_KEY_AFFECTATIONS) = lo
+            Debug.Print "[GetAffectationsTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetAffectationsTable] ERREUR : Table 'TblAffectations' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des ressources
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetRessourcesTable() As ListObject
+    On Error Resume Next
+    Set GetRessourcesTable = GetListObjectCached("tblRessources", "tblRessources", CACHE_KEY_RESSOURCES)
+    If Not GetRessourcesTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("tblRessources")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetRessourcesTable = loDonnees
+                GetCache()(CACHE_KEY_RESSOURCES) = loDonnees
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("tblRessources")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetRessourcesTable = lo
+            GetCache()(CACHE_KEY_RESSOURCES) = lo
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    On Error GoTo 0
+End Function
+
+' Table des ressources par compétence (dépliée)
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+' NOTE : Cette table est généralement générée par PowerQuery, donc peut être locale
+Public Function GetRessourcesCompTable() As ListObject
+    On Error Resume Next
+    
+    ' Essayer d'abord avec le cache
+    Set GetRessourcesCompTable = GetListObjectCached("tblRessourcesComp", "tblRessourcesComp", CACHE_KEY_RESSOURCES_COMP)
+    If Not GetRessourcesCompTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES (peu probable mais possible)
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("tblRessourcesComp")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetRessourcesCompTable = loDonnees
+                GetCache()(CACHE_KEY_RESSOURCES_COMP) = loDonnees
+                Debug.Print "[GetRessourcesCompTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook (table généralement générée par PowerQuery)
+    ' Essayer feuille "Ressources"
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Ressources")
+    If Not ws Is Nothing Then
+        Dim lo As ListObject
+        Set lo = ws.ListObjects("tblRessourcesComp")
+        If Not lo Is Nothing Then
+            Set GetRessourcesCompTable = lo
+            GetCache()(CACHE_KEY_RESSOURCES_COMP) = lo
+            On Error GoTo 0
+            Exit Function
+        End If
+    End If
+    
+    ' Essayer feuille "Données" ou autres feuilles courantes
+    Set ws = ThisWorkbook.Worksheets("Données")
+    If Not ws Is Nothing Then
+        Set lo = ws.ListObjects("tblRessourcesComp")
+        If Not lo Is Nothing Then
+            Set GetRessourcesCompTable = lo
+            GetCache()(CACHE_KEY_RESSOURCES_COMP) = lo
+            On Error GoTo 0
+            Exit Function
+        End If
+    End If
+    
+    ' Chercher dans toutes les feuilles
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Set lo = sh.ListObjects("tblRessourcesComp")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetRessourcesCompTable = lo
+            GetCache()(CACHE_KEY_RESSOURCES_COMP) = lo
+            Debug.Print "[GetRessourcesCompTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetRessourcesCompTable] ERREUR : Table 'tblRessourcesComp' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des absences
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetAbsencesTable() As ListObject
+    On Error Resume Next
+    
+    ' Essayer d'abord avec le cache
+    Set GetAbsencesTable = GetListObjectCached("TblAbsences", "TblAbsences", CACHE_KEY_ABSENCES)
+    If Not GetAbsencesTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblAbsences")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetAbsencesTable = loDonnees
+                GetCache()(CACHE_KEY_ABSENCES) = loDonnees
+                Debug.Print "[GetAbsencesTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblAbsences")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetAbsencesTable = lo
+            GetCache()(CACHE_KEY_ABSENCES) = lo
+            Debug.Print "[GetAbsencesTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetAbsencesTable] ERREUR : Table 'TblAbsences' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des alertes
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetAlertesTable() As ListObject
+    On Error Resume Next
+    Set GetAlertesTable = GetListObjectCached("TblAlertes", "TblAlertes", CACHE_KEY_ALERTES)
+    If Not GetAlertesTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblAlertes")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetAlertesTable = loDonnees
+                GetCache()(CACHE_KEY_ALERTES) = loDonnees
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblAlertes")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetAlertesTable = lo
+            GetCache()(CACHE_KEY_ALERTES) = lo
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    On Error GoTo 0
+End Function
+
+' Table des transferts
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetTransfertsTable() As ListObject
+    On Error Resume Next
+    Set GetTransfertsTable = GetListObjectCached("TblTransferts", "TblTransferts", CACHE_KEY_TRANSFERTS)
+    If Not GetTransfertsTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblTransferts")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetTransfertsTable = loDonnees
+                GetCache()(CACHE_KEY_TRANSFERTS) = loDonnees
+                Debug.Print "[GetTransfertsTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblTransferts")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetTransfertsTable = lo
+            GetCache()(CACHE_KEY_TRANSFERTS) = lo
+            Debug.Print "[GetTransfertsTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetTransfertsTable] ERREUR : Table 'TblTransferts' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des intérims
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetInterimsTable() As ListObject
+    On Error Resume Next
+    Set GetInterimsTable = GetListObjectCached("TblInterims", "TblInterims", CACHE_KEY_INTERIMS)
+    If Not GetInterimsTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblInterims")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetInterimsTable = loDonnees
+                GetCache()(CACHE_KEY_INTERIMS) = loDonnees
+                Debug.Print "[GetInterimsTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblInterims")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetInterimsTable = lo
+            GetCache()(CACHE_KEY_INTERIMS) = lo
+            Debug.Print "[GetInterimsTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetInterimsTable] ERREUR : Table 'TblInterims' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des chantiers
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetChantiersTable() As ListObject
+    On Error Resume Next
+    Set GetChantiersTable = GetListObjectCached("TblChantiers", "TblChantiers", CACHE_KEY_CHANTIERS)
+    If Not GetChantiersTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("TblChantiers")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetChantiersTable = loDonnees
+                GetCache()(CACHE_KEY_CHANTIERS) = loDonnees
+                Debug.Print "[GetChantiersTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("TblChantiers")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetChantiersTable = lo
+            GetCache()(CACHE_KEY_CHANTIERS) = lo
+            Debug.Print "[GetChantiersTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetChantiersTable] ERREUR : Table 'TblChantiers' introuvable"
+    On Error GoTo 0
+End Function
+
+' Table des affaires
+' MODIFIÉ : Cherche d'abord dans le fichier DONNEES
+Public Function GetAffairesTable() As ListObject
+    On Error Resume Next
+    ' La table "tblAffaires" est dans la feuille "Affaires"
+    Set GetAffairesTable = GetListObjectCached("Affaires", "tblAffaires", CACHE_KEY_AFFAIRES)
+    If Not GetAffairesTable Is Nothing Then
+        On Error GoTo 0
+        Exit Function
+    End If
+    
+    ' Chercher dans le fichier DONNEES
+    Dim wbDonnees As Workbook
+    Set wbDonnees = GetFichierDonnees()
+    
+    If Not wbDonnees Is Nothing Then
+        Dim shDonnees As Worksheet
+        For Each shDonnees In wbDonnees.Worksheets
+            On Error Resume Next
+            Dim loDonnees As ListObject
+            Set loDonnees = shDonnees.ListObjects("tblAffaires")
+            If Err.Number = 0 And Not loDonnees Is Nothing Then
+                Set GetAffairesTable = loDonnees
+                GetCache()(CACHE_KEY_AFFAIRES) = loDonnees
+                Debug.Print "[GetAffairesTable] Table trouvée dans fichier DONNEES (feuille '" & shDonnees.name & "')"
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        Next shDonnees
+    End If
+    
+    ' Chercher dans ThisWorkbook
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("tblAffaires")
+        If Err.Number = 0 And Not lo Is Nothing Then
+            Set GetAffairesTable = lo
+            GetCache()(CACHE_KEY_AFFAIRES) = lo
+            Debug.Print "[GetAffairesTable] Table trouvée dans ThisWorkbook (feuille '" & sh.name & "')"
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next sh
+    
+    Debug.Print "[GetAffairesTable] ERREUR : Table 'tblAffaires' introuvable"
+    On Error GoTo 0
+End Function
+
+' =======================================================================================
+'    DÉBUT D'UNE SECTION OPTIMISÉE
+' =======================================================================================
+Public Sub BeginFastExec(Optional ByVal showStatus As String = "")
+    On Error Resume Next
+
+    FastExecDepth = FastExecDepth + 1
+
+    ' Si déjà optimisé ? ne pas empiler les états
+    If FastExecDepth > 1 Then Exit Sub
+
+    prevCalc = Application.Calculation
+    prevScreen = Application.ScreenUpdating
+    prevEvents = Application.EnableEvents
+    prevStatusBar = Application.DisplayStatusBar
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.DisplayStatusBar = True
+    Application.Calculation = xlCalculationManual
+
+    If Len(showStatus) > 0 Then
+        Application.StatusBar = showStatus
+    End If
+End Sub
+
+' =======================================================================================
+'    FIN D'UNE SECTION OPTIMISÉE  (RESTORE DES ÉTATS)
+' =======================================================================================
+Public Sub EndFastExec()
+    On Error Resume Next
+
+    If FastExecDepth > 0 Then FastExecDepth = FastExecDepth - 1
+
+    ' Tant qu’on est dans une profondeur interne ? on ne restore pas encore
+    If FastExecDepth > 0 Then Exit Sub
+
+    ' Restore
+    Application.Calculation = prevCalc
+    Application.ScreenUpdating = prevScreen
+    Application.EnableEvents = prevEvents
+    Application.DisplayStatusBar = prevStatusBar
+    Application.StatusBar = False
+End Sub
+
+' =======================================================================================
+' Utilitaire : convertit proprement une valeur numérique
+' =======================================================================================
+Public Function val(ByVal v As Variant) As Double
+    If IsNumeric(v) Then val = CDbl(v) Else val = 0
+End Function
+
+' =======================================================================================
+' FONCTIONS UTILITAIRES CENTRALISÉES
+' =======================================================================================
+
+' Convertit une variante en Date si possible
+Public Function TryGetDate(v As Variant, ByRef d As Date) As Boolean
+    On Error Resume Next
+    If IsDate(v) Then
+        d = CDate(v)
+        TryGetDate = True
+    End If
+    On Error GoTo 0
+End Function
+
+' Retourne la dernière colonne utilisée dans une feuille
+Public Function LastUsedCol(ws As Worksheet, Optional rowHint As Long = 1) As Long
+    Dim c As Long
+    c = ws.Cells(rowHint, ws.Columns.count).End(xlToLeft).Column
+    If c < 1 Then c = 1
+    LastUsedCol = c
+End Function
+
+' Cette fonction a été déplacée dans modulefeuille.mdc (RecalculComplet)
+' car elle nécessite l'accès à la feuille spécifique (Feuil12)
+
+Public Sub ForceSingleSlicerSelection(cacheName As String, valueToSelect As String)
+    Dim slc As SlicerCache
+    On Error Resume Next
+    Set slc = ThisWorkbook.SlicerCaches(cacheName)
+    If slc Is Nothing Then Exit Sub
+
+    Dim it As SlicerItem
+    For Each it In slc.SlicerItems
+        it.Selected = (it.value = valueToSelect)
+    Next it
+End Sub
+
+' =======================================================================================
+' INITIALISATION DU CACHE AU DÉMARRAGE
+' =======================================================================================
+Public Sub InitializeCache()
+    ' Initialiser le cache au démarrage
+    InvalidateListObjectCache  ' Vide le cache existant
+    GetCache  ' Initialise le Dictionary
+    
+    ' Initialiser la feuille Paramètres si nécessaire
+    EnsureParametresSheet
+    
+    ' Initialiser le chemin du fichier DONNEES depuis Paramètres
+    GetCheminFichierDonnees
+End Sub
+
+' =======================================================================================
+' FONCTIONS POUR LIRE LES PARAMÈTRES DEPUIS LA FEUILLE PARAMÈTRES
+' =======================================================================================
+Public Function GetAnneeDebut() As Long
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Paramètres")
+    If ws Is Nothing Then
+        GetAnneeDebut = 2026  ' Valeur par défaut
+        Exit Function
+    End If
+    
+    Dim val As Variant
+    val = ws.Range("L1").value
+    If IsNumeric(val) Then
+        GetAnneeDebut = CLng(val)
+    Else
+        GetAnneeDebut = 2026  ' Valeur par défaut
+    End If
+    On Error GoTo 0
+End Function
+
+Public Function GetAnneeFin() As Long
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Paramètres")
+    If ws Is Nothing Then
+        GetAnneeFin = 2030  ' Valeur par défaut
+        Exit Function
+    End If
+    
+    Dim val As Variant
+    val = ws.Range("L2").value
+    If IsNumeric(val) Then
+        GetAnneeFin = CLng(val)
+    Else
+        GetAnneeFin = 2030  ' Valeur par défaut
+    End If
+    On Error GoTo 0
+End Function
+
+' =======================================================================================
+' CRÉER/MANTENIR LA FEUILLE PARAMÈTRES
+' =======================================================================================
+Private Sub EnsureParametresSheet()
+    On Error Resume Next
+    
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Paramètres")
+    
+    ' Si la feuille n'existe pas, la créer
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Worksheets.Add
+        ws.name = "Paramètres"
+        Debug.Print "[EnsureParametresSheet] Feuille 'Paramètres' créée"
+    End If
+    
+    ' Initialiser L1 et L2 si elles sont vides
+    If IsEmpty(ws.Range("L1").value) Or Not IsNumeric(ws.Range("L1").value) Then
+        ws.Range("L1").value = 2026
+        ws.Range("K1").value = "Année de début"
+        ws.Range("K1").Font.Bold = True
+        Debug.Print "[EnsureParametresSheet] L1 initialisée à 2026"
+    End If
+    
+    If IsEmpty(ws.Range("L2").value) Or Not IsNumeric(ws.Range("L2").value) Then
+        ws.Range("L2").value = 2030
+        ws.Range("K2").value = "Année de fin"
+        ws.Range("K2").Font.Bold = True
+        Debug.Print "[EnsureParametresSheet] L2 initialisée à 2030"
+    End If
+    
+    ' Initialiser L3 pour le chemin du fichier DONNEES
+    If IsEmpty(ws.Range("L3").value) Or ws.Range("L3").value = "" Then
+        ws.Range("L3").value = CHEMIN_SERVEUR_DEFAUT & FICHIER_DONNEES
+        ws.Range("K3").value = "Chemin fichier DONNEES"
+        ws.Range("K3").Font.Bold = True
+        Debug.Print "[EnsureParametresSheet] L3 initialisée avec chemin par défaut"
+    End If
+    
+    On Error GoTo 0
+End Sub
+
+' =======================================================================================
+' VÉRIFICATIONS ET OPTIMISATIONS AUTOMATIQUES
+' =======================================================================================
+
+' Déclencher les vérifications automatiques après modifications
+Public Sub TriggerAutoChecks()
+    On Error Resume Next
+    
+    mModificationCount = mModificationCount + 1
+    Dim elapsed As Double: elapsed = Timer - mLastAutoCheck
+    
+    If elapsed >= AUTO_CHECK_INTERVAL_SEC Or mModificationCount >= MODIFICATIONS_BEFORE_AUTO_CHECK Then
+        If Not ThisWorkbook.BusyGlobal Then
+            ModuleAutoChecks.RunAutoChecks
+        End If
+        mLastAutoCheck = Timer
+        mModificationCount = 0
+    End If
+    
+    ' Le refresh Dashboard se fait uniquement à l'activation de la feuille Dashboard
+    ' (via Worksheet_Activate qui vérifie mDashboardNeedsRefresh)
+    
+    On Error GoTo 0
+End Sub
+
+
+

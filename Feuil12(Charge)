@@ -1,0 +1,1359 @@
+
+
+Option Explicit
+
+' ======= Slicers =======
+Private Const SLC_AFFAIRE As String = "Segment_AffaireID1"
+Private Const SLC_SITE    As String = "Segment_Site1"
+
+' ======= Colonnes & Layout =======
+Private Const COL_COMP  As Long = 3
+Private Const COL_TOTAL As Long = 4
+Private Const HEADER_ROW_CHARGE As Long = 3
+Private Const FIRST_DATE_COL    As Long = 5
+Private Const SPACING_AFTER_CHARGE As Long = 2
+
+' ======= Cellules pilote =======
+Private Const CELL_AFFAIRE   As String = "B1"
+Private Const CELL_SITE      As String = "B6"
+Private Const CELL_DATE_DEB  As String = "B10"
+Private Const CELL_DATE_FIN  As String = "B11"
+Private Const CELL_DATE_OVR  As String = "B13"
+Private Const CELL_PRECISION As String = "B15"
+
+Private Const TECH_ROW_START As Long = 1000
+Private Const TECH_ROW_END   As Long = 1001
+
+' ======= Trackers =======
+Private mPrevAffaireID As String
+Private mPrevSite As String
+Private mPrevPrec As Variant
+Private mCalcPrevAff As String
+' Cache pour éviter refresh répétés
+Private mLastTCDRefresh As Double
+Private Const REFRESH_COOLDOWN_SEC As Long = 60  ' Ne refresh pas plus d'une fois par minute
+
+' ======= Verrou Global Anti-Boucles =======
+Private BusyAll As Boolean
+Private BusyChange As Boolean
+Private BusyPivot As Boolean
+Private BusyCalc As Boolean
+Public mInitialized As Boolean
+Private Property Get IsLocked() As Boolean
+    IsLocked = (BusyAll Or BusyPivot Or BusyCalc)
+End Property
+' ====================================================================
+' INIT
+' ====================================================================
+
+
+Private Sub Worksheet_Activate()
+    Dim t0 As Double: t0 = Timer
+    Debug.Print "---------- Worksheet_Activate START ----------"
+    
+    If Not mInitialized Then
+        Debug.Print "[Worksheet_Activate] Initialisation trackers..."
+        InitTrackers
+        mInitialized = True
+    End If
+
+    ' Refresh TCD_Aff seulement si nécessaire
+    Dim shouldRefresh As Boolean
+    shouldRefresh = (Timer - mLastTCDRefresh > REFRESH_COOLDOWN_SEC Or mLastTCDRefresh = 0)
+    
+    If shouldRefresh Then
+        ' Utiliser BeginFastExec pour le refresh
+        ModuleExec.BeginFastExec "Actualisation du TCD..."
+        
+        On Error Resume Next
+        
+        ' --- Refresh TCD_Aff uniquement (pas de PowerQuery ici) ---
+        Dim t1 As Double: t1 = Timer
+        Dim wsTCD As Worksheet
+        Dim pt As PivotTable
+        
+        Set wsTCD = ThisWorkbook.Worksheets("TCD")
+        If Not wsTCD Is Nothing Then
+            Set pt = wsTCD.PivotTables("TCD_Aff")
+            If Not pt Is Nothing Then
+                pt.RefreshTable
+                mLastTCDRefresh = Timer
+            End If
+        End If
+        Dim tTCD As Double: tTCD = Timer - t1
+        If tTCD > 0 Then Debug.Print "Step 1 - Refresh TCD_Aff : " & Format(tTCD, "0.000") & " sec"
+        
+        On Error GoTo 0
+        ModuleExec.EndFastExec
+    End If
+    
+    ' Vérifier si aucune affaire sélectionnée ou sélection multiple -> afficher message
+    Dim curAff As String: curAff = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    
+    ' *** CORRECTION : Si B1 est vide, forcer la synchronisation du slicer ***
+    If Len(curAff) = 0 Then
+        Debug.Print "[Worksheet_Activate] B1 vide - Synchronisation du slicer..."
+        On Error Resume Next
+        ' Forcer la synchronisation du slicer pour mettre à jour B1
+        ' Utiliser Application.Run car SyncSlicerMirrors_Safe est dans ThisWorkbook
+        Application.Run "ThisWorkbook.SyncSlicerMirrors_Safe"
+        On Error GoTo 0
+        
+        ' Relire B1 après synchronisation
+        curAff = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+        Debug.Print "[Worksheet_Activate] B1 après sync: '" & curAff & "'"
+        
+        ' Si B1 est toujours vide après sync, vérifier si A1 contient une valeur valide
+        ' (au cas où B1 aurait été vidé par erreur lors du Workbook_Open)
+        If Len(curAff) = 0 Then
+            Dim a1Value As String
+            a1Value = Trim$(CStr(Me.Range("A1").value))
+            If Len(a1Value) > 0 And InStr(a1Value, ",") = 0 Then
+                ' A1 contient une valeur valide, restaurer dans B1
+                Debug.Print "[Worksheet_Activate] Restauration B1 depuis A1: '" & a1Value & "'"
+                Me.Range(CELL_AFFAIRE).value = a1Value
+                curAff = a1Value
+                ' Mettre à jour les détails de l'affaire après modification de B1
+                UpdateAffaireDetails Me
+            End If
+        End If
+    End If
+    
+    If Len(curAff) = 0 Or (Len(curAff) > 0 And InStr(curAff, ",") > 0) Then
+        Debug.Print "[Worksheet_Activate] Sélection multiple ou vide détectée - Affichage message"
+        ModuleExec.BeginFastExec
+        ModuleCharge.ClearGrid Me
+        ModuleAffectation.ClearAffectationBlock Me
+        ShowSelectChantierMessage Me
+        ModuleExec.EndFastExec
+    Else
+        ' Si une affaire est sélectionnée, déclencher le chargement des grilles
+        Debug.Print "[Worksheet_Activate] Affaire sélectionnée détectée - Déclenchement chargement grilles"
+        OnSlicerOrPivotChange "ACTIVATE"
+    End If
+
+    On Error Resume Next
+    Me.Range("E6").Activate
+    On Error GoTo 0
+    
+    Debug.Print "---------- Worksheet_Activate END : " & Format(Timer - t0, "0.000") & " sec ----------"
+End Sub
+
+Private Sub Worksheet_Deactivate()
+    ' Consolider toutes les charges et affectations avant de quitter la feuille
+    On Error Resume Next
+    
+    Dim affaireID As String, siteVal As String
+    affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+    
+    ' Consolider seulement si on a une affaire et un site valides
+    If Len(affaireID) > 0 And Len(siteVal) > 0 And InStr(affaireID, ",") = 0 Then
+        Dim t0 As Double: t0 = Timer
+        Debug.Print "---- Worksheet_Deactivate START - Consolidation globale ----"
+        
+        ModuleExec.BeginFastExec "Consolidation des données..."
+        
+        ' 1) Consolider toutes les charges pour cette affaire/site
+        Debug.Print "[Worksheet_Deactivate] Consolidation charges..."
+        Dim loCharge As ListObject: Set loCharge = ModuleCharge.GetChargeTable()
+        If Not loCharge Is Nothing And Not loCharge.DataBodyRange Is Nothing Then
+            ' Récupérer liste unique des compétences
+            Dim compDict As Object: Set compDict = CreateObject("Scripting.Dictionary")
+            Dim dataArr As Variant: dataArr = loCharge.DataBodyRange.value
+            Dim r As Long
+            
+            ' Normaliser les paramètres pour comparaison
+            affaireID = Trim$(affaireID)
+            siteVal = Trim$(siteVal)
+            Debug.Print "[Worksheet_Deactivate] Recherche compétences pour affaireID='" & affaireID & "' / siteVal='" & siteVal & "'"
+            
+            For r = LBound(dataArr, 1) To UBound(dataArr, 1)
+                Dim affTable As String, siteTable As String
+                affTable = Trim$(CStr(dataArr(r, 1)))
+                siteTable = Trim$(CStr(dataArr(r, 2)))
+                
+                ' Comparaison case-insensitive
+                If UCase$(affTable) = UCase$(affaireID) And _
+                   UCase$(siteTable) = UCase$(siteVal) Then
+                    compDict(Trim$(CStr(dataArr(r, 3)))) = True
+                End If
+            Next r
+            
+            Debug.Print "[Worksheet_Deactivate] " & compDict.count & " compétence(s) trouvée(s) pour consolidation"
+            
+            ' Consolider chaque compétence
+            Dim comp As Variant
+            For Each comp In compDict.keys
+                ModuleCharge.ConsoliderPeriodes_AffaireSiteComp affaireID, siteVal, CStr(comp)
+            Next comp
+        End If
+        
+        ' 2) Consolider toutes les affectations pour cette affaire/site
+        Debug.Print "[Worksheet_Deactivate] Consolidation affectations..."
+        Dim loAffect As ListObject: Set loAffect = ModuleExec.GetAffectationsTable()
+        If Not loAffect Is Nothing And Not loAffect.DataBodyRange Is Nothing Then
+            ' Récupérer liste unique des ressources/compétences
+            Dim resCompDict As Object: Set resCompDict = CreateObject("Scripting.Dictionary")
+            dataArr = loAffect.DataBodyRange.value
+            
+            For r = LBound(dataArr, 1) To UBound(dataArr, 1)
+                If Trim$(CStr(dataArr(r, 1))) = affaireID And _
+                   Trim$(CStr(dataArr(r, 2))) = siteVal Then
+                    Dim key As String
+                    key = Trim$(CStr(dataArr(r, 3))) & "|" & Trim$(CStr(dataArr(r, 4)))
+                    resCompDict(key) = True
+                End If
+            Next r
+            
+        ' Consolider chaque ressource/compétence
+        Dim resComp As Variant
+        Dim parts() As String
+        For Each resComp In resCompDict.keys
+            parts = Split(resComp, "|")
+            If UBound(parts) = 1 Then
+                ModuleAffectation.ConsoliderAffectationsRessource affaireID, siteVal, parts(0), parts(1)
+            End If
+        Next resComp
+        End If
+        
+        ' Vérification automatique des absences déplacée dans Workbook_SheetDeactivate
+        
+        ModuleExec.EndFastExec
+        Debug.Print "---- Worksheet_Deactivate END - Consolidation terminée (" & Format(Timer - t0, "0.000") & " sec) ----"
+    End If
+    
+    BusyAll = False
+    BusyChange = False
+    BusyCalc = False
+    BusyPivot = False
+    
+    On Error GoTo 0
+End Sub
+
+Private Sub InitTrackers()
+    On Error Resume Next
+
+    mPrevAffaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    mPrevSite = Trim$(CStr(Me.Range(CELL_SITE).value))
+    mPrevPrec = Me.Range(CELL_PRECISION).value
+
+    Me.Range("A1").value = mPrevAffaireID
+    Me.Range("A2").value = mPrevSite
+
+    On Error GoTo 0
+End Sub
+
+' ============================================================================
+' Évènement fiable : changement slicer ? pivot update
+' ============================================================================
+Private Sub Worksheet_PivotTableUpdate(ByVal Target As PivotTable)
+
+    If BusyAll Or BusyPivot Then Exit Sub
+
+    BusyAll = True
+    BusyPivot = True
+
+    ' ?? COUPE LES EVENTS AVANT LE REFRESH AUTOMATIQUE
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    On Error GoTo CleanExit
+    OnSlicerOrPivotChange "PT:" & Target.name
+
+CleanExit:
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    BusyPivot = False
+    BusyAll = False
+
+End Sub
+
+
+' ============================================================================
+' Worksheet_Change optimisé + LOGS
+' ============================================================================
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    ' Sortir immédiatement si BusyAll
+    If BusyAll Then
+        Exit Sub
+    End If
+
+    Debug.Print "[Change] --- START ---"
+    Debug.Print "    Target.Address = " & Target.Address
+    Debug.Print "    BusyChange=" & BusyChange
+
+    ' === VERROU ===
+    ' On NE bloque pas sur BusyAll — sinon l'enregistrement manuel est impossible !
+    If BusyChange Then
+        Debug.Print "[Change] ABORT: BusyChange active"
+        Exit Sub
+    End If
+
+    BusyChange = True
+    Application.EnableEvents = False
+
+    On Error GoTo SafeExit
+
+    ' ----------------------------------------------------------------------
+    ' 1) AFFAIRE / PRÉCISION
+    ' ----------------------------------------------------------------------
+    If Not Intersect(Target, Me.Range(CELL_AFFAIRE & "," & CELL_PRECISION)) Is Nothing Then
+        Debug.Print "[Change] Type = AFFAIRE/PRECISION"
+        ' Mettre à jour les cellules B7, B8, B9, B12, B13 avec les données de l'affaire
+        UpdateAffaireDetails Me
+        RebuildAll
+        GoTo SafeExit
+    End If
+
+    ' ----------------------------------------------------------------------
+    ' 2) DATES
+    ' ----------------------------------------------------------------------
+    If Not Intersect(Target, Me.Range(CELL_DATE_DEB & "," & CELL_DATE_FIN & "," & CELL_DATE_OVR)) Is Nothing Then
+        Debug.Print "[Change] Type = DATES"
+        RebuildAll
+        GoTo SafeExit
+    End If
+
+    ' ----------------------------------------------------------------------
+    ' 3) CHARGE
+    ' ----------------------------------------------------------------------
+    On Error Resume Next
+    Dim isInCharge As Boolean
+    isInCharge = ModuleCharge.IsInChargeGrid(Target)
+    If Err.Number <> 0 Then
+        Debug.Print "[Change] ERREUR IsInChargeGrid: " & Err.Number & " - " & Err.Description
+        Err.Clear
+        isInCharge = False
+    End If
+    On Error GoTo SafeExit
+    
+    If isInCharge Then
+        Debug.Print "[Change] Type = CHARGE"
+        Debug.Print "[Change] Valeur avant validation: " & Target.value & " (Type: " & TypeName(Target.value) & ")"
+        ' Gérer les sélections multiples (copier-coller/glisser/suppression)
+        If Target.Cells.count > 1 Then
+            EnregistrerChargesMasse Target
+        Else
+            ValidateSaisieCharge Target
+            Debug.Print "[Change] Valeur après validation: " & Target.value & " (Type: " & TypeName(Target.value) & ")"
+            EnregistrerChargeAuto Target
+        End If
+        GoTo SafeExit
+    End If
+
+    ' ----------------------------------------------------------------------
+    ' 4) AFFECTATION
+    ' ----------------------------------------------------------------------
+    If IsInAffectationGrid(Target) Then
+        Debug.Print "[Change] Type = AFFECTATION"
+        ValidateSaisieAffectation Target
+        ' Gérer les plages (copier-coller/glisser)
+        If Target.Cells.count > 1 Then
+            EnregistrerAffectationsMasse Target
+        Else
+            EnregistrerAffectationAuto Target
+        End If
+        GoTo SafeExit
+    End If
+
+    Debug.Print "[Change] Type = AUTRE (ignored)"
+
+SafeExit:
+    Debug.Print "[Change] --- END ---"
+    Application.EnableEvents = True
+    BusyChange = False   ' <-- SEUL verrou de Worksheet_Change
+End Sub
+
+
+
+' ============================================================================
+' GESTION CHANGEMENT SLICER / CHAMPS PILOTES
+' ============================================================================
+Public Sub OnSlicerOrPivotChange(ByVal sourceTag As String)
+    Debug.Print "[OnSlicerOrPivotChange] START - sourceTag=" & sourceTag
+    
+    If IsLocked Then
+        Debug.Print "[OnSlicerOrPivotChange] ABORT: IsLocked=True"
+        Exit Sub
+    End If
+    
+    If Not mInitialized Then
+        Debug.Print "[OnSlicerOrPivotChange] Initialisation trackers..."
+        InitTrackers
+    End If
+
+    BusyAll = True
+
+    Dim prevEvents As Boolean, prevScreen As Boolean
+    prevEvents = Application.EnableEvents
+    prevScreen = Application.ScreenUpdating
+
+    On Error GoTo CleanExit
+
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+
+    ' ===== VALEURS COURANTES =====
+    Dim curAff As String, curSite As String, curPrec As Variant
+    curAff = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    curSite = Trim$(CStr(Me.Range(CELL_SITE).value))  ' <-- B6 reste une formule
+    curPrec = Me.Range(CELL_PRECISION).value
+
+    ' Ignorer les sélections multiples d'affaires ou aucune sélection (afficher message)
+    If Len(curAff) = 0 Or (Len(curAff) > 0 And InStr(curAff, ",") > 0) Then
+        Debug.Print "[OnSlicerOrPivotChange] Sélection multiple ou vide détectée - Affichage message"
+        ' Effacer les grilles existantes et afficher message de sélection
+        ModuleExec.BeginFastExec
+        ModuleCharge.ClearGrid Me
+        ModuleAffectation.ClearAffectationBlock Me
+        ShowSelectChantierMessage Me
+        ModuleExec.EndFastExec
+        ' Mémoriser quand même pour éviter de recharger si on revient à la même sélection multiple
+        If curAff <> mPrevAffaireID Or curPrec <> mPrevPrec Then
+            mPrevAffaireID = curAff
+            mPrevSite = curSite
+            mPrevPrec = curPrec
+        End If
+        GoTo CleanExit
+    End If
+
+    ' ===== DÉTECTION SIMPLE (AFFAIRE + PRECISION) =====
+    ' On ignore totalement le site (B6) ici.
+    If curAff = mPrevAffaireID And curPrec = mPrevPrec Then
+        GoTo CleanExit
+    End If
+
+    ' ===== ÉCRIRE LES ANCIENS EN A1/A2 =====
+    Me.Range("A1").value = mPrevAffaireID
+    Me.Range("A2").value = mPrevSite      ' laissé mais pas utilisé pour déclenchement
+
+    ' ===== RECONSTRUCTION GLOBALE =====
+    Debug.Print "[OnSlicerOrPivotChange] Reconstruction globale..."
+    
+    ' Mettre à jour les détails de l'affaire (B7, B8, B9, B12, B13)
+    UpdateAffaireDetails Me
+    
+    ModuleExec.BeginFastExec
+        Debug.Print "[OnSlicerOrPivotChange] Appel ConstruireGrille..."
+        ModuleCharge.ConstruireGrille
+        Debug.Print "[OnSlicerOrPivotChange] ConstruireGrille terminé"
+
+        If Len(curAff) > 0 Then
+            Debug.Print "[OnSlicerOrPivotChange] Appel ChargerPlanDeCharge..."
+            ModuleCharge.ChargerPlanDeCharge Me
+            Debug.Print "[OnSlicerOrPivotChange] ChargerPlanDeCharge terminé"
+        End If
+
+        Debug.Print "[OnSlicerOrPivotChange] Appel TryBuildAffectationSafe..."
+        TryBuildAffectationSafe Me
+        Debug.Print "[OnSlicerOrPivotChange] TryBuildAffectationSafe terminé"
+    ModuleExec.EndFastExec
+
+    ' ===== MÉMORISATION =====
+    mPrevAffaireID = curAff
+    mPrevSite = curSite          ' on garde pour info mais ne sert plus à déclencher
+    mPrevPrec = curPrec
+    BusyAll = False
+
+CleanExit:
+    Application.EnableEvents = prevEvents
+    Application.ScreenUpdating = prevScreen
+    BusyAll = False
+    Debug.Print "[OnSlicerOrPivotChange] END"
+End Sub
+' ============================================================================
+' VALIDATION CHARGE / AFFECTATION
+' ============================================================================
+Private Sub ValidateSaisieCharge(Target As Range)
+    Dim v As Variant: v = Target.value
+    ' Gérer aussi les suppressions (cellule vide)
+    If IsEmpty(v) Or Trim$(CStr(v)) = "" Then
+        ' Suppression détectée : mettre à 0 pour déclencher l'enregistrement
+        Application.EnableEvents = False
+        Target.value = 0
+        Application.EnableEvents = True
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(v) Then
+        Application.EnableEvents = False: Target.value = 0: Application.EnableEvents = True
+        Exit Sub
+    End If
+    If CDbl(v) < 0 Then
+        Application.EnableEvents = False: Target.value = 0: Application.EnableEvents = True
+    End If
+End Sub
+
+Private Sub ValidateSaisieAffectation(Target As Range)
+    Dim label As String
+    label = Trim$(CStr(Me.Cells(Target.Row, 3).value))
+
+    Debug.Print "[ValidateSaisieAffectation] label=" & label & " / valeur=" & Target.value
+
+    If label = "Besoin" Or label = "Affecté" Or InStr(label, "---") > 0 Then
+        Debug.Print "[ValidateSaisieAffectation] ABORT: Ligne spéciale (Besoin/Affecté/titre)"
+        Exit Sub
+    End If
+
+    Dim v As Variant: v = Target.value
+    If Not IsEmpty(v) And v <> "" Then
+        If Not (v = 0 Or v = 1) Then
+            Debug.Print "[ValidateSaisieAffectation] Valeur invalide (" & v & ") -> mise à 0"
+            Application.EnableEvents = False
+            Target.value = 0
+            Application.EnableEvents = True
+            Exit Sub
+        End If
+    End If
+
+    ' Vérifier absences et conflits avant de permettre la saisie
+    If Not IsEmpty(v) And v <> "" And CDbl(v) > 0 Then
+        Dim ressource As String, d As Date
+        ressource = Trim$(label)
+        
+        Dim dateVal As Variant
+        dateVal = Me.Cells(TECH_ROW_START, Target.Column).value
+        If ModuleExec.TryGetDate(dateVal, d) Then
+            Dim affaireID As String, siteVal As String
+            affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+            siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+            
+            ' Vérifier si la ressource est absente ou déjà affectée ailleurs
+            If Not ModuleAbsence.ValiderAffectationPossible(Me, Target, ressource, d, affaireID, siteVal) Then
+                ' La validation a échoué (absence ou conflit), la cellule a déjà été remise à 0
+                Exit Sub
+            End If
+        End If
+    End If
+
+    ModuleAffectation.CheckConflits Me, Target.Row, Target.Column
+    Debug.Print "[ValidateSaisieAffectation] Validation OK"
+
+End Sub
+
+' ============================================================================
+' ENREGISTREMENT CHARGE OPTIMISÉ
+' ============================================================================
+Private Sub EnregistrerChargeAuto(Target As Range)
+    If IsLocked Then Exit Sub
+    Dim t As Double: t = Timer
+
+    BusyAll = True
+    ModuleExec.BeginFastExec
+
+    On Error GoTo Quit
+
+    Dim affaireID As String, siteVal As String, comp As String
+    Dim d As Date, dateHeader As Variant, besoin As Double
+
+    affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+    comp = Trim$(CStr(Me.Cells(Target.Row, 3).value))
+
+    Debug.Print "[EnregistrerChargeAuto] affaireID=" & affaireID & " / siteVal=" & siteVal & " / comp=" & comp & " / row=" & Target.Row & " / col=" & Target.Column
+    
+    ' Ignorer les sélections multiples d'affaires
+    If Len(affaireID) > 0 Then
+        If InStr(affaireID, ",") > 0 Then
+            Debug.Print "[EnregistrerChargeAuto] Sélection multiple détectée - Enregistrement ignoré"
+            GoTo Quit
+        End If
+    End If
+
+    If affaireID = "" Or siteVal = "" Or comp = "" Then
+        Debug.Print "[EnregistrerChargeAuto] Données manquantes - Enregistrement ignoré"
+        GoTo Quit
+    End If
+
+    dateHeader = Me.Cells(TECH_ROW_START, Target.Column).value
+    Debug.Print "[EnregistrerChargeAuto] dateHeader (raw)=" & dateHeader & " / Type: " & TypeName(dateHeader)
+    If Not ModuleExec.TryGetDate(dateHeader, d) Then
+        Debug.Print "[EnregistrerChargeAuto] Date invalide - Enregistrement ignoré"
+        GoTo Quit
+    End If
+    Debug.Print "[EnregistrerChargeAuto] Date convertie: " & Format$(d, "dd/mm/yyyy")
+
+    If Trim$(Target.value) = "" Then besoin = 0 Else besoin = CDbl(Target.value)
+    Debug.Print "[EnregistrerChargeAuto] besoin=" & besoin
+    
+    Debug.Print "[EnregistrerChargeAuto] Appel EnregistrerUneBesoinCharge..."
+    
+    ' Enregistrement brut (SANS consolidation)
+    ' Ne pas utiliser On Error Resume Next pour capturer les erreurs silencieuses
+    On Error GoTo ErrCharge
+    ModuleCharge.EnregistrerUneBesoinCharge affaireID, siteVal, comp, d, besoin
+    On Error GoTo Quit
+    GoTo ContinueCharge
+    
+ErrCharge:
+    Debug.Print "[EnregistrerChargeAuto] ERREUR dans EnregistrerUneBesoinCharge: " & Err.Number & " - " & Err.Description
+    ModuleErrorHandling.HandleError "ModuleFeuille", "EnregistrerChargeAuto", False
+    Err.Clear
+    On Error GoTo Quit
+    GoTo Quit
+    
+ContinueCharge:
+    
+    Debug.Print "[EnregistrerChargeAuto] EnregistrerUneBesoinCharge terminé (" & Format(Timer - t, "0.000") & " sec)"
+    
+    ' Consolidation déplacée dans Worksheet_Deactivate
+    ' La consolidation sera exécutée une seule fois quand on quitte la feuille
+    Debug.Print "Step A = "; Format(Timer - t, "0.000") & " sec"
+    
+    Debug.Print "Step B (Affectation) start..."
+    TryBuildAffectationSafe Me
+    Debug.Print "Step B = "; Format(Timer - t, "0.000") & " sec"
+    
+    ' Marquer Dashboard pour refresh et déclencher vérifications automatiques
+    ModuleExec.mDashboardNeedsRefresh = True
+    Debug.Print "[Dashboard] Flag mis à True (modification charge)"
+    ModuleExec.TriggerAutoChecks
+    
+    Debug.Print "  > Total EnregistrerChargeAuto = "; Format(Timer - t, "0.000") & " sec"
+    
+Quit:
+    ModuleExec.EndFastExec
+    BusyAll = False
+End Sub
+
+
+' ============================================================================
+' ENREGISTREMENT CHARGE DE MASSE (copier-coller/glisser/suppression)
+' ============================================================================
+Private Sub EnregistrerChargesMasse(Target As Range)
+    If IsLocked Then Exit Sub
+    
+    Dim t0 As Double: t0 = Timer
+    Debug.Print "[EnregistrerChargesMasse] START - " & Target.Cells.count & " cellules"
+    
+    BusyAll = True
+    Application.EnableEvents = False
+    ModuleExec.BeginFastExec
+    
+    On Error GoTo Quit
+    
+    Dim affaireID As String, siteVal As String
+    affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+    
+    ' Ignorer les sélections multiples d'affaires
+    If Len(affaireID) > 0 Then
+        If InStr(affaireID, ",") > 0 Then
+            Debug.Print "[EnregistrerChargesMasse] Sélection multiple détectée - Enregistrement ignoré"
+            GoTo Quit
+        End If
+    End If
+    
+    If affaireID = "" Or siteVal = "" Then GoTo Quit
+    
+    Dim cell As Range
+    Dim comp As String
+    Dim d As Date
+    Dim besoin As Double
+    Dim dateHeader As Variant
+    
+    ' === TRAITEMENT DE TOUTES LES CELLULES ===
+    For Each cell In Target.Cells
+        ' Vérifier que la cellule est dans la grille CHARGE
+        On Error Resume Next
+        Dim isInChargeCell As Boolean
+        isInChargeCell = ModuleCharge.IsInChargeGrid(cell)
+        If Err.Number <> 0 Then
+            Err.Clear
+            isInChargeCell = False
+        End If
+        On Error GoTo Quit
+        If Not isInChargeCell Then GoTo NextCell
+        
+        ' Appliquer la validation pour chaque cellule
+        ValidateSaisieCharge cell
+        
+        comp = Trim$(CStr(Me.Cells(cell.Row, 3).value))
+        If comp = "" Then GoTo NextCell
+        
+        dateHeader = Me.Cells(TECH_ROW_START, cell.Column).value
+        If Not ModuleExec.TryGetDate(dateHeader, d) Then GoTo NextCell
+        
+        ' Vérifier si la cellule est vide ou à 0 (suppression)
+        Dim cellValue As Variant: cellValue = cell.value
+        If IsEmpty(cellValue) Or Trim$(CStr(cellValue)) = "" Then
+            besoin = 0
+            Debug.Print "[EnregistrerChargesMasse] Suppression: " & comp & " (" & Format$(d, "dd/mm/yyyy") & ")"
+        ElseIf IsNumeric(cellValue) Then
+            besoin = CDbl(cellValue)
+            If besoin < 0 Then besoin = 0
+        Else
+            besoin = 0
+        End If
+        
+        ' Enregistrer chaque charge (ou suppression si besoin = 0)
+        ModuleCharge.EnregistrerUneBesoinCharge affaireID, siteVal, comp, d, besoin
+NextCell:
+    Next cell
+    
+    ' Consolidation déplacée dans Worksheet_Deactivate
+    ' La consolidation sera exécutée une seule fois quand on quitte la feuille
+    
+    ' Reconstruire la grille d'affectation seulement après toutes les modifications
+    Debug.Print "[EnregistrerChargesMasse] Reconstruction affectation..."
+    TryBuildAffectationSafe Me
+    
+    ' Marquer Dashboard pour refresh et déclencher vérifications automatiques
+    ModuleExec.mDashboardNeedsRefresh = True
+    Debug.Print "[Dashboard] Flag mis à True (modification charge de masse)"
+    ModuleExec.TriggerAutoChecks
+    
+    Debug.Print "[EnregistrerChargesMasse] END - " & Format$(Timer - t0, "0.000") & " sec"
+
+Quit:
+    Application.EnableEvents = True
+    BusyAll = False
+    ModuleExec.EndFastExec
+End Sub
+
+' ============================================================================
+' ENREGISTREMENT AFFECTATION AUTOMATIQUE (multi-mode Jour / Semaine / Mois)
+' ============================================================================
+Private Sub EnregistrerAffectationAuto(Target As Range)
+    Debug.Print "[EnregistrerAffectationAuto] START - Cellule: " & Target.Address
+    
+    If IsLocked Then
+        Debug.Print "[EnregistrerAffectationAuto] ABORT: IsLocked=True"
+        Exit Sub
+    End If
+
+    BusyAll = True
+    Application.EnableEvents = False
+
+    On Error GoTo Quit
+    ModuleExec.BeginFastExec
+
+    Dim affaireID As String, siteVal As String, ressource As String
+    Dim comp As String, dDeb As Date, dFin As Date
+    Dim nbJoursOuvres As Double, charge As Double
+
+    affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+    ressource = Trim$(CStr(Me.Cells(Target.Row, COL_COMP).value))
+
+    Debug.Print "[EnregistrerAffectationAuto] affaireID=" & affaireID & " / siteVal=" & siteVal & " / ressource=" & ressource
+
+    If affaireID = "" Or siteVal = "" Or ressource = "" Then
+        Debug.Print "[EnregistrerAffectationAuto] ABORT: Données manquantes"
+        GoTo Quit
+    End If
+
+    comp = ModuleAffectation.FindCompetenceForRow(Me, Target.Row)
+    Debug.Print "[EnregistrerAffectationAuto] comp=" & comp
+    If comp = "" Then
+        Debug.Print "[EnregistrerAffectationAuto] ABORT: Compétence introuvable"
+        GoTo Quit
+    End If
+
+    Dim dateStartVal As Variant, dateEndVal As Variant
+    dateStartVal = Me.Cells(TECH_ROW_START, Target.Column).value
+    dateEndVal = Me.Cells(TECH_ROW_END, Target.Column).value
+    
+    Debug.Print "[EnregistrerAffectationAuto] Valeurs brutes colonne " & Target.Column & " : TECH_START=" & dateStartVal & " / TECH_END=" & dateEndVal
+    
+    If Not ModuleExec.TryGetDate(dateStartVal, dDeb) Then
+        Debug.Print "[EnregistrerAffectationAuto] ABORT: Date début invalide (valeur=" & dateStartVal & ")"
+        GoTo Quit
+    End If
+    If Not ModuleExec.TryGetDate(dateEndVal, dFin) Then dFin = dDeb
+
+    Debug.Print "[EnregistrerAffectationAuto] Période: " & Format$(dDeb, "dd/mm/yyyy") & " -> " & Format$(dFin, "dd/mm/yyyy")
+    Debug.Print "[EnregistrerAffectationAuto] Dates brutes: dDeb=" & dDeb & " (Serial: " & CLng(dDeb) & ") / dFin=" & dFin & " (Serial: " & CLng(dFin) & ")"
+    Debug.Print "[EnregistrerAffectationAuto] Jour semaine dDeb: " & Weekday(dDeb, vbMonday) & " (1=Lun, 6=Sam, 7=Dim)"
+
+    ' NetworkDays_Intl compte les jours ENTRE les dates (exclut le dernier)
+    ' Pour inclure la date de fin, on doit l'ajouter si c'est un jour ouvré
+    On Error Resume Next
+    Dim feriesRng As Range
+    Set feriesRng = ThisWorkbook.Names("LstFeries").RefersToRange
+    
+    If dDeb = dFin Then
+        ' Même date : vérifier si c'est un jour ouvré
+        ' Utiliser ModuleCalendar pour une seule date
+        If isBusinessDay(dDeb) Then
+            nbJoursOuvres = 1
+        Else
+            nbJoursOuvres = 0
+        End If
+    Else
+        ' Utiliser ModuleCalendar pour compter les jours ouvrés
+        nbJoursOuvres = BusinessDaysBetween(dDeb, dFin)
+        If nbJoursOuvres < 0 Then nbJoursOuvres = 0
+    End If
+    
+    If nbJoursOuvres < 0 Then nbJoursOuvres = 0
+    On Error GoTo 0
+
+    charge = nbJoursOuvres * ModuleExec.val(Target.value)
+    Debug.Print "[EnregistrerAffectationAuto] charge=" & charge & " (nbJoursOuvres=" & nbJoursOuvres & " * valeur=" & ModuleExec.val(Target.value) & ")"
+
+    Debug.Print "[EnregistrerAffectationAuto] Enregistrement..."
+    ModuleAffectation.EnregistrerUneAffectation affaireID, siteVal, ressource, comp, dDeb, dFin, charge
+    ' Consolidation déplacée dans Worksheet_Deactivate
+    ' La consolidation sera exécutée une seule fois quand on quitte la feuille
+    
+    ' Marquer Dashboard pour refresh et déclencher vérifications automatiques
+    ModuleExec.mDashboardNeedsRefresh = True
+    Debug.Print "[Dashboard] Flag mis à True (modification affectation)"
+    ModuleExec.TriggerAutoChecks
+    
+    Debug.Print "[EnregistrerAffectationAuto] END (OK)"
+
+Quit:
+    Application.EnableEvents = True
+    BusyAll = False
+    ModuleExec.EndFastExec
+    If Err.Number <> 0 Then
+        Debug.Print "[EnregistrerAffectationAuto] ERREUR : " & Err.Number & " - " & Err.Description
+        Err.Clear
+    End If
+End Sub
+
+' ============================================================================
+' ENREGISTREMENT AFFECTATION DE MASSE (copier-coller/glisser)
+' ============================================================================
+Private Sub EnregistrerAffectationsMasse(Target As Range)
+    If IsLocked Then Exit Sub
+    
+    Dim t0 As Double: t0 = Timer
+    Debug.Print "[EnregistrerAffectationsMasse] START - " & Target.Cells.count & " cellules"
+    
+    BusyAll = True
+    Application.EnableEvents = False
+    ModuleExec.BeginFastExec
+    
+    On Error GoTo Quit
+    
+    Dim affaireID As String, siteVal As String
+    affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+    
+    If affaireID = "" Or siteVal = "" Then GoTo Quit
+    
+    ' Dictionnaire pour regrouper par ressource/compétence
+    Dim dictConsolidation As Object
+    Set dictConsolidation = CreateObject("Scripting.Dictionary")
+    dictConsolidation.CompareMode = vbTextCompare
+    
+    ' Dictionnaire pour éviter recalculs répétés de jours ouvrés
+    Dim dictJoursOuvres As Object
+    Set dictJoursOuvres = CreateObject("Scripting.Dictionary")
+    
+    Dim feriesRng As Range
+    On Error Resume Next
+    Set feriesRng = ThisWorkbook.Names("LstFeries").RefersToRange
+    On Error GoTo Quit
+    
+    Dim cell As Range
+    Dim ressource As String, comp As String
+    Dim dDeb As Date, dFin As Date
+    Dim nbJoursOuvres As Double, charge As Double
+    Dim key As String, dateKey As String
+    
+    ' === TRAITEMENT DE TOUTES LES CELLULES ===
+    For Each cell In Target.Cells
+        ' Vérifier que la cellule est dans la grille affectation
+        If Not ModuleAffectation.IsInAffectationGrid(cell) Then GoTo NextCell
+        
+        ressource = Trim$(CStr(Me.Cells(cell.Row, COL_COMP).value))
+        If ressource = "" Then GoTo NextCell
+        
+        comp = ModuleAffectation.FindCompetenceForRow(Me, cell.Row)
+        If comp = "" Then GoTo NextCell
+        
+        If Not ModuleExec.TryGetDate(Me.Cells(TECH_ROW_START, cell.Column), dDeb) Then GoTo NextCell
+        If Not ModuleExec.TryGetDate(Me.Cells(TECH_ROW_END, cell.Column), dFin) Then dFin = dDeb
+        
+        ' Vérifier si la cellule est vide ou à 0 (suppression)
+        Dim cellValue As Variant: cellValue = cell.value
+        Dim valeurCell As Double: valeurCell = ModuleExec.val(cellValue)
+        
+        ' Si la cellule est vide ou à 0, on supprime l'affectation
+        If IsEmpty(cellValue) Or Trim$(CStr(cellValue)) = "" Or valeurCell = 0 Then
+            valeurCell = 0
+            Debug.Print "[EnregistrerAffectationsMasse] Suppression: " & ressource & " / " & comp & " (" & Format$(dDeb, "dd/mm/yyyy") & " -> " & Format$(dFin, "dd/mm/yyyy") & ")"
+        Else
+            ' *** OPTIMISATION : Cache des jours ouvrés (même période = même calcul) ***
+            ' Utiliser ModuleCalendar pour le calcul
+            dateKey = Format$(dDeb, "yyyymmdd") & "|" & Format$(dFin, "yyyymmdd")
+            If dictJoursOuvres.Exists(dateKey) Then
+                nbJoursOuvres = dictJoursOuvres(dateKey)
+            Else
+                nbJoursOuvres = BusinessDaysBetween(dDeb, dFin)
+                If nbJoursOuvres < 0 Then nbJoursOuvres = 0
+                dictJoursOuvres(dateKey) = nbJoursOuvres
+            End If
+            valeurCell = nbJoursOuvres * valeurCell
+        End If
+        
+        ' Enregistrer chaque affectation (ou suppression si valeurCell = 0)
+        ModuleAffectation.EnregistrerUneAffectation affaireID, siteVal, ressource, comp, dDeb, dFin, valeurCell
+NextCell:
+    Next cell
+    
+    ' Consolidation déplacée dans Worksheet_Deactivate
+    ' La consolidation sera exécutée une seule fois quand on quitte la feuille
+    
+    ' Marquer Dashboard pour refresh et déclencher vérifications automatiques
+    ModuleExec.mDashboardNeedsRefresh = True
+    Debug.Print "[Dashboard] Flag mis à True (modification affectation de masse)"
+    ModuleExec.TriggerAutoChecks
+    
+    Debug.Print "[EnregistrerAffectationsMasse] END - " & Format$(Timer - t0, "0.000") & " sec"
+
+Quit:
+    Application.EnableEvents = True
+    BusyAll = False
+    ModuleExec.EndFastExec
+End Sub
+
+Public Sub TryBuildAffectationSafe(ws As Worksheet)
+    On Error GoTo Quit
+
+    Dim t0 As Double, t As Double
+    t0 = Timer
+
+    Debug.Print "------ TryBuildAffectationSafe START ------"
+
+    ' Ignorer les sélections multiples d'affaires
+    Dim aff As String, siteVal As String
+    aff = Trim$(CStr(ws.Range(CELL_AFFAIRE).value))
+    If Len(aff) > 0 Then
+        If InStr(aff, ",") > 0 Then
+            Debug.Print "[INFO] Sélection multiple détectée - Construction affectation ignorée"
+            Exit Sub
+        End If
+    End If
+
+    ModuleExec.BeginFastExec
+
+    ' ================================
+    ' 1) Compétences actives
+    ' ================================
+    t = Timer
+    Dim comps() As String
+    comps = ModuleAffectation.GetActiveCompetences(ws)
+    Debug.Print "Step 1 - GetActiveCompetences : " & Format(Timer - t, "0.000") & " sec"
+
+    If UBound(comps) < 0 Then GoTo Quit
+
+    ' ================================
+    ' 2) Effacer anciens blocs
+    ' ================================
+    t = Timer
+    ModuleAffectation.ClearAffectationBlock ws
+    Debug.Print "Step 2 - ClearAffectationBlock : " & Format(Timer - t, "0.000") & " sec"
+
+    ' ================================
+    ' 3) Construire les blocs
+    ' ================================
+    t = Timer
+    Dim startRow As Long
+    startRow = FindEndOfChargeGrid(ws) + SPACING_AFTER_CHARGE
+    Application.EnableEvents = False
+    ModuleAffectation.BuildCompetenceBlocks ws, comps, startRow
+    Debug.Print "Step 3 - BuildCompetenceBlocks : " & Format(Timer - t, "0.000") & " sec"
+    Application.EnableEvents = True
+
+    ' ================================
+    ' 4) Recharger les affectations existantes
+    ' ================================
+    t = Timer
+    siteVal = Trim$(CStr(ws.Range(CELL_SITE).value))
+
+    If Len(aff) > 0 Then
+        ModuleAffectation.ChargerAffectations ws, aff, siteVal
+    End If
+
+    Debug.Print "Step 4 - ChargerAffectations : " & Format(Timer - t, "0.000") & " sec"
+    
+    ' ================================
+    ' 5) Appliquer visuels absences et conflits (griser les cellules déjà prises)
+    ' ================================
+    t = Timer
+    If Len(aff) > 0 Then
+        ModuleAbsence.AppliquerVisuelsAbsencesEtConflits ws, aff, siteVal
+    End If
+    Debug.Print "Step 5 - AppliquerVisuelsAbsencesEtConflits : " & Format(Timer - t, "0.000") & " sec"
+
+Quit:
+    ModuleExec.EndFastExec
+    If Err.Number <> 0 Then
+        Debug.Print "[TryBuildAffectationSafe] ERREUR : " & Err.Number & " - " & Err.Description
+        ModuleErrorHandling.HandleError "ModuleFeuille", "TryBuildAffectationSafe", False
+        Err.Clear
+    End If
+
+    Debug.Print "TOTAL TryBuildAffectationSafe : " & Format(Timer - t0, "0.000") & " sec"
+    Debug.Print "------ TryBuildAffectationSafe END ------"
+End Sub
+
+' ============================================================================
+'    SECours : recalcul (A6 ou autre) ? si l'affaire B1 a changé, on déclenche
+' ============================================================================
+
+Private Sub Worksheet_Calculate()
+
+    If BusyAll Or BusyCalc Then Exit Sub
+
+    BusyAll = True
+    BusyCalc = True
+    Application.EnableEvents = False
+
+    On Error GoTo CleanExit
+
+    Dim curAff As String
+    curAff = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+
+    If mCalcPrevAff = "" Then
+        mCalcPrevAff = curAff
+        GoTo CleanExit
+    End If
+
+    If curAff <> mCalcPrevAff Then
+        mCalcPrevAff = curAff
+        OnSlicerOrPivotChange "CALC"
+    End If
+
+CleanExit:
+    Application.EnableEvents = True
+    BusyCalc = False
+    BusyAll = False
+
+End Sub
+Private Sub RebuildAll()
+    Debug.Print "[RebuildAll] START"
+    On Error GoTo CleanExit
+    
+    ' Ignorer les sélections multiples d'affaires ou aucune sélection (afficher message)
+    Dim affValue As String: affValue = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    If Len(affValue) = 0 Or (Len(affValue) > 0 And InStr(affValue, ",") > 0) Then
+        Debug.Print "[RebuildAll] Sélection multiple ou vide détectée - Affichage message"
+        ' Effacer les grilles existantes et afficher message de sélection
+        ModuleExec.BeginFastExec
+        ModuleCharge.ClearGrid Me
+        ModuleAffectation.ClearAffectationBlock Me
+        ShowSelectChantierMessage Me
+        ModuleExec.EndFastExec
+        Debug.Print "[RebuildAll] END (message affiché)"
+        Exit Sub
+    End If
+    
+    Debug.Print "[RebuildAll] Reconstruction grilles..."
+    ModuleExec.BeginFastExec
+
+    Debug.Print "[RebuildAll] Appel ConstruireGrille..."
+    ModuleCharge.ConstruireGrille
+    Debug.Print "[RebuildAll] ConstruireGrille terminé"
+
+    If Len(affValue) > 0 Then
+        Debug.Print "[RebuildAll] Appel ChargerPlanDeCharge..."
+        ModuleCharge.ChargerPlanDeCharge Me
+        Debug.Print "[RebuildAll] ChargerPlanDeCharge terminé"
+    End If
+
+    Debug.Print "[RebuildAll] Appel TryBuildAffectationSafe..."
+    TryBuildAffectationSafe Me
+    Debug.Print "[RebuildAll] TryBuildAffectationSafe terminé"
+
+CleanExit:
+    ModuleExec.EndFastExec
+    If Err.Number <> 0 Then
+        Debug.Print "[RebuildAll] ERREUR : " & Err.Number & " - " & Err.Description
+        ModuleErrorHandling.HandleError "ModuleFeuille", "RebuildAll", False
+        Err.Clear
+    End If
+    Debug.Print "[RebuildAll] END"
+End Sub
+
+Sub RecalculComplet()
+    If IsLocked Then Exit Sub
+    
+    Dim t As Double: t = Timer
+    Dim affaireID As String, siteVal As String
+    
+    BusyAll = True
+    ModuleExec.BeginFastExec
+    
+    On Error GoTo Quit
+
+    affaireID = Trim$(CStr(Me.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(Me.Range(CELL_SITE).value))
+
+    If affaireID = "" Or siteVal = "" Then GoTo Quit
+    
+    Debug.Print "=== RECALCUL COMPLET ==="
+    
+    ' Consolider TOUTES les compétences de cette affaire/site
+    Debug.Print "Step A: Consolidation toutes compétences..."
+    Dim lo As ListObject: Set lo = ModuleCharge.GetChargeTable()
+    If Not lo Is Nothing And Not lo.DataBodyRange Is Nothing Then
+        
+        ' Récupérer liste unique des compétences
+        Dim compDict As Object: Set compDict = CreateObject("Scripting.Dictionary")
+        Dim dataArr As Variant: dataArr = lo.DataBodyRange.value
+        Dim r As Long
+        
+        For r = LBound(dataArr, 1) To UBound(dataArr, 1)
+            If Trim$(CStr(dataArr(r, 1))) = affaireID And _
+               Trim$(CStr(dataArr(r, 2))) = siteVal Then
+                compDict(Trim$(CStr(dataArr(r, 3)))) = True
+            End If
+        Next r
+        
+        ' Consolider chaque compétence
+        Dim comp As Variant
+        For Each comp In compDict.keys
+            ModuleCharge.ConsoliderPeriodes_AffaireSiteComp affaireID, siteVal, CStr(comp)
+        Next comp
+    End If
+    
+    Debug.Print "Step A = "; Format(Timer - t, "0.000") & " sec"
+    
+    Debug.Print "Step B: Reconstruction affectation..."
+    TryBuildAffectationSafe Me
+    Debug.Print "Step B = "; Format(Timer - t, "0.000") & " sec"
+    
+    Debug.Print "  > Total RecalculComplet = "; Format(Timer - t, "0.000") & " sec"
+    
+Quit:
+    ModuleExec.EndFastExec
+    BusyAll = False
+End Sub
+
+' ============================================================================
+' AFFICHER MESSAGE DE SÉLECTION DE CHANTIER
+' ============================================================================
+Public Sub ShowSelectChantierMessage(ws As Worksheet)
+    On Error GoTo CleanExit
+    
+    ' Effacer d'abord l'ancien message s'il existe
+    ClearSelectChantierMessage ws
+    
+    ' Définir la zone où afficher le message (zone normale des grilles)
+    Dim msgRow As Long, msgCol As Long, msgWidth As Long, msgHeight As Long
+    msgRow = HEADER_ROW_CHARGE + 3  ' Ligne de départ des compétences
+    msgCol = COL_COMP                ' Colonne C (Compétences)
+    msgWidth = 20                    ' Largeur du message (20 colonnes)
+    msgHeight = 10                   ' Hauteur du message (10 lignes)
+    
+    ' Calculer la largeur disponible (jusqu'à une certaine colonne raisonnable)
+    Dim maxCol As Long: maxCol = msgCol + msgWidth - 1
+    
+    ' Créer le message centré
+    Dim msgRng As Range
+    Set msgRng = ws.Range(ws.Cells(msgRow, msgCol), ws.Cells(msgRow + msgHeight - 1, maxCol))
+    
+    With msgRng
+        ' Fusionner toutes les cellules
+        .Merge
+        .value = "Sélectionnez un chantier" & vbCrLf & vbCrLf & "Utilisez le slicer ci-dessus pour choisir une affaire"
+        
+        ' Style du message (sans gras)
+        .Font.name = "Segoe UI"
+        .Font.Size = 18
+        .Font.color = RGB(100, 100, 100)  ' Gris
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .Interior.color = RGB(245, 245, 245)  ' Fond gris très clair
+        .BorderAround xlContinuous, xlMedium, RGB(200, 200, 200)  ' Bordure grise
+        .WrapText = True
+    End With
+    
+CleanExit:
+    On Error GoTo 0
+End Sub
+
+' ============================================================================
+' EFFACER MESSAGE DE SÉLECTION DE CHANTIER
+' ============================================================================
+Public Sub ClearSelectChantierMessage(ws As Worksheet)
+    On Error Resume Next
+    
+    ' Définir la zone où le message pourrait être affiché
+    Dim msgRow As Long, msgCol As Long, msgWidth As Long, msgHeight As Long
+    msgRow = HEADER_ROW_CHARGE + 3  ' Ligne de départ des compétences
+    msgCol = COL_COMP                ' Colonne C (Compétences)
+    msgWidth = 20                    ' Largeur du message (20 colonnes)
+    msgHeight = 30                   ' Hauteur avec marge
+    
+    Dim maxCol As Long: maxCol = msgCol + msgWidth - 1
+    
+    ' Effacer la zone (démêler et effacer contenu/format)
+    Dim msgRng As Range
+    Set msgRng = ws.Range(ws.Cells(msgRow, msgCol), ws.Cells(msgRow + msgHeight, maxCol))
+    
+    ' Démêler toutes les cellules fusionnées dans cette zone
+    msgRng.UnMerge
+    
+    ' Effacer contenu et formats
+    msgRng.Clear
+    
+    On Error GoTo 0
+End Sub
+
+' ============================================================================
+' Worksheet_SelectionChange : surbrillance colonne Compétence (colonne D)
+' ============================================================================
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+    On Error Resume Next
+
+    ' Efface l'ancienne surbrillance
+    Me.Columns("C").Interior.ColorIndex = xlNone
+
+    ' Ignore les en-têtes ou zones hors planning
+    If Target.Row < 5 Then Exit Sub   ' adapte si nécessaire
+
+    ' Mise en surbrillance de la colonne D sur la ligne active
+    Me.Cells(Target.Row, "C").Interior.color = RGB(255, 230, 150)  ' beige/orangé
+End Sub
+
+' ============================================================================
+' METTRE À JOUR LES DÉTAILS DE L'AFFAIRE (remplace les formules RECHERCHEV)
+' ============================================================================
+Public Sub UpdateAffaireDetails(ws As Worksheet)
+    On Error GoTo ErrHandler
+    
+    ' Lire B1 (AffaireID) et B6 (Site)
+    Dim affaireID As String, siteVal As String
+    affaireID = Trim$(CStr(ws.Range(CELL_AFFAIRE).value))
+    siteVal = Trim$(CStr(ws.Range(CELL_SITE).value))
+    
+    ' Ignorer si sélection multiple ou vide
+    If Len(affaireID) = 0 Or InStr(affaireID, ",") > 0 Then
+        ' Effacer les cellules si aucune affaire sélectionnée
+        ws.Range("B7").value = "Sélectionner une affaire"
+        ws.Range("B8").value = "Sélectionner une affaire"
+        ws.Range("B9").value = "Sélectionner une affaire"
+        ws.Range("B12").value = "Sélectionner une affaire"
+        ws.Range("B13").value = ""
+        Exit Sub
+    End If
+    
+    ' Récupérer la table Affaires via ModuleExec
+    Dim loAffaires As ListObject
+    Set loAffaires = ModuleExec.GetAffairesTable()
+    
+    If loAffaires Is Nothing Or loAffaires.DataBodyRange Is Nothing Then
+        Debug.Print "[UpdateAffaireDetails] Table tblAffaires introuvable"
+        Exit Sub
+    End If
+    
+    ' Charger les données en mémoire
+    Dim dataArr As Variant
+    dataArr = loAffaires.DataBodyRange.value
+    
+    ' Trouver les colonnes
+    Dim cAffaireID As Long, cSite As Long, cTranche As Long, cAffaire As Long, cCompte As Long, cRAF As Long, cMiseAJourRAF As Long
+    cAffaireID = FindTableColumnIndex(loAffaires, "AffaireID")
+    cSite = FindTableColumnIndex(loAffaires, "Site")
+    cTranche = FindTableColumnIndex(loAffaires, "Tranche")
+    cAffaire = FindTableColumnIndex(loAffaires, "Affaire")
+    cCompte = FindTableColumnIndex(loAffaires, "Compte")
+    cRAF = FindTableColumnIndex(loAffaires, "RAF")
+    cMiseAJourRAF = FindTableColumnIndex(loAffaires, "Mise à jour du RAF")
+    
+    If cAffaireID = 0 Or cSite = 0 Then
+        Debug.Print "[UpdateAffaireDetails] Colonnes essentielles manquantes dans tblAffaires"
+        Exit Sub
+    End If
+    
+    ' Rechercher l'affaire correspondante
+    Dim i As Long
+    Dim found As Boolean: found = False
+    
+    For i = LBound(dataArr, 1) To UBound(dataArr, 1)
+        Dim affTable As String, siteTable As String
+        affTable = Trim$(CStr(dataArr(i, cAffaireID)))
+        siteTable = Trim$(CStr(dataArr(i, cSite)))
+        
+        ' Comparaison case-insensitive
+        If UCase$(affTable) = UCase$(affaireID) And _
+           UCase$(siteTable) = UCase$(siteVal) Then
+            found = True
+            
+            ' Mettre à jour les cellules
+            If cTranche > 0 Then
+                ws.Range("B7").value = dataArr(i, cTranche)
+            Else
+                ws.Range("B7").value = ""
+            End If
+            
+            If cAffaire > 0 Then
+                ws.Range("B8").value = dataArr(i, cAffaire)
+            Else
+                ws.Range("B8").value = ""
+            End If
+            
+            If cCompte > 0 Then
+                ws.Range("B9").value = dataArr(i, cCompte)
+            Else
+                ws.Range("B9").value = ""
+            End If
+            
+            If cRAF > 0 Then
+                ws.Range("B12").value = dataArr(i, cRAF)
+            Else
+                ws.Range("B12").value = ""
+            End If
+            
+            If cMiseAJourRAF > 0 Then
+                ws.Range("B13").value = dataArr(i, cMiseAJourRAF)
+            Else
+                ws.Range("B13").value = ""
+            End If
+            
+            Exit For
+        End If
+    Next i
+    
+    If Not found Then
+        Debug.Print "[UpdateAffaireDetails] Affaire '" & affaireID & "' / Site '" & siteVal & "' non trouvée"
+        ws.Range("B7").value = "Non trouvé"
+        ws.Range("B8").value = "Non trouvé"
+        ws.Range("B9").value = "Non trouvé"
+        ws.Range("B12").value = "Non trouvé"
+        ws.Range("B13").value = ""
+    End If
+    
+    Exit Sub
+    
+ErrHandler:
+    Debug.Print "[UpdateAffaireDetails] ERREUR : " & Err.Number & " - " & Err.Description
+    On Error GoTo 0
+End Sub
+
+' ============================================================================
+' FONCTION UTILITAIRE : Trouver l'index d'une colonne dans un ListObject
+' ============================================================================
+Private Function FindTableColumnIndex(lo As ListObject, header As String) As Long
+    On Error Resume Next
+    If lo Is Nothing Then Exit Function
+    
+    Dim i As Long
+    Dim colCount As Long
+    colCount = lo.ListColumns.count
+    If Err.Number <> 0 Then
+        Err.Clear
+        Exit Function
+    End If
+    
+    For i = 1 To colCount
+        If StrComp(lo.ListColumns(i).name, header, vbTextCompare) = 0 Then
+            FindTableColumnIndex = i
+            Exit Function
+        End If
+    Next
+    On Error GoTo 0
+End Function
+
+
+
+
