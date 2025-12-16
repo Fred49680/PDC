@@ -1,65 +1,163 @@
-import Image from "next/image";
+'use client'
+
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 export default function Home() {
+  const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking')
+  const [supabaseUrl, setSupabaseUrl] = useState<string>('')
+
+  useEffect(() => {
+    // Vérifier la connexion Supabase
+    const checkSupabase = async () => {
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (url && key) {
+          setSupabaseUrl(url)
+          setSupabaseStatus('connected')
+        } else {
+          setSupabaseStatus('error')
+        }
+      } catch (error) {
+        setSupabaseStatus('error')
+      }
+    }
+
+    checkSupabase()
+  }, [])
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="container mx-auto px-4 py-16">
+        {/* Header */}
+        <header className="text-center mb-16">
+          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4">
+            Plan de Charge
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-gray-600 dark:text-gray-300">
+            Application de gestion de planification et d'affectation
           </p>
+        </header>
+
+        {/* Status Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12 max-w-4xl mx-auto">
+          {/* Supabase Status */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Connexion Supabase
+              </h2>
+              <div className={`w-3 h-3 rounded-full ${
+                supabaseStatus === 'connected' ? 'bg-green-500' :
+                supabaseStatus === 'error' ? 'bg-red-500' :
+                'bg-yellow-500 animate-pulse'
+              }`} />
+            </div>
+            {supabaseStatus === 'checking' && (
+              <p className="text-gray-600 dark:text-gray-400">Vérification en cours...</p>
+            )}
+            {supabaseStatus === 'connected' && (
+              <div>
+                <p className="text-green-600 dark:text-green-400 font-medium mb-2">
+                  ✅ Connecté
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 break-all">
+                  {supabaseUrl}
+                </p>
+              </div>
+            )}
+            {supabaseStatus === 'error' && (
+              <p className="text-red-600 dark:text-red-400">
+                ❌ Variables d'environnement manquantes
+              </p>
+            )}
+          </div>
+
+          {/* Application Status */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Statut de l'Application
+            </h2>
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <span className="text-green-500 mr-2">✓</span>
+                <span className="text-gray-700 dark:text-gray-300">Application déployée</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-green-500 mr-2">✓</span>
+                <span className="text-gray-700 dark:text-gray-300">Next.js 16.0.10</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-green-500 mr-2">✓</span>
+                <span className="text-gray-700 dark:text-gray-300">React 19.2.1</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Navigation Cards */}
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 text-center">
+            Pages de Test
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Test Supabase */}
+            <Link
+              href="/test-supabase"
+              className="group bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-200 hover:border-blue-500 dark:hover:border-blue-400"
+            >
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
+                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Test Supabase
+                </h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                Tester la connexion à la base de données Supabase et afficher les données des sites.
+              </p>
+              <div className="mt-4 text-blue-600 dark:text-blue-400 font-medium group-hover:underline">
+                Accéder →
+              </div>
+            </Link>
+
+            {/* Page d'accueil (actuelle) */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 opacity-75">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Page d'Accueil
+                </h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                Vous êtes actuellement sur la page d'accueil de l'application.
+              </p>
+              <div className="mt-4 text-gray-500 dark:text-gray-500 font-medium">
+                Page actuelle
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
+
+        {/* Footer */}
+        <footer className="mt-16 text-center text-gray-600 dark:text-gray-400">
+          <p className="mb-2">
+            Plan de Charge - Application de gestion
+          </p>
+          <p className="text-sm">
+            Déployé sur Vercel • Connecté à Supabase
+          </p>
+        </footer>
+      </div>
     </div>
-  );
+  )
 }
