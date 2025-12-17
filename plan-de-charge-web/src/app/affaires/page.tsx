@@ -61,13 +61,30 @@ export default function AffairesPage() {
     e.preventDefault()
     try {
       console.log('[AffairesPage] handleSubmit - formData:', formData)
-      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id, typeof formData.affaire_id)
+      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id, 'type:', typeof formData.affaire_id)
+      console.log('[AffairesPage] handleSubmit - formData.statut:', formData.statut)
       
-      // S'assurer que affaire_id est bien inclus dans les données envoyées
-      // Convertir chaîne vide en null explicitement
-      const affaireIdToSave = formData.affaire_id && formData.affaire_id.trim() !== '' 
-        ? formData.affaire_id.trim() 
-        : null
+      // Si l'affaire_id n'est pas encore généré mais devrait l'être, le générer maintenant
+      let affaireIdToSave: string | null = null
+      if (formData.tranche && formData.site && formData.libelle && formData.statut) {
+        const generatedId = generateAffaireId(
+          formData.tranche,
+          formData.site,
+          formData.libelle,
+          formData.statut
+        )
+        // Utiliser l'ID généré si disponible, sinon celui du formData
+        affaireIdToSave = generatedId && generatedId.trim() !== '' 
+          ? generatedId.trim() 
+          : (formData.affaire_id && formData.affaire_id.trim() !== '' ? formData.affaire_id.trim() : null)
+      } else {
+        // Si les champs ne sont pas complets, utiliser celui du formData ou null
+        affaireIdToSave = formData.affaire_id && formData.affaire_id.trim() !== '' 
+          ? formData.affaire_id.trim() 
+          : null
+      }
+      
+      console.log('[AffairesPage] handleSubmit - affaireIdToSave (après génération):', affaireIdToSave, 'type:', typeof affaireIdToSave)
       
       const affaireToSave = {
         ...formData,
@@ -76,8 +93,6 @@ export default function AffairesPage() {
         date_modification: new Date(),
       }
       
-      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id, 'type:', typeof formData.affaire_id)
-      console.log('[AffairesPage] handleSubmit - affaireIdToSave:', affaireIdToSave, 'type:', typeof affaireIdToSave)
       console.log('[AffairesPage] handleSubmit - affaireToSave:', affaireToSave)
       console.log('[AffairesPage] handleSubmit - affaireToSave.affaire_id:', affaireToSave.affaire_id, 'type:', typeof affaireToSave.affaire_id)
       
