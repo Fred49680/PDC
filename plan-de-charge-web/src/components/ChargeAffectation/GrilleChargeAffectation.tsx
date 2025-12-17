@@ -249,6 +249,12 @@ export function GrilleChargeAffectation({
 
   // Construire la grille de charge depuis les périodes
   useEffect(() => {
+    // Si les périodes existent mais que les colonnes sont vides, attendre que les colonnes soient recalculées
+    if (periodes.length > 0 && colonnes.length === 0) {
+      console.log(`[GrilleChargeAffectation] En attente du recalcul des colonnes après ajustement des dates...`)
+      return
+    }
+    
     const newGrille = new Map<string, number>()
 
     // Debug : Afficher les dates des colonnes et des périodes
