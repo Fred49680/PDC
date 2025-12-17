@@ -164,19 +164,36 @@ export function GrilleChargeAffectation({
     const newGrille = new Map<string, number>()
 
     periodes.forEach((periode) => {
+      // Normaliser les dates (s'assurer qu'elles sont des objets Date valides)
+      const periodeDebut = periode.date_debut instanceof Date 
+        ? periode.date_debut 
+        : new Date(periode.date_debut)
+      const periodeFin = periode.date_fin instanceof Date 
+        ? periode.date_fin 
+        : new Date(periode.date_fin)
+      
       colonnes.forEach((col) => {
         const colDate = col.weekStart || col.date
         const colEnd = col.weekEnd || col.date
 
+        // Vérifier si la période chevauche avec la colonne
+        // La période chevauche si : periodeDebut <= colEnd ET periodeFin >= colDate
         if (
-          new Date(periode.date_debut) <= colEnd &&
-          new Date(periode.date_fin) >= colDate
+          periodeDebut <= colEnd &&
+          periodeFin >= colDate
         ) {
           const cellKey = `${periode.competence}|${col.date.getTime()}`
+          // Si plusieurs périodes correspondent à la même cellule, prendre la dernière (ou la somme selon la logique métier)
+          // Pour l'instant, on écrase (la consolidation devrait être faite côté serveur)
           newGrille.set(cellKey, periode.nb_ressources)
         }
       })
     })
+    
+    // Debug : Afficher le nombre de périodes chargées et le nombre de cellules créées
+    if (periodes.length > 0) {
+      console.log(`[GrilleChargeAffectation] ${periodes.length} période(s) chargée(s) -> ${newGrille.size} cellule(s) dans la grille`)
+    }
 
     // *** FUSION : Préserver les modifications en cours (pendingChargeChanges) ***
     // Cela évite que le rechargement écrase les valeurs optimistes
@@ -186,8 +203,31 @@ export function GrilleChargeAffectation({
 
     setGrilleCharge(newGrille)
     
-    // *** NETTOYAGE : Nettoyer les valeurs locales qui correspondent aux données rechargées ***
-    // Cela évite les incohérences entre localInputValues et grilleCharge
+    // *** NETTOYAGE : Nettoyer pendingChargeChanges et localInputValues qui correspondent aux données rechargées ***
+    // Cela évite les incohérences et permet de libérer la mémoire
+    // IMPORTANT : Ne nettoyer que si la valeur dans newGrille correspond exactement à pendingValue
+    // Cela garantit que les données sont bien chargées depuis la BDD avant de nettoyer
+    setPendingChargeChanges((prev) => {
+      if (prev.size === 0) return prev // Pas de nettoyage si vide
+      
+      const newPending = new Map(prev)
+      let cleanedCount = 0
+      newPending.forEach((pendingValue, key) => {
+        const gridValue = newGrille.get(key) || 0
+        // Si la valeur pending correspond EXACTEMENT à la valeur dans la grille (chargée depuis la BDD), on peut la nettoyer
+        if (pendingValue === gridValue && gridValue > 0) {
+          newPending.delete(key)
+          cleanedCount++
+        }
+      })
+      
+      if (cleanedCount > 0) {
+        console.log(`[GrilleChargeAffectation] Nettoyage de ${cleanedCount} entrée(s) de pendingChargeChanges (valeurs confirmées dans la BDD)`)
+      }
+      
+      return newPending
+    })
+    
     setLocalInputValues((prev) => {
       const newLocal = new Map(prev)
       // Ne garder que les valeurs locales qui ne sont pas encore dans la grille
@@ -480,20 +520,20 @@ export function GrilleChargeAffectation({
 
         if (nbRessources === 0) {
           // Supprimer la période si elle existe
+          // Chercher une période qui chevauche avec cette colonne
           const periodeExistante = periodes.find(
-            (p) =>
-              p.competence === competence &&
-              new Date(p.date_debut).getTime() === dateDebutPeriode.getTime() &&
-              new Date(p.date_fin).getTime() === dateFinPeriode.getTime()
+            (p) => {
+              if (p.competence !== competence) return false
+              const pDebut = new Date(p.date_debut)
+              const pFin = new Date(p.date_fin)
+              // Vérifier chevauchement : la période chevauche si pDebut <= dateFinPeriode ET pFin >= dateDebutPeriode
+              return pDebut <= dateFinPeriode && pFin >= dateDebutPeriode
+            }
           )
           if (periodeExistante) {
             await deletePeriode(periodeExistante.id)
-            // Retirer de pendingChargeChanges après suppression réussie
-            setPendingChargeChanges((prev) => {
-              const newPending = new Map(prev)
-              newPending.delete(cellKey)
-              return newPending
-            })
+            // NE PAS retirer de pendingChargeChanges immédiatement
+            // Le useEffect va nettoyer automatiquement quand les nouvelles periodes seront chargées
           }
         } else {
           await savePeriode({
@@ -502,13 +542,9 @@ export function GrilleChargeAffectation({
             date_fin: dateFinPeriode,
             nb_ressources: nbRessources,
           })
-          // Après sauvegarde réussie, retirer de pendingChargeChanges
-          // (les données rechargées vont maintenant contenir la bonne valeur)
-          setPendingChargeChanges((prev) => {
-            const newPending = new Map(prev)
-            newPending.delete(cellKey)
-            return newPending
-          })
+          // NE PAS retirer de pendingChargeChanges immédiatement
+          // Le useEffect qui construit grilleCharge va fusionner les nouvelles periodes
+          // et pendingChargeChanges sera nettoyé automatiquement quand les données correspondront
         }
       } catch (err) {
         console.error('[GrilleChargeAffectation] Erreur savePeriode:', err)
