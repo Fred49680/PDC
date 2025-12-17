@@ -92,7 +92,7 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
       const { data, error: upsertError } = await supabase
         .from('periodes_charge')
         .upsert(periodeData, {
-          onConflict: 'unique_periode',
+          onConflict: 'affaire_id,site,competence,date_debut,date_fin',
         })
         .select()
         .single()
