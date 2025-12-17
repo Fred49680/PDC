@@ -306,6 +306,9 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
       const rowsWithId = preview.filter((row) => row.affaire_id !== null && row.affaire_id.trim() !== '')
       const rowsWithoutId = preview.filter((row) => row.affaire_id === null || row.affaire_id.trim() === '')
 
+      // Taille des batches pour l'import
+      const batchSize = 50
+
       // Pour les lignes avec affaire_id : vérifier d'abord quelles existent déjà
       if (rowsWithId.length > 0) {
         // Récupérer tous les affaire_id existants en une seule requête
@@ -343,7 +346,6 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
         })
 
         // Traiter les INSERT par batch
-        const batchSize = 50
         for (let i = 0; i < rowsToInsert.length; i += batchSize) {
           const batch = rowsToInsert.slice(i, i + batchSize)
 
