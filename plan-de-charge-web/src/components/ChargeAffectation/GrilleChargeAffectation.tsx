@@ -77,8 +77,20 @@ export function GrilleChargeAffectation({
   })
 
   // *** NOUVEAU : Ajuster automatiquement les dates pour couvrir les périodes existantes ***
+  // Utiliser une ref pour éviter les boucles infinies
+  const hasAdjustedDates = useRef(false)
+  const lastPeriodesHash = useRef<string>('')
+  
   useEffect(() => {
+    // Ne s'exécuter que si les périodes ont changé (éviter les boucles)
     if (periodes.length === 0 || !onDateChange) return
+
+    // Créer un hash des périodes pour détecter les changements réels
+    const periodesHash = periodes.map(p => `${p.id || 'new'}-${p.date_debut}-${p.date_fin}`).join('|')
+    if (periodesHash === lastPeriodesHash.current && hasAdjustedDates.current) {
+      return // Déjà ajusté pour ces périodes
+    }
+    lastPeriodesHash.current = periodesHash
 
     // Trouver la date min et max des périodes
     let minDate: Date | null = null
@@ -100,6 +112,7 @@ export function GrilleChargeAffectation({
     const maxDateValue: Date = maxDate as Date
 
     // Vérifier si les dates actuelles ne couvrent pas les périodes
+    // Utiliser les props directement (pas besoin de dépendances)
     const currentStart = dateDebut
     const currentEnd = dateFin
 
@@ -128,10 +141,20 @@ export function GrilleChargeAffectation({
         newDateFin.getTime() !== currentEnd.getTime()
       ) {
         console.log(`[GrilleChargeAffectation] Ajustement automatique des dates pour couvrir les périodes: ${format(newDateDebut, 'dd/MM/yyyy')} -> ${format(newDateFin, 'dd/MM/yyyy')}`)
+        hasAdjustedDates.current = true // Marquer comme ajusté pour éviter les boucles
         onDateChange(newDateDebut, newDateFin)
       }
+    } else {
+      // Les dates couvrent déjà les périodes, marquer comme ajusté quand même
+      hasAdjustedDates.current = true
     }
-  }, [periodes, precision, onDateChange, dateDebut, dateFin]) // Inclure dateDebut/dateFin pour la comparaison
+  }, [periodes, precision, onDateChange]) // Retirer dateDebut/dateFin des dépendances pour éviter les boucles
+  
+  // Réinitialiser le flag quand l'affaire ou le site change
+  useEffect(() => {
+    hasAdjustedDates.current = false
+    lastPeriodesHash.current = ''
+  }, [affaireId, site])
 
   const { affectations, ressources, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
     affaireId,
@@ -150,6 +173,14 @@ export function GrilleChargeAffectation({
   const [saving, setSaving] = useState(false)
   // État pour les modifications en cours (pour éviter que le rechargement écrase les valeurs optimistes)
   const [pendingChargeChanges, setPendingChargeChanges] = useState<Map<string, number>>(new Map())
+  // Ref pour accéder à la valeur actuelle de pendingChargeChanges sans déclencher de re-render
+  const pendingChargeChangesRef = useRef<Map<string, number>>(new Map())
+  
+  // Synchroniser la ref avec l'état
+  useEffect(() => {
+    pendingChargeChangesRef.current = new Map(pendingChargeChanges)
+  }, [pendingChargeChanges])
+  
   // État local pour chaque input (pour éviter que le re-render réinitialise la valeur)
   const [localInputValues, setLocalInputValues] = useState<Map<string, number>>(new Map())
 
@@ -272,7 +303,8 @@ export function GrilleChargeAffectation({
 
     // *** FUSION : Préserver les modifications en cours (pendingChargeChanges) ***
     // Cela évite que le rechargement écrase les valeurs optimistes
-    pendingChargeChanges.forEach((value, key) => {
+    // Utiliser la ref pour éviter les dépendances qui créent des boucles
+    pendingChargeChangesRef.current.forEach((value, key) => {
       newGrille.set(key, value)
     })
 
@@ -305,15 +337,19 @@ export function GrilleChargeAffectation({
     
     // *** NETTOYAGE localInputValues : Ne nettoyer QUE si la valeur correspond exactement ET qu'elle n'est pas en cours de modification ***
     // IMPORTANT : Ne pas nettoyer si pendingChargeChanges contient encore cette clé (modification en cours)
+    // Utiliser une fonction de callback pour accéder à la valeur actuelle de pendingChargeChanges
     setLocalInputValues((prev) => {
       if (prev.size === 0) return prev // Pas de nettoyage si vide
       
       const newLocal = new Map(prev)
       let cleanedCount = 0
       
+      // Récupérer la valeur actuelle de pendingChargeChanges via la ref (évite les dépendances)
+      const currentPending = new Map(pendingChargeChangesRef.current)
+      
       newLocal.forEach((localValue, key) => {
         // Ne pas nettoyer si la modification est encore en cours (dans pendingChargeChanges)
-        if (pendingChargeChanges.has(key)) {
+        if (currentPending.has(key)) {
           // La modification est en cours, garder la valeur locale
           return
         }
@@ -332,7 +368,7 @@ export function GrilleChargeAffectation({
       
       return newLocal
     })
-  }, [periodes, colonnes, pendingChargeChanges])
+  }, [periodes, colonnes]) // Retirer pendingChargeChanges des dépendances pour éviter les boucles infinies (utiliser la ref à la place)
 
   // Construire la grille d'affectations
   useEffect(() => {
