@@ -327,7 +327,7 @@ export default function AffairesPage() {
                       Libellé
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Date création
+                      Responsable
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Statut
@@ -341,15 +341,12 @@ export default function AffairesPage() {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Date MAJ RAF
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Responsable
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -369,7 +366,7 @@ export default function AffairesPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {format(affaire.date_creation, 'dd/MM/yyyy', { locale: fr })}
+                          {affaire.responsable || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {/* Afficher le statut réel (Ouverte/Prévisionnelle/Fermée) */}
@@ -399,9 +396,6 @@ export default function AffairesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.responsable || '-'}
                         </td>
                       </tr>
                     ))
