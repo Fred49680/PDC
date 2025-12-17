@@ -177,9 +177,10 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
           const normalizedCol = normalizeColumnName(excelCol)
           const dbField = getColumnMapping(normalizedCol)
 
-          if (dbField && dbField !== 'compte') {
-            const value = row[excelCol]
+          // Récupérer la valeur une seule fois pour tous les cas
+          const value = row[excelCol]
 
+          if (dbField && dbField !== 'compte') {
             // Traitement selon le type de champ
             switch (dbField) {
               case 'affaire_id':
