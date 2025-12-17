@@ -1,0 +1,873 @@
+'use client'
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useCharge } from '@/hooks/useCharge'
+import { useAffectations } from '@/hooks/useAffectations'
+import { useRessources } from '@/hooks/useRessources'
+import { useAbsences } from '@/hooks/useAbsences'
+import { businessDaysBetween, getDatesBetween, isBusinessDay } from '@/utils/calendar'
+import type { Precision } from '@/types/charge'
+import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend } from 'date-fns'
+import { fr } from 'date-fns/locale'
+import { createClient } from '@/lib/supabase/client'
+import { AlertCircle, CheckCircle2, XCircle, Info, Users, Target } from 'lucide-react'
+
+interface GrilleChargeAffectationProps {
+  affaireId: string
+  site: string
+  dateDebut: Date
+  dateFin: Date
+  precision: Precision
+}
+
+// Liste des compétences (à adapter selon vos besoins)
+const COMPETENCES_LIST = [
+  'ADMIN',
+  'AUTO',
+  'BE_IES',
+  'ENCADREMENT',
+  'ESSAIS',
+  'FIBRE OPTIQUE',
+  'HSE_CRP',
+  'IEG',
+  'IES',
+  'INSTRUM',
+  'MAGASIN',
+  'PACK',
+  'PREPA',
+  'REDACTION_RA',
+  'RELEVE',
+  'ROB',
+  'SERVITUDE',
+  'SS4',
+  'TRACAGE',
+]
+
+// Types pour les états de disponibilité
+type DisponibiliteStatus = 
+  | 'disponible'
+  | 'absente'
+  | 'formation'
+  | 'conflit'
+  | 'indisponible_transfert'
+  | 'date_fin_depassee'
+
+interface DisponibiliteInfo {
+  status: DisponibiliteStatus
+  message?: string
+}
+
+export function GrilleChargeAffectation({
+  affaireId,
+  site,
+  dateDebut,
+  dateFin,
+  precision,
+}: GrilleChargeAffectationProps) {
+  const { periodes, loading: loadingCharge, savePeriode, deletePeriode } = useCharge({
+    affaireId,
+    site,
+  })
+
+  const { affectations, ressources, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
+    affaireId,
+    site,
+  })
+
+  const { ressources: allRessources, competences: competencesMap } = useRessources({ site, actif: true })
+  const { absences } = useAbsences({ site })
+
+  const [grilleCharge, setGrilleCharge] = useState<Map<string, number>>(new Map())
+  const [grilleAffectations, setGrilleAffectations] = useState<Map<string, Set<string>>>(new Map())
+  const [absencesMap, setAbsencesMap] = useState<Map<string, { type: string; isFormation: boolean }>>(new Map())
+  const [conflitsMap, setConflitsMap] = useState<Map<string, string>>(new Map())
+  const [transfertsMap, setTransfertsMap] = useState<Map<string, DisponibiliteInfo>>(new Map())
+  const [dateFinRessourcesMap, setDateFinRessourcesMap] = useState<Map<string, Date>>(new Map())
+  const [saving, setSaving] = useState(false)
+
+  // Générer les colonnes selon la précision
+  const colonnes = useMemo(() => {
+    const cols: { 
+      date: Date
+      label: string
+      weekStart?: Date
+      weekEnd?: Date
+      isWeekend?: boolean
+    }[] = []
+
+    switch (precision) {
+      case 'JOUR':
+        const dates = getDatesBetween(dateDebut, dateFin)
+        dates.forEach((date) => {
+          cols.push({
+            date,
+            label: format(date, 'dd/MM', { locale: fr }),
+            isWeekend: isWeekend(date),
+          })
+        })
+        break
+
+      case 'SEMAINE':
+        let currentWeek = startOfWeek(dateDebut, { weekStartsOn: 1 })
+        while (currentWeek <= dateFin) {
+          const weekEnd = addDays(currentWeek, 6)
+          cols.push({
+            date: currentWeek,
+            label: `${format(currentWeek, 'dd/MM')} - ${format(weekEnd, 'dd/MM')}`,
+            weekStart: currentWeek,
+            weekEnd,
+          })
+          currentWeek = addWeeks(currentWeek, 1)
+        }
+        break
+
+      case 'MOIS':
+        let currentMonth = startOfMonth(dateDebut)
+        while (currentMonth <= dateFin) {
+          const monthEnd = endOfMonth(currentMonth)
+          cols.push({
+            date: currentMonth,
+            label: format(currentMonth, 'MMMM yyyy', { locale: fr }),
+            weekStart: currentMonth,
+            weekEnd: monthEnd,
+          })
+          currentMonth = addMonths(currentMonth, 1)
+        }
+        break
+    }
+
+    return cols
+  }, [dateDebut, dateFin, precision])
+
+  // Construire la grille de charge depuis les périodes
+  useEffect(() => {
+    const newGrille = new Map<string, number>()
+
+    periodes.forEach((periode) => {
+      colonnes.forEach((col) => {
+        const colDate = col.weekStart || col.date
+        const colEnd = col.weekEnd || col.date
+
+        if (
+          new Date(periode.date_debut) <= colEnd &&
+          new Date(periode.date_fin) >= colDate
+        ) {
+          const cellKey = `${periode.competence}|${col.date.getTime()}`
+          newGrille.set(cellKey, periode.nb_ressources)
+        }
+      })
+    })
+
+    setGrilleCharge(newGrille)
+  }, [periodes, colonnes])
+
+  // Construire la grille d'affectations
+  useEffect(() => {
+    const newGrille = new Map<string, Set<string>>()
+
+    affectations.forEach((affectation) => {
+      colonnes.forEach((col) => {
+        const colDate = col.weekStart || col.date
+        const colEnd = col.weekEnd || col.date
+
+        if (
+          new Date(affectation.date_debut) <= colEnd &&
+          new Date(affectation.date_fin) >= colDate
+        ) {
+          const cellKey = `${affectation.competence}|${col.date.getTime()}`
+          if (!newGrille.has(cellKey)) {
+            newGrille.set(cellKey, new Set())
+          }
+          newGrille.get(cellKey)!.add(affectation.ressource_id)
+        }
+      })
+    })
+
+    setGrilleAffectations(newGrille)
+  }, [affectations, colonnes])
+
+  // Construire la map des absences (distinguer formations et autres absences)
+  useEffect(() => {
+    const newAbsences = new Map<string, { type: string; isFormation: boolean }>()
+
+    absences.forEach((absence) => {
+      const dates = getDatesBetween(
+        new Date(absence.date_debut),
+        new Date(absence.date_fin)
+      )
+      const typeAbs = (absence.type || '').toUpperCase()
+      const isFormation = typeAbs.includes('FORMATION') || typeAbs.includes('TRAINING')
+      
+      dates.forEach((date) => {
+        const key = `${absence.ressource_id}|${date.getTime()}`
+        newAbsences.set(key, { type: absence.type || '', isFormation })
+      })
+    })
+
+    setAbsencesMap(newAbsences)
+  }, [absences])
+
+  // Charger les dates de fin des ressources
+  useEffect(() => {
+    const newDateFinMap = new Map<string, Date>()
+    
+    allRessources.forEach((ressource) => {
+      if (ressource.date_fin_contrat) {
+        newDateFinMap.set(ressource.id, ressource.date_fin_contrat)
+      }
+    })
+    
+    setDateFinRessourcesMap(newDateFinMap)
+  }, [allRessources])
+
+  // Construire la map des conflits (ressource affectée sur une autre affaire)
+  useEffect(() => {
+    const loadConflits = async () => {
+      try {
+        const supabase = createClient()
+        
+        // Récupérer l'ID de l'affaire
+        const { data: affaireData } = await supabase
+          .from('affaires')
+          .select('id')
+          .eq('affaire_id', affaireId)
+          .eq('site', site)
+          .single()
+
+        if (!affaireData) return
+
+        const newConflits = new Map<string, string>()
+
+        // Pour chaque ressource, vérifier si elle est affectée sur d'autres affaires
+        for (const ressource of allRessources) {
+          const { data: autresAffectations } = await supabase
+            .from('affectations')
+            .select('affaire_id, date_debut, date_fin, competence')
+            .eq('ressource_id', ressource.id)
+            .neq('affaire_id', affaireData.id)
+
+          if (autresAffectations) {
+            autresAffectations.forEach((autreAff) => {
+              const dates = getDatesBetween(
+                new Date(autreAff.date_debut),
+                new Date(autreAff.date_fin)
+              )
+              dates.forEach((date) => {
+                const key = `${ressource.id}|${date.getTime()}`
+                if (!newConflits.has(key)) {
+                  newConflits.set(key, `Autre affaire - ${autreAff.competence}`)
+                }
+              })
+            })
+          }
+        }
+
+        setConflitsMap(newConflits)
+      } catch (err) {
+        console.error('[GrilleChargeAffectation] Erreur chargement conflits:', err)
+      }
+    }
+
+    if (affaireId && site && allRessources.length > 0) {
+      loadConflits()
+    }
+  }, [affectations, affaireId, site, allRessources])
+
+  // Charger les transferts pour vérifier les indisponibilités (optionnel - table peut ne pas exister)
+  useEffect(() => {
+    const loadTransferts = async () => {
+      try {
+        const supabase = createClient()
+        const newTransferts = new Map<string, DisponibiliteInfo>()
+
+        // Vérifier si la table existe (gestion d'erreur silencieuse)
+        const { data: transferts, error } = await supabase
+          .from('transferts')
+          .select('*')
+          .eq('statut', 'Appliqué')
+          .or(`site_origine.eq.${site},site_destination.eq.${site}`)
+
+        // Si la table n'existe pas, ignorer silencieusement
+        if (error && error.code === 'PGRST116') {
+          // Table n'existe pas, on continue sans transferts
+          return
+        }
+
+        if (error) {
+          console.warn('[GrilleChargeAffectation] Erreur chargement transferts:', error)
+          return
+        }
+
+        if (transferts) {
+          transferts.forEach((transfert: any) => {
+            const dates = getDatesBetween(
+              new Date(transfert.date_debut),
+              new Date(transfert.date_fin)
+            )
+            
+            dates.forEach((date) => {
+              // Si site d'origine : indisponible pendant le transfert
+              if (transfert.site_origine === site) {
+                const key = `${transfert.ressource_id}|${date.getTime()}`
+                newTransferts.set(key, {
+                  status: 'indisponible_transfert',
+                  message: `Transfert vers ${transfert.site_destination}`
+                })
+              }
+              // Si site de destination : indisponible avant date_debut et après date_fin
+              else if (transfert.site_destination === site) {
+                if (date < new Date(transfert.date_debut)) {
+                  const key = `${transfert.ressource_id}|${date.getTime()}`
+                  newTransferts.set(key, {
+                    status: 'indisponible_transfert',
+                    message: `Transfert en attente (à partir du ${format(new Date(transfert.date_debut), 'dd/MM/yyyy')})`
+                  })
+                } else if (date > new Date(transfert.date_fin)) {
+                  const key = `${transfert.ressource_id}|${date.getTime()}`
+                  newTransferts.set(key, {
+                    status: 'indisponible_transfert',
+                    message: `Transfert terminé (jusqu'au ${format(new Date(transfert.date_fin), 'dd/MM/yyyy')})`
+                  })
+                }
+              }
+            })
+          })
+        }
+
+        setTransfertsMap(newTransferts)
+      } catch (err) {
+        // Erreur silencieuse si la table n'existe pas
+        console.warn('[GrilleChargeAffectation] Table transferts non disponible:', err)
+      }
+    }
+
+    if (site) {
+      loadTransferts()
+    }
+  }, [site])
+
+  // Vérifier la disponibilité d'une ressource pour une date
+  const checkDisponibilite = useCallback((
+    ressourceId: string,
+    col: typeof colonnes[0]
+  ): DisponibiliteInfo => {
+    const date = col.weekStart || col.date
+    const key = `${ressourceId}|${date.getTime()}`
+
+    // 1. Vérifier formation (priorité 1 - BLOQUE)
+    const absenceInfo = absencesMap.get(key)
+    if (absenceInfo?.isFormation) {
+      return {
+        status: 'formation',
+        message: `Formation : ${absenceInfo.type}`
+      }
+    }
+
+    // 2. Vérifier absence (priorité 2 - BLOQUE)
+    if (absenceInfo && !absenceInfo.isFormation) {
+      return {
+        status: 'absente',
+        message: `Absent(e) : ${absenceInfo.type}`
+      }
+    }
+
+    // 3. Vérifier date de fin de contrat
+    const dateFin = dateFinRessourcesMap.get(ressourceId)
+    if (dateFin && date > dateFin) {
+      return {
+        status: 'date_fin_depassee',
+        message: `Contrat terminé le ${format(dateFin, 'dd/MM/yyyy')}`
+      }
+    }
+
+    // 4. Vérifier transfert
+    const transfertInfo = transfertsMap.get(key)
+    if (transfertInfo) {
+      return transfertInfo
+    }
+
+    // 5. Vérifier conflit (ressource affectée ailleurs)
+    const conflitInfo = conflitsMap.get(key)
+    if (conflitInfo) {
+      return {
+        status: 'conflit',
+        message: conflitInfo
+      }
+    }
+
+    return { status: 'disponible' }
+  }, [absencesMap, dateFinRessourcesMap, transfertsMap, conflitsMap])
+
+  // Gérer le changement de charge
+  const handleChargeChange = useCallback(
+    async (competence: string, col: typeof colonnes[0], value: number) => {
+      if (saving) return
+      
+      try {
+        setSaving(true)
+        const dateDebutPeriode = col.weekStart || col.date
+        const dateFinPeriode = col.weekEnd || col.date
+
+        // Convertir en nombre entier (arrondir vers le bas)
+        const nbRessources = Math.max(0, Math.floor(value))
+
+        if (nbRessources === 0) {
+          // Supprimer la période si elle existe
+          const periodeExistante = periodes.find(
+            (p) =>
+              p.competence === competence &&
+              new Date(p.date_debut).getTime() === dateDebutPeriode.getTime() &&
+              new Date(p.date_fin).getTime() === dateFinPeriode.getTime()
+          )
+          if (periodeExistante) {
+            await deletePeriode(periodeExistante.id)
+          }
+        } else {
+          await savePeriode({
+            competence,
+            date_debut: dateDebutPeriode,
+            date_fin: dateFinPeriode,
+            nb_ressources: nbRessources,
+          })
+        }
+      } catch (err) {
+        console.error('[GrilleChargeAffectation] Erreur savePeriode:', err)
+        alert('Erreur lors de la sauvegarde de la charge')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [savePeriode, deletePeriode, periodes, colonnes, saving]
+  )
+
+  // Gérer le changement d'affectation avec validation complète
+  const handleAffectationChange = useCallback(
+    async (
+      competence: string,
+      ressourceId: string,
+      col: typeof colonnes[0],
+      checked: boolean
+    ) => {
+      if (saving) return
+      
+      try {
+        setSaving(true)
+        const dateDebutPeriode = col.weekStart || col.date
+        const dateFinPeriode = col.weekEnd || col.date
+
+        // Vérifier si la ressource a la compétence
+        const ressource = allRessources.find((r) => r.id === ressourceId)
+        if (!ressource) {
+          alert('Ressource introuvable')
+          return
+        }
+
+        const competencesRessource = competencesMap.get(ressourceId) || []
+        const hasCompetence = competencesRessource.some(
+          (c) => c.competence === competence
+        )
+
+        if (!hasCompetence) {
+          alert(
+            `❌ La ressource ${ressource.nom} n'a pas la compétence ${competence}`
+          )
+          return
+        }
+
+        // Si on coche, vérifier la disponibilité
+        if (checked) {
+          // Vérifier toutes les dates de la période
+          const dates = getDatesBetween(dateDebutPeriode, dateFinPeriode)
+          const joursOuvres = dates.filter((d) => isBusinessDay(d))
+          
+          for (const date of joursOuvres) {
+            // Créer une colonne temporaire pour cette date
+            const tempCol = { ...col, date, weekStart: date, weekEnd: date }
+            const disponibilite = checkDisponibilite(ressourceId, tempCol)
+            
+            if (disponibilite.status !== 'disponible') {
+              alert(
+                `❌ ${ressource.nom} n'est pas disponible :\n\n${disponibilite.message || disponibilite.status}`
+              )
+              return
+            }
+          }
+
+          // Calculer les jours ouvrés
+          let nbJoursOuvres = 0
+          
+          if (precision === 'JOUR') {
+            if (isBusinessDay(col.date)) {
+              nbJoursOuvres = 1
+            }
+          } else {
+            nbJoursOuvres = businessDaysBetween(dateDebutPeriode, dateFinPeriode)
+          }
+          
+          await saveAffectation({
+            ressource_id: ressourceId,
+            competence,
+            date_debut: dateDebutPeriode,
+            date_fin: dateFinPeriode,
+            charge: nbJoursOuvres,
+          })
+        } else {
+          // Supprimer l'affectation
+          const affectationsAvecRessource = affectations.filter(
+            (a) =>
+              a.ressource_id === ressourceId &&
+              a.competence === competence &&
+              new Date(a.date_debut) <= dateFinPeriode &&
+              new Date(a.date_fin) >= dateDebutPeriode
+          )
+          
+          for (const affectation of affectationsAvecRessource) {
+            await deleteAffectation(affectation.id)
+          }
+        }
+      } catch (err) {
+        console.error('[GrilleChargeAffectation] Erreur saveAffectation:', err)
+        alert('Erreur lors de la sauvegarde de l\'affectation')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [
+      saveAffectation,
+      deleteAffectation,
+      affectations,
+      allRessources,
+      competencesMap,
+      colonnes,
+      precision,
+      checkDisponibilite,
+      saving,
+    ]
+  )
+
+  // Calculer le total affecté pour une compétence/date
+  const getTotalAffecte = useCallback(
+    (competence: string, col: typeof colonnes[0]) => {
+      const cellKey = `${competence}|${col.date.getTime()}`
+      const affectees = grilleAffectations.get(cellKey) || new Set()
+      return affectees.size
+    },
+    [grilleAffectations]
+  )
+
+  // Obtenir les ressources disponibles pour une compétence
+  const getRessourcesForCompetence = useCallback(
+    (competence: string) => {
+      return allRessources.filter((r) => {
+        const competencesRessource = competencesMap.get(r.id) || []
+        return competencesRessource.some((c) => c.competence === competence)
+      })
+    },
+    [allRessources, competencesMap]
+  )
+
+  if (loadingCharge || loadingAffectations) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-gray-500">Chargement...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Légende */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+        <div className="flex items-center gap-2 mb-3">
+          <Info className="w-5 h-5 text-blue-600" />
+          <h3 className="font-semibold text-gray-800">Légende</h3>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
+            <span className="text-gray-700">Besoin (charge)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-green-100 border-2 border-green-400 rounded"></div>
+            <span className="text-gray-700">Affecté</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-300 border-2 border-gray-500 rounded"></div>
+            <span className="text-gray-700">Absence</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-orange-200 border-2 border-orange-500 rounded"></div>
+            <span className="text-gray-700">Conflit</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-purple-200 border-2 border-purple-500 rounded"></div>
+            <span className="text-gray-700">Formation</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-200 border-2 border-red-500 rounded"></div>
+            <span className="text-gray-700">Sur-affectation</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Grille */}
+      <div className="overflow-x-auto rounded-xl border-2 border-gray-200 shadow-lg">
+        <table className="min-w-full border-collapse bg-white">
+          <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 sticky top-0 z-20">
+            <tr>
+              <th className="border border-gray-300 p-3 text-white font-bold sticky left-0 z-30 bg-gradient-to-r from-blue-600 to-indigo-600 min-w-[200px]">
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  <span>Compétence / Ressource</span>
+                </div>
+              </th>
+              {colonnes.map((col, idx) => (
+                <th
+                  key={idx}
+                  className={`border border-gray-300 p-2 text-white font-semibold text-center min-w-[100px] ${
+                    col.isWeekend ? 'bg-blue-500' : ''
+                  }`}
+                >
+                  <div className="text-xs font-bold">{col.label}</div>
+                  {col.isWeekend && (
+                    <div className="text-xs opacity-75 mt-1">WE</div>
+                  )}
+                </th>
+              ))}
+              <th className="border border-gray-300 p-3 text-white font-bold bg-gradient-to-r from-blue-600 to-indigo-600">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {COMPETENCES_LIST.map((comp) => {
+              const ressourcesComp = getRessourcesForCompetence(comp)
+              const totalCharge = colonnes.reduce((sum, col) => {
+                const cellKey = `${comp}|${col.date.getTime()}`
+                return sum + (grilleCharge.get(cellKey) || 0)
+              }, 0)
+
+              return (
+                <React.Fragment key={comp}>
+                  {/* Ligne Besoin */}
+                  <tr className="bg-yellow-50 hover:bg-yellow-100 transition-colors">
+                    <td className="border border-gray-300 p-3 font-semibold italic sticky left-0 z-10 bg-yellow-50">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-yellow-700" />
+                        <span className="text-yellow-900">Besoin ({comp})</span>
+                      </div>
+                    </td>
+                    {colonnes.map((col, idx) => {
+                      const cellKey = `${comp}|${col.date.getTime()}`
+                      const value = grilleCharge.get(cellKey) || 0
+
+                      return (
+                        <td
+                          key={idx}
+                          className={`border border-gray-300 p-1 ${
+                            col.isWeekend ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={value}
+                            onChange={(e) => {
+                              const newValue = parseInt(e.target.value) || 0
+                              handleChargeChange(comp, col, newValue)
+                            }}
+                            className="w-full text-center border-2 border-yellow-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white font-semibold text-gray-800"
+                            placeholder="0"
+                          />
+                        </td>
+                      )
+                    })}
+                    <td className="border border-gray-300 p-3 text-center font-bold text-yellow-900 bg-yellow-100">
+                      {totalCharge}
+                    </td>
+                  </tr>
+
+                  {/* Ligne Affecté */}
+                  <tr className="bg-green-50 hover:bg-green-100 transition-colors">
+                    <td className="border border-gray-300 p-3 font-semibold italic sticky left-0 z-10 bg-green-50">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-700" />
+                        <span className="text-green-900">Affecté ({comp})</span>
+                      </div>
+                    </td>
+                    {colonnes.map((col, idx) => {
+                      const totalAffecte = getTotalAffecte(comp, col)
+                      const besoin = grilleCharge.get(`${comp}|${col.date.getTime()}`) || 0
+                      const isOver = totalAffecte > besoin
+                      const isUnder = totalAffecte < besoin && besoin > 0
+
+                      return (
+                        <td
+                          key={idx}
+                          className={`border border-gray-300 p-2 text-center font-bold ${
+                            col.isWeekend ? 'bg-blue-50' : ''
+                          } ${isOver ? 'bg-red-200 text-red-900' : ''} ${
+                            isUnder ? 'bg-orange-100 text-orange-900' : 'text-green-900'
+                          }`}
+                          title={
+                            isOver
+                              ? `⚠️ Sur-affectation : ${totalAffecte} > ${besoin}`
+                              : isUnder
+                              ? `⚠️ Sous-affectation : ${totalAffecte} < ${besoin}`
+                              : `✅ Affectation OK : ${totalAffecte} = ${besoin}`
+                          }
+                        >
+                          {totalAffecte}
+                        </td>
+                      )
+                    })}
+                    <td className="border border-gray-300 p-3 text-center font-bold text-green-900 bg-green-100">
+                      {colonnes.reduce(
+                        (sum, col) => sum + getTotalAffecte(comp, col),
+                        0
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Ressources */}
+                  {ressourcesComp.length === 0 ? (
+                    <tr>
+                      <td colSpan={colonnes.length + 2} className="p-4 text-center text-gray-500 italic">
+                        Aucune ressource disponible pour cette compétence
+                      </td>
+                    </tr>
+                  ) : (
+                    ressourcesComp.map((ressource) => {
+                      const competencesRessource = competencesMap.get(ressource.id) || []
+                      const competenceInfo = competencesRessource.find(
+                        (c) => c.competence === comp
+                      )
+                      const isPrincipale = competenceInfo?.type_comp === 'P'
+
+                      return (
+                        <tr key={ressource.id} className="hover:bg-gray-50 transition-colors">
+                          <td
+                            className={`border border-gray-300 p-2 sticky left-0 z-10 bg-white ${
+                              isPrincipale ? 'font-semibold text-gray-900' : 'text-gray-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              {isPrincipale && (
+                                <span className="text-blue-600 font-bold">★</span>
+                              )}
+                              <span>{ressource.nom}</span>
+                            </div>
+                          </td>
+                          {colonnes.map((col, idx) => {
+                            const cellKey = `${comp}|${col.date.getTime()}`
+                            const affectees = grilleAffectations.get(cellKey) || new Set()
+                            const isAffecte = affectees.has(ressource.id)
+                            const disponibilite = checkDisponibilite(ressource.id, col)
+
+                            // Déterminer la couleur de fond selon le statut
+                            let bgColor = ''
+                            let borderColor = ''
+                            let tooltip = ''
+
+                            if (disponibilite.status === 'formation') {
+                              bgColor = 'bg-purple-200'
+                              borderColor = 'border-purple-500'
+                              tooltip = `❌ ${disponibilite.message}`
+                            } else if (disponibilite.status === 'absente') {
+                              bgColor = 'bg-gray-300'
+                              borderColor = 'border-gray-500'
+                              tooltip = `❌ ${disponibilite.message}`
+                            } else if (disponibilite.status === 'conflit') {
+                              bgColor = 'bg-orange-200'
+                              borderColor = 'border-orange-500'
+                              tooltip = `⚠️ ${disponibilite.message}`
+                            } else if (disponibilite.status === 'indisponible_transfert') {
+                              bgColor = 'bg-gray-200'
+                              borderColor = 'border-gray-400'
+                              tooltip = `❌ ${disponibilite.message}`
+                            } else if (disponibilite.status === 'date_fin_depassee') {
+                              bgColor = 'bg-gray-300'
+                              borderColor = 'border-gray-500'
+                              tooltip = `❌ ${disponibilite.message}`
+                            } else if (col.isWeekend) {
+                              bgColor = 'bg-blue-50'
+                              borderColor = 'border-blue-200'
+                              tooltip = 'Week-end'
+                            } else {
+                              bgColor = 'bg-white'
+                              borderColor = isAffecte ? 'border-green-400' : 'border-gray-200'
+                              tooltip = isAffecte ? '✅ Affecté(e) - Cliquer pour retirer' : 'Disponible - Cliquer pour affecter'
+                            }
+
+                            const isDisabled = disponibilite.status !== 'disponible' && !isAffecte
+
+                            return (
+                              <td
+                                key={idx}
+                                className={`border-2 ${borderColor} p-1 text-center ${bgColor} ${
+                                  col.isWeekend ? 'bg-blue-50' : ''
+                                }`}
+                                title={tooltip}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAffecte}
+                                  disabled={isDisabled}
+                                  onChange={(e) =>
+                                    handleAffectationChange(
+                                      comp,
+                                      ressource.id,
+                                      col,
+                                      e.target.checked
+                                    )
+                                  }
+                                  className={`w-5 h-5 cursor-pointer ${
+                                    isDisabled ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                />
+                              </td>
+                            )
+                          })}
+                          <td className="border border-gray-300 p-2 text-center font-medium bg-gray-50">
+                            {colonnes.reduce((sum, col) => {
+                              const cellKey = `${comp}|${col.date.getTime()}`
+                              const affectees = grilleAffectations.get(cellKey) || new Set()
+                              return sum + (affectees.has(ressource.id) ? 1 : 0)
+                            }, 0)}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+
+                  {/* Espacement entre compétences */}
+                  <tr>
+                    <td colSpan={colonnes.length + 2} className="h-4 bg-transparent border-0"></td>
+                  </tr>
+                </React.Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Instructions */}
+      <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+          <div className="text-sm text-gray-700">
+            <p className="font-semibold mb-2">Instructions :</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>La <strong>charge</strong> est saisie en nombre entier (ex: 2 = 2 ressources nécessaires)</li>
+              <li>Les <strong>affectations</strong> se font via les cases à cocher (une case = 1 ressource)</li>
+              <li>Les ressources <strong>absentes</strong> ou en <strong>formation</strong> sont automatiquement bloquées</li>
+              <li>Les <strong>conflits</strong> (ressource déjà affectée ailleurs) sont signalés en orange</li>
+              <li>Les ressources avec compétence <strong>principale</strong> sont marquées d'une étoile ★</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
