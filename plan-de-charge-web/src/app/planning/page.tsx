@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Layout } from '@/components/Common/Layout'
-import { GrilleChargeAffectation } from '@/components/ChargeAffectation/GrilleChargeAffectation'
+import GrilleChargeAffectation from '@/components/ChargeAffectation/GrilleChargeAffectation'
 import { format, startOfMonth, endOfMonth, startOfWeek, addWeeks } from 'date-fns'
 import { Calendar, AlertCircle, Target, Settings, Keyboard, Zap, Search, Clock, XCircle } from 'lucide-react'
 import type { Precision } from '@/types/charge'
