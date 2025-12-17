@@ -71,6 +71,8 @@ export function GrilleChargeAffectation({
   const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(
     new Set()
   )
+  // État pour désactiver le refresh automatique (déclaré AVANT useCharge pour éviter l'erreur)
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate } = useCharge({
     affaireId,
     site,
@@ -173,8 +175,6 @@ export function GrilleChargeAffectation({
   const [transfertsMap, setTransfertsMap] = useState<Map<string, DisponibiliteInfo>>(new Map())
   const [dateFinRessourcesMap, setDateFinRessourcesMap] = useState<Map<string, Date>>(new Map())
   const [saving, setSaving] = useState(false)
-  // État pour désactiver le refresh automatique
-  const [autoRefresh, setAutoRefresh] = useState(true)
   // État pour les modifications en cours (pour éviter que le rechargement écrase les valeurs optimistes)
   const [pendingChargeChanges, setPendingChargeChanges] = useState<Map<string, number>>(new Map())
   // Ref pour accéder à la valeur actuelle de pendingChargeChanges sans déclencher de re-render
