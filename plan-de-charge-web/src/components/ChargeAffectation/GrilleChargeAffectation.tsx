@@ -407,12 +407,18 @@ export function GrilleChargeAffectation({
 
     affectations.forEach((affectation) => {
       colonnes.forEach((col) => {
-        const colDate = col.weekStart || col.date
-        const colEnd = col.weekEnd || col.date
+        // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
+        const colDateRaw = col.weekStart || col.date
+        const colEndRaw = col.weekEnd || col.date
+        const colDate = normalizeDateToUTC(colDateRaw)
+        const colEnd = normalizeDateToUTC(colEndRaw)
+        
+        const affectationDateDebut = normalizeDateToUTC(new Date(affectation.date_debut))
+        const affectationDateFin = normalizeDateToUTC(new Date(affectation.date_fin))
 
         if (
-          new Date(affectation.date_debut) <= colEnd &&
-          new Date(affectation.date_fin) >= colDate
+          affectationDateDebut <= colEnd &&
+          affectationDateFin >= colDate
         ) {
           const cellKey = `${affectation.competence}|${col.date.getTime()}`
           if (!newGrille.has(cellKey)) {
@@ -1011,21 +1017,34 @@ export function GrilleChargeAffectation({
             nbJoursOuvres = businessDaysBetween(dateDebutPeriode, dateFinPeriode)
           }
           
+          // *** CORRECTION : Normaliser les dates à minuit UTC pour éviter les problèmes de timezone ***
+          const dateDebutNormalisee = normalizeDateToUTC(dateDebutPeriode)
+          const dateFinNormalisee = normalizeDateToUTC(dateFinPeriode)
+          
           await saveAffectation({
             ressource_id: ressourceId,
             competence,
-            date_debut: dateDebutPeriode,
-            date_fin: dateFinPeriode,
+            date_debut: dateDebutNormalisee,
+            date_fin: dateFinNormalisee,
             charge: nbJoursOuvres,
           })
         } else {
           // Supprimer l'affectation
+          // *** CORRECTION : Normaliser les dates pour la comparaison ***
+          const dateDebutNormalisee = normalizeDateToUTC(dateDebutPeriode)
+          const dateFinNormalisee = normalizeDateToUTC(dateFinPeriode)
+          
           const affectationsAvecRessource = affectations.filter(
-            (a) =>
-              a.ressource_id === ressourceId &&
-              a.competence === competence &&
-              new Date(a.date_debut) <= dateFinPeriode &&
-              new Date(a.date_fin) >= dateDebutPeriode
+            (a) => {
+              const aDateDebut = normalizeDateToUTC(new Date(a.date_debut))
+              const aDateFin = normalizeDateToUTC(new Date(a.date_fin))
+              return (
+                a.ressource_id === ressourceId &&
+                a.competence === competence &&
+                aDateDebut <= dateFinNormalisee &&
+                aDateFin >= dateDebutNormalisee
+              )
+            }
           )
           
           for (const affectation of affectationsAvecRessource) {
