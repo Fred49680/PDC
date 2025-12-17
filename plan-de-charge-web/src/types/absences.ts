@@ -9,13 +9,13 @@ export interface Absence {
   date_debut: Date | string // Accepte Date ou string ISO (YYYY-MM-DD)
   date_fin: Date | string // Accepte Date ou string ISO (YYYY-MM-DD)
   type: string
-  competence?: string
-  commentaire?: string
+  competence?: string | null // Accepte string, undefined ou null
+  commentaire?: string | null // Accepte string, undefined ou null
   validation_saisie: 'Oui' | 'Non'
-  saisi_par?: string
+  saisi_par?: string | null // Accepte string, undefined ou null
   date_saisie: Date | string // Accepte Date ou string ISO
-  valide_par?: string
-  date_validation?: Date | string // Accepte Date ou string ISO
+  valide_par?: string | null // Accepte string, undefined ou null
+  date_validation?: Date | string | null // Accepte Date, string ISO ou null
   created_at: Date | string // Accepte Date ou string ISO
   updated_at: Date | string // Accepte Date ou string ISO
 }
