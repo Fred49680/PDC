@@ -61,13 +61,20 @@ export default function AffairesPage() {
     e.preventDefault()
     try {
       console.log('[AffairesPage] handleSubmit - formData:', formData)
-      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id)
+      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id, typeof formData.affaire_id)
       
-      await saveAffaire({
+      // S'assurer que affaire_id est bien inclus dans les données envoyées
+      const affaireToSave = {
         ...formData,
+        affaire_id: formData.affaire_id || null, // Forcer null si vide/undefined
         date_creation: formData.id ? new Date() : new Date(),
         date_modification: new Date(),
-      })
+      }
+      
+      console.log('[AffairesPage] handleSubmit - affaireToSave:', affaireToSave)
+      console.log('[AffairesPage] handleSubmit - affaireToSave.affaire_id:', affaireToSave.affaire_id)
+      
+      await saveAffaire(affaireToSave)
       // Réinitialiser le formulaire
       setFormData({
         id: '',
