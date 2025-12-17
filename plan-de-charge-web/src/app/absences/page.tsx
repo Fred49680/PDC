@@ -151,6 +151,8 @@ export default function AbsencesPage() {
       type: 'Congés payés',
       competence: '',
       commentaire: '',
+      statut: 'Actif',
+      type_arret_maladie: '',
     })
     setShowModal(true)
   }
@@ -349,6 +351,8 @@ export default function AbsencesPage() {
                 type: 'Congés payés',
                 competence: '',
                 commentaire: '',
+                statut: 'Actif',
+                type_arret_maladie: '',
               })
             }}
           >
@@ -376,6 +380,8 @@ export default function AbsencesPage() {
                       type: 'Congés payés',
                       competence: '',
                       commentaire: '',
+                      statut: 'Actif',
+                      type_arret_maladie: '',
                     })
                   }}
                   className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
@@ -582,6 +588,8 @@ export default function AbsencesPage() {
                           type: 'Congés payés',
                           competence: '',
                           commentaire: '',
+                          statut: 'Actif',
+                          type_arret_maladie: '',
                         })
                       }}
                       className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
