@@ -698,38 +698,64 @@ export function GrilleChargeAffectation({
           </div>
         </div>
 
-        {/* Toggles compétences */}
-        {competencesAvecCharge.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-blue-200">
-            <div className="flex items-center gap-2 mb-3">
+        {/* Toggles compétences - Toujours visible */}
+        <div className="mt-4 pt-4 border-t border-blue-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-blue-600" />
               <h4 className="font-semibold text-gray-800 text-sm">Filtrer les compétences</h4>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {COMPETENCES_LIST.map((comp) => {
-                const hasCharge = competencesAvecCharge.includes(comp)
-                const isActive = competencesFiltrees.has(comp)
-                return (
-                  <button
-                    key={comp}
-                    onClick={() => toggleCompetence(comp)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white text-gray-600 border-2 border-gray-300 hover:border-blue-400'
-                    } ${hasCharge ? 'ring-2 ring-yellow-400' : ''}`}
-                    title={hasCharge ? 'Cette compétence a une charge affectée' : ''}
-                  >
-                    {comp}
-                    {hasCharge && (
-                      <span className="ml-1.5 text-xs">({competencesAvecCharge.indexOf(comp) + 1})</span>
-                    )}
-                  </button>
-                )
-              })}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  // Tout sélectionner
+                  setCompetencesFiltrees(new Set(COMPETENCES_LIST))
+                }}
+                className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Tout sélectionner
+              </button>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => {
+                  // Tout désélectionner
+                  setCompetencesFiltrees(new Set())
+                }}
+                className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Tout désélectionner
+              </button>
             </div>
           </div>
-        )}
+          <div className="flex flex-wrap gap-2">
+            {COMPETENCES_LIST.map((comp) => {
+              const hasCharge = competencesAvecCharge.includes(comp)
+              const isActive = competencesFiltrees.has(comp)
+              return (
+                <button
+                  key={comp}
+                  onClick={() => toggleCompetence(comp)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+                      : 'bg-white text-gray-600 border-2 border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                  } ${hasCharge ? 'ring-2 ring-yellow-400' : ''}`}
+                  title={hasCharge ? 'Cette compétence a une charge affectée' : 'Cliquez pour afficher/masquer cette compétence'}
+                >
+                  {comp}
+                  {hasCharge && (
+                    <span className="ml-1.5 text-xs font-bold">●</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          {competencesFiltrees.size === 0 && (
+            <div className="mt-2 text-xs text-amber-600 italic">
+              ⚠️ Aucune compétence sélectionnée - Sélectionnez au moins une compétence pour afficher la grille
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Navigation temporelle */}
@@ -816,7 +842,22 @@ export function GrilleChargeAffectation({
             </tr>
           </thead>
           <tbody>
-            {COMPETENCES_LIST.filter((comp) => competencesFiltrees.has(comp)).map((comp) => {
+            {competencesFiltrees.size === 0 ? (
+              <tr>
+                <td colSpan={colonnes.length + 2} className="p-8 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <Filter className="w-12 h-12 text-gray-400" />
+                    <p className="text-lg font-semibold text-gray-600">
+                      Aucune compétence sélectionnée
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Utilisez les toggles ci-dessus pour sélectionner les compétences à afficher
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              COMPETENCES_LIST.filter((comp) => competencesFiltrees.has(comp)).map((comp) => {
               const ressourcesComp = getRessourcesForCompetence(comp)
               const totalCharge = colonnes.reduce((sum, col) => {
                 const cellKey = `${comp}|${col.date.getTime()}`
@@ -1036,7 +1077,8 @@ export function GrilleChargeAffectation({
                   </tr>
                 </React.Fragment>
               )
-            })}
+            })
+            )}
           </tbody>
         </table>
       </div>
