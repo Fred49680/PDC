@@ -272,17 +272,25 @@ export function GrilleChargeAffectation({
 
     periodes.forEach((periode) => {
       // Normaliser les dates (s'assurer qu'elles sont des objets Date valides)
-      const periodeDebut = periode.date_debut instanceof Date 
+      let periodeDebut = periode.date_debut instanceof Date 
         ? periode.date_debut 
         : new Date(periode.date_debut)
-      const periodeFin = periode.date_fin instanceof Date 
+      let periodeFin = periode.date_fin instanceof Date 
         ? periode.date_fin 
         : new Date(periode.date_fin)
       
+      // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
+      // Cela évite les problèmes de timezone lors de la comparaison avec les colonnes
+      periodeDebut = normalizeDateToUTC(periodeDebut)
+      periodeFin = normalizeDateToUTC(periodeFin)
+      
       let matchCount = 0
       colonnes.forEach((col) => {
-        const colDate = col.weekStart || col.date
-        const colEnd = col.weekEnd || col.date
+        // Normaliser aussi les dates des colonnes à minuit UTC pour la comparaison
+        const colDateRaw = col.weekStart || col.date
+        const colEndRaw = col.weekEnd || col.date
+        const colDate = normalizeDateToUTC(colDateRaw)
+        const colEnd = normalizeDateToUTC(colEndRaw)
 
         // Vérifier si la période chevauche avec la colonne
         // La période chevauche si : periodeDebut <= colEnd ET periodeFin >= colDate
@@ -300,7 +308,18 @@ export function GrilleChargeAffectation({
       
       // Debug : Afficher si une période a trouvé des correspondances
       if (matchCount === 0 && periodes.length > 0) {
-        console.warn(`[GrilleChargeAffectation] ATTENTION - Période ${periode.competence} (${format(periodeDebut, 'dd/MM/yyyy')} - ${format(periodeFin, 'dd/MM/yyyy')}) n'a trouvé aucune correspondance avec les colonnes`)
+        // Debug détaillé pour comprendre pourquoi la correspondance échoue
+        const periodeDebutRaw = periode.date_debut instanceof Date ? periode.date_debut : new Date(periode.date_debut)
+        const periodeFinRaw = periode.date_fin instanceof Date ? periode.date_fin : new Date(periode.date_fin)
+        console.warn(`[GrilleChargeAffectation] ATTENTION - Période ${periode.competence} (${format(periodeDebutRaw, 'dd/MM/yyyy HH:mm:ss')} - ${format(periodeFinRaw, 'dd/MM/yyyy HH:mm:ss')}) n'a trouvé aucune correspondance avec les colonnes`)
+        console.warn(`[GrilleChargeAffectation] DEBUG - Période normalisée: ${format(periodeDebut, 'dd/MM/yyyy HH:mm:ss')} - ${format(periodeFin, 'dd/MM/yyyy HH:mm:ss')}`)
+        if (colonnes.length > 0) {
+          const firstCol = colonnes[0]
+          const lastCol = colonnes[colonnes.length - 1]
+          const firstColDate = normalizeDateToUTC(firstCol.weekStart || firstCol.date)
+          const lastColDate = normalizeDateToUTC(lastCol.weekEnd || lastCol.date)
+          console.warn(`[GrilleChargeAffectation] DEBUG - Plage colonnes normalisée: ${format(firstColDate, 'dd/MM/yyyy HH:mm:ss')} - ${format(lastColDate, 'dd/MM/yyyy HH:mm:ss')}`)
+        }
       }
     })
     
