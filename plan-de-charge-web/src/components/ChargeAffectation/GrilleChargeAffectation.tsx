@@ -5,7 +5,7 @@ import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
-import { businessDaysBetween, getDatesBetween, isBusinessDay, formatSemaineISO } from '@/utils/calendar'
+import { businessDaysBetween, getDatesBetween, isBusinessDay, formatSemaineISO, nextBusinessDay } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend, subMonths, subWeeks } from 'date-fns'
@@ -198,16 +198,20 @@ export function GrilleChargeAffectation({
 
     switch (precision) {
       case 'JOUR':
+        // *** MODIFIÉ : En mode JOUR, ne garder que les jours ouvrés (lundi-vendredi, hors fériés) ***
         const dates = getDatesBetween(dateDebut, dateFin)
         dates.forEach((date) => {
-          const semaineISO = formatSemaineISO(date)
-          cols.push({
-            date,
-            label: format(date, 'dd/MM', { locale: fr }),
-            isWeekend: isWeekend(date),
-            isHoliday: isFrenchHoliday(date),
-            semaineISO,
-          })
+          // Filtrer pour ne garder que les jours ouvrés
+          if (isBusinessDay(date)) {
+            const semaineISO = formatSemaineISO(date)
+            cols.push({
+              date,
+              label: format(date, 'dd/MM', { locale: fr }),
+              isWeekend: false, // Toujours false car on filtre les week-ends
+              isHoliday: false, // Toujours false car on filtre les fériés
+              semaineISO,
+            })
+          }
         })
         break
 
@@ -620,8 +624,66 @@ export function GrilleChargeAffectation({
       
       try {
         setSaving(true)
-        const dateDebutPeriode = col.weekStart || col.date
-        const dateFinPeriode = col.weekEnd || col.date
+        let dateDebutPeriode = col.weekStart || col.date
+        let dateFinPeriode = col.weekEnd || col.date
+
+        // *** VALIDATION : Vérifier si les dates tombent un week-end ou jour férié ***
+        // En mode JOUR, on travaille uniquement en jours ouvrés
+        if (precision === 'JOUR') {
+          const datesNonOuvrees: Date[] = []
+          
+          // Vérifier dateDebutPeriode
+          if (!isBusinessDay(dateDebutPeriode)) {
+            datesNonOuvrees.push(dateDebutPeriode)
+          }
+          
+          // Vérifier dateFinPeriode (si différente de dateDebutPeriode)
+          if (dateFinPeriode.getTime() !== dateDebutPeriode.getTime() && !isBusinessDay(dateFinPeriode)) {
+            datesNonOuvrees.push(dateFinPeriode)
+          }
+          
+          // Si des dates non ouvrées sont détectées, proposer un ajustement
+          if (datesNonOuvrees.length > 0) {
+            const datesNonOuvreesStr = datesNonOuvrees.map(d => {
+              if (isWeekend(d)) {
+                return format(d, 'dd/MM/yyyy (week-end)')
+              } else if (isFrenchHoliday(d)) {
+                return format(d, 'dd/MM/yyyy (férié)')
+              } else {
+                return format(d, 'dd/MM/yyyy')
+              }
+            }).join(', ')
+            
+            const ajuster = confirm(
+              `⚠️ Attention : Les dates suivantes ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\n` +
+              `Voulez-vous ajuster automatiquement ces dates vers le prochain jour ouvré ?\n\n` +
+              `(Sinon, la période sera enregistrée telle quelle mais ne sera pas visible dans la grille)`
+            )
+            
+            if (ajuster) {
+              // Ajuster dateDebutPeriode vers le prochain jour ouvré
+              if (!isBusinessDay(dateDebutPeriode)) {
+                dateDebutPeriode = nextBusinessDay(dateDebutPeriode)
+                console.log(`[GrilleChargeAffectation] Date début ajustée vers jour ouvré : ${format(dateDebutPeriode, 'dd/MM/yyyy')}`)
+              }
+              
+              // Ajuster dateFinPeriode vers le prochain jour ouvré
+              if (!isBusinessDay(dateFinPeriode)) {
+                dateFinPeriode = nextBusinessDay(dateFinPeriode)
+                console.log(`[GrilleChargeAffectation] Date fin ajustée vers jour ouvré : ${format(dateFinPeriode, 'dd/MM/yyyy')}`)
+              }
+              
+              // S'assurer que dateFinPeriode >= dateDebutPeriode
+              if (dateFinPeriode < dateDebutPeriode) {
+                dateFinPeriode = dateDebutPeriode
+              }
+            } else {
+              // L'utilisateur a refusé l'ajustement, annuler l'enregistrement
+              setSaving(false)
+              return
+            }
+          }
+        }
 
         // Convertir en nombre entier (arrondir vers le bas)
         const nbRessources = Math.max(0, Math.floor(value))

@@ -94,3 +94,18 @@ export function businessDaysBetween(start: Date, end: Date, holidays: Date[] | n
   const dates = getDatesBetween(start, end)
   return dates.filter(date => isBusinessDay(date, holidays)).length
 }
+
+/**
+ * Trouver le prochain jour ouvré après une date donnée
+ * Utilise les fériés français par défaut
+ */
+export function nextBusinessDay(date: Date, holidays: Date[] | null = null): Date {
+  let nextDate = addDays(date, 1)
+  let attempts = 0
+  // Chercher jusqu'à 30 jours à l'avance pour éviter les boucles infinies
+  while (!isBusinessDay(nextDate, holidays) && attempts < 30) {
+    nextDate = addDays(nextDate, 1)
+    attempts++
+  }
+  return nextDate
+}
