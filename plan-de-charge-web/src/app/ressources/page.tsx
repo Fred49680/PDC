@@ -7,14 +7,16 @@ import { useSites } from '@/hooks/useSites'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star } from 'lucide-react'
+import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ImportExcel } from '@/components/Ressources/ImportExcel'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
 
 export default function RessourcesPage() {
   const [filters, setFilters] = useState({ site: '', actif: true })
+  const [showImport, setShowImport] = useState(false)
   
   // Mémoriser l'objet options pour useRessources
   const ressourcesOptions = useMemo(() => ({
@@ -379,14 +381,33 @@ export default function RessourcesPage() {
               <p className="text-gray-600 mt-1">Créez et gérez les ressources et leurs compétences</p>
             </div>
           </div>
-          <button
-            onClick={handleNew}
-            className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Nouvelle ressource
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(!showImport)}
+              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+              {showImport ? 'Masquer import' : 'Importer Excel'}
+            </button>
+            <button
+              onClick={handleNew}
+              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Nouvelle ressource
+            </button>
+          </div>
         </div>
+
+        {/* Composant d'import Excel */}
+        {showImport && (
+          <ImportExcel
+            onImportComplete={() => {
+              loadRessources()
+              setShowImport(false)
+            }}
+          />
+        )}
 
         {/* Filtres - Design moderne */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
