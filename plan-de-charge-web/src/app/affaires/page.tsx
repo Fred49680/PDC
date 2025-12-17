@@ -6,15 +6,17 @@ import { useAffaires } from '@/hooks/useAffaires'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react'
+import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, Eye, EyeOff, FileSpreadsheet } from 'lucide-react'
 import { generateAffaireId, SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
+import { ImportExcel } from '@/components/Affaires/ImportExcel'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
   const [filters, setFilters] = useState({ search: '', hideClosed: false })
-  const { affaires: allAffaires, loading, error, saveAffaire, deleteAffaire } = useAffaires()
+  const [showImport, setShowImport] = useState(false)
+  const { affaires: allAffaires, loading, error, saveAffaire, deleteAffaire, loadAffaires } = useAffaires()
   
   // Filtrage intelligent côté client
   const affaires = allAffaires.filter((affaire) => {
@@ -222,14 +224,33 @@ export default function AffairesPage() {
               <p className="text-gray-600 mt-1">Créez et gérez les affaires et leurs sites</p>
             </div>
           </div>
-          <button
-            onClick={handleNew}
-            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Nouvelle affaire
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(!showImport)}
+              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+              {showImport ? 'Masquer import' : 'Importer Excel'}
+            </button>
+            <button
+              onClick={handleNew}
+              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Nouvelle affaire
+            </button>
+          </div>
         </div>
+
+        {/* Composant d'import Excel */}
+        {showImport && (
+          <ImportExcel
+            onImportComplete={() => {
+              loadAffaires()
+              setShowImport(false)
+            }}
+          />
+        )}
 
         {/* Filtres - Design moderne */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
