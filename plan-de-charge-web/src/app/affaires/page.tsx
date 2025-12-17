@@ -34,9 +34,7 @@ export default function AffairesPage() {
   })
 
   const [isEditing, setIsEditing] = useState(false)
-  const [showForm, setShowForm] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [selectedAffaire, setSelectedAffaire] = useState<typeof affaires[0] | null>(null)
 
   // Générer automatiquement l'affaire_id lorsque tranche, site, libelle ou statut changent
   useEffect(() => {
@@ -115,7 +113,7 @@ export default function AffairesPage() {
         actif: true,
       })
       setIsEditing(false)
-      setShowForm(false)
+      setShowModal(false)
     } catch (err: any) {
       console.error('[AffairesPage] Erreur:', err)
       // Afficher un message d'erreur à l'utilisateur
@@ -127,7 +125,7 @@ export default function AffairesPage() {
     }
   }
 
-  const handleEdit = (affaire: typeof affaires[0]) => {
+  const handleRowClick = (affaire: typeof affaires[0]) => {
     setFormData({
       id: affaire.id,
       affaire_id: affaire.affaire_id || '',
@@ -142,13 +140,6 @@ export default function AffairesPage() {
       actif: affaire.actif,
     })
     setIsEditing(true)
-    setShowForm(true)
-    setShowModal(false)
-    setSelectedAffaire(null)
-  }
-
-  const handleRowClick = (affaire: typeof affaires[0]) => {
-    setSelectedAffaire(affaire)
     setShowModal(true)
   }
 
@@ -157,7 +148,20 @@ export default function AffairesPage() {
       try {
         await deleteAffaire(id)
         setShowModal(false)
-        setSelectedAffaire(null)
+        setFormData({
+          id: '',
+          affaire_id: '',
+          site: '',
+          libelle: '',
+          tranche: '',
+          statut: 'Ouverte',
+          budget_heures: 0,
+          raf_heures: 0,
+          date_maj_raf: undefined,
+          responsable: '',
+          actif: true,
+        })
+        setIsEditing(false)
       } catch (err) {
         console.error('[AffairesPage] Erreur suppression:', err)
       }
@@ -179,7 +183,7 @@ export default function AffairesPage() {
       actif: true,
     })
     setIsEditing(false)
-    setShowForm(true)
+    setShowModal(true)
   }
 
   return (
@@ -206,207 +210,6 @@ export default function AffairesPage() {
             Nouvelle affaire
           </button>
         </div>
-
-        {/* Formulaire - Design moderne */}
-        {showForm && (
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50 animate-fade-in">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                {isEditing ? 'Modifier une affaire' : 'Nouvelle affaire'}
-              </h2>
-            </div>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Affaire ID
-                  <span className="text-xs text-gray-500 ml-2">
-                    {formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
-                      ? '(Généré automatiquement)'
-                      : '(Vide si statut ≠ Ouverte/Prévisionnelle)'}
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.affaire_id}
-                  readOnly
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
-                  placeholder={
-                    formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
-                      ? 'Sera généré automatiquement...'
-                      : 'Vide (statut ≠ Ouverte/Prévisionnelle)'
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Site <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.site}
-                  onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  required
-                >
-                  <option value="">Sélectionner un site...</option>
-                  {SITES_LIST.map((site) => (
-                    <option key={site} value={site}>
-                      {site}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Tranche <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.tranche}
-                  onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  required
-                >
-                  <option value="">Sélectionner une tranche...</option>
-                  {TRANCHES_LIST.map((tranche) => (
-                    <option key={tranche} value={tranche}>
-                      {tranche}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Statut <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.statut}
-                  onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  required
-                >
-                  <option value="Ouverte">Ouverte</option>
-                  <option value="Prévisionnelle">Prévisionnelle</option>
-                  <option value="Fermée">Fermée</option>
-                </select>
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Libellé (Affaire) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.libelle}
-                  onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  required
-                  placeholder="Ex: PACK TEM"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Budget (H)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.budget_heures || ''}
-                  onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  RAF (H)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.raf_heures || ''}
-                  onChange={(e) => {
-                    const rafValue = parseFloat(e.target.value) || 0
-                    setFormData({ 
-                      ...formData, 
-                      raf_heures: rafValue,
-                      date_maj_raf: rafValue > 0 ? new Date() : formData.date_maj_raf
-                    })
-                  }}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Date MAJ du RAF
-                </label>
-                <input
-                  type="date"
-                  value={formData.date_maj_raf ? format(formData.date_maj_raf, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setFormData({ ...formData, date_maj_raf: e.target.value ? new Date(e.target.value) : undefined })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                />
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Responsable
-                </label>
-                <input
-                  type="text"
-                  value={formData.responsable || ''}
-                  onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Nom du responsable"
-                />
-              </div>
-              <div className="md:col-span-2 flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="actif"
-                  checked={formData.actif}
-                  onChange={(e) => setFormData({ ...formData, actif: e.target.checked })}
-                  className="w-5 h-5 rounded border-2 border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-                />
-                <label htmlFor="actif" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                  Affaire active
-                </label>
-              </div>
-              <div className="md:col-span-2 flex items-center gap-4">
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                  {isEditing ? 'Enregistrer les modifications' : 'Créer l\'affaire'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false)
-                    setIsEditing(false)
-                    setFormData({
-                      id: '',
-                      affaire_id: '',
-                      site: '',
-                      libelle: '',
-                      tranche: '',
-                      statut: 'Ouverte',
-                      budget_heures: 0,
-                      raf_heures: 0,
-                      date_maj_raf: undefined,
-                      responsable: '',
-                      actif: true,
-                    })
-                  }}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Filtres - Design moderne */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
@@ -559,60 +362,237 @@ export default function AffairesPage() {
           )}
         </div>
 
-        {/* Modal de modification/suppression */}
-        {showModal && selectedAffaire && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-                <h2 className="text-2xl font-bold text-gray-800">Actions</h2>
+        {/* Modal de création/modification */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => {
+            setShowModal(false)
+            setIsEditing(false)
+            setFormData({
+              id: '',
+              affaire_id: '',
+              site: '',
+              libelle: '',
+              tranche: '',
+              statut: 'Ouverte',
+              budget_heures: 0,
+              raf_heures: 0,
+              date_maj_raf: undefined,
+              responsable: '',
+              actif: true,
+            })
+          }}>
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {isEditing ? 'Modifier une affaire' : 'Nouvelle affaire'}
+                  </h2>
+                </div>
+                {isEditing && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
+                        handleDelete(formData.id)
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2 font-semibold"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer
+                  </button>
+                )}
               </div>
               
-              <div className="space-y-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Affaire ID</p>
-                  <p className="text-lg font-semibold text-gray-900">{selectedAffaire.affaire_id || '(vide)'}</p>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Affaire ID
+                    <span className="text-xs text-gray-500 ml-2">
+                      {formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
+                        ? '(Généré automatiquement)'
+                        : '(Vide si statut ≠ Ouverte/Prévisionnelle)'}
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.affaire_id}
+                    readOnly
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                    placeholder={
+                      formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
+                        ? 'Sera généré automatiquement...'
+                        : 'Vide (statut ≠ Ouverte/Prévisionnelle)'
+                    }
+                  />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Libellé</p>
-                  <p className="text-lg font-semibold text-gray-900">{selectedAffaire.libelle}</p>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Site <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.site}
+                    onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    required
+                  >
+                    <option value="">Sélectionner un site...</option>
+                    {SITES_LIST.map((site) => (
+                      <option key={site} value={site}>
+                        {site}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Site</p>
-                  <p className="text-lg font-semibold text-gray-900">{selectedAffaire.site}</p>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Tranche <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.tranche}
+                    onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    required
+                  >
+                    <option value="">Sélectionner une tranche...</option>
+                    {TRANCHES_LIST.map((tranche) => (
+                      <option key={tranche} value={tranche}>
+                        {tranche}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => {
-                    handleEdit(selectedAffaire)
-                  }}
-                  className="flex-1 px-6 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2 font-semibold"
-                >
-                  <Edit2 className="w-5 h-5" />
-                  Modifier
-                </button>
-                <button
-                  onClick={() => {
-                    setShowModal(false)
-                    handleDelete(selectedAffaire.id)
-                  }}
-                  className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2 font-semibold"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  Supprimer
-                </button>
-                <button
-                  onClick={() => {
-                    setShowModal(false)
-                    setSelectedAffaire(null)
-                  }}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
-                >
-                  Annuler
-                </button>
-              </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Statut <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.statut}
+                    onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    required
+                  >
+                    <option value="Ouverte">Ouverte</option>
+                    <option value="Prévisionnelle">Prévisionnelle</option>
+                    <option value="Fermée">Fermée</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Libellé (Affaire) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.libelle}
+                    onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    required
+                    placeholder="Ex: PACK TEM"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Budget (H)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.budget_heures || ''}
+                    onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    RAF (H)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.raf_heures || ''}
+                    onChange={(e) => {
+                      const rafValue = parseFloat(e.target.value) || 0
+                      setFormData({ 
+                        ...formData, 
+                        raf_heures: rafValue,
+                        date_maj_raf: rafValue > 0 ? new Date() : formData.date_maj_raf
+                      })
+                    }}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Date MAJ du RAF
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date_maj_raf ? format(formData.date_maj_raf, 'yyyy-MM-dd') : ''}
+                    onChange={(e) => setFormData({ ...formData, date_maj_raf: e.target.value ? new Date(e.target.value) : undefined })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Responsable
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.responsable || ''}
+                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    placeholder="Nom du responsable"
+                  />
+                </div>
+                <div className="md:col-span-2 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="actif"
+                    checked={formData.actif}
+                    onChange={(e) => setFormData({ ...formData, actif: e.target.checked })}
+                    className="w-5 h-5 rounded border-2 border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <label htmlFor="actif" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                    Affaire active
+                  </label>
+                </div>
+                <div className="md:col-span-2 flex items-center gap-4 pt-4 border-t border-gray-200">
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    {isEditing ? 'Enregistrer les modifications' : 'Créer l\'affaire'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false)
+                      setIsEditing(false)
+                      setFormData({
+                        id: '',
+                        affaire_id: '',
+                        site: '',
+                        libelle: '',
+                        tranche: '',
+                        statut: 'Ouverte',
+                        budget_heures: 0,
+                        raf_heures: 0,
+                        date_maj_raf: undefined,
+                        responsable: '',
+                        actif: true,
+                      })
+                    }}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
