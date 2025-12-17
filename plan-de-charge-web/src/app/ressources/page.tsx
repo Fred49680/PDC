@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useRessources } from '@/hooks/useRessources'
 import { useSites } from '@/hooks/useSites'
@@ -8,13 +8,14 @@ import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
 
 export default function RessourcesPage() {
   const [filters, setFilters] = useState({ site: '', actif: true })
-  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch } =
+  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch, loadRessources } =
     useRessources({
       site: filters.site || undefined,
       actif: filters.actif,
@@ -65,7 +66,7 @@ export default function RessourcesPage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [showCompetenceForm, setShowCompetenceForm] = useState(false)
+  const [activeTab, setActiveTab] = useState<'informations' | 'competences'>('informations')
   const [selectedRessource, setSelectedRessource] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,19 +77,47 @@ export default function RessourcesPage() {
         date_debut_contrat: formData.date_debut_contrat ? new Date(formData.date_debut_contrat) : undefined,
         date_fin_contrat: formData.date_fin_contrat ? new Date(formData.date_fin_contrat) : undefined,
       })
-      // Réinitialiser le formulaire
-      setFormData({
-        id: '',
-        nom: '',
-        site: '',
-        type_contrat: '',
-        responsable: '',
-        date_debut_contrat: '',
-        date_fin_contrat: '',
-        actif: true,
-      })
-      setIsEditing(false)
-      setShowModal(false)
+      
+      // Si c'était une création, recharger pour obtenir l'ID et passer en mode édition
+      if (!isEditing) {
+        // Recharger les ressources pour obtenir l'ID de la nouvelle ressource
+        await loadRessources()
+        // Attendre un peu pour que les données soient à jour
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Chercher la ressource créée via Supabase directement
+        const supabase = createClient()
+        const { data: newRessourceData, error: fetchError } = await supabase
+          .from('ressources')
+          .select('id')
+          .eq('nom', formData.nom)
+          .eq('site', formData.site)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        
+        if (!fetchError && newRessourceData) {
+          setFormData(prev => ({ ...prev, id: newRessourceData.id }))
+          setIsEditing(true)
+          loadCompetencesForRessource(newRessourceData.id)
+          setActiveTab('competences')
+        } else {
+          // Si on ne trouve pas, fermer le modal
+          setFormData({
+            id: '',
+            nom: '',
+            site: '',
+            type_contrat: '',
+            responsable: '',
+            date_debut_contrat: '',
+            date_fin_contrat: '',
+            actif: true,
+          })
+          setIsEditing(false)
+          setShowModal(false)
+          setActiveTab('informations')
+        }
+      }
+      // En mode édition, on reste sur l'onglet actuel et le modal reste ouvert
     } catch (err) {
       console.error('[RessourcesPage] Erreur:', err)
     }
@@ -138,6 +167,11 @@ export default function RessourcesPage() {
     })
     setIsEditing(true)
     setShowModal(true)
+    setActiveTab('informations')
+    // Charger les compétences si en mode édition
+    if (ressource.id) {
+      loadCompetencesForRessource(ressource.id)
+    }
   }
 
   const handleNew = () => {
@@ -155,7 +189,7 @@ export default function RessourcesPage() {
     setShowModal(true)
   }
 
-  const handleAddCompetence = (ressourceId: string) => {
+  const loadCompetencesForRessource = (ressourceId: string) => {
     // Charger les compétences existantes pour cette ressource
     const existingCompetences = competences.get(ressourceId) || []
     const newSelection = new Map<string, { selected: boolean; principale: boolean }>()
@@ -179,7 +213,6 @@ export default function RessourcesPage() {
         : [{ nom: '', principale: false }]
     )
     setCompetenceFormRessourceId(ressourceId)
-    setShowCompetenceForm(true)
   }
 
   const handleToggleCompetence = (competence: string) => {
@@ -271,7 +304,8 @@ export default function RessourcesPage() {
   }
 
   const handleSubmitCompetences = async () => {
-    if (!competenceFormRessourceId) return
+    const ressourceId = competenceFormRessourceId || formData.id
+    if (!ressourceId) return
 
     try {
       // Construire la liste des compétences à sauvegarder
@@ -311,14 +345,12 @@ export default function RessourcesPage() {
       }
 
       // Sauvegarder toutes les compétences en une fois
-      await saveCompetencesBatch(competenceFormRessourceId, competencesToSave)
+      await saveCompetencesBatch(ressourceId, competencesToSave)
 
       // Réinitialiser le formulaire
       setCompetencesSelection(new Map())
       setCompetencesPersonnalisees([{ nom: '', principale: false }])
       setCompetenceFormRessourceId(null)
-      setShowCompetenceForm(false)
-      setSelectedRessource(null)
     } catch (err) {
       console.error('[RessourcesPage] Erreur sauvegarde compétences:', err)
       alert('Erreur lors de la sauvegarde des compétences. Veuillez réessayer.')
@@ -351,27 +383,6 @@ export default function RessourcesPage() {
         </div>
 
 
-        {/* Formulaire compétence - Toggle system */}
-        {showCompetenceForm && (
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50 animate-fade-in">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-8 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-                <h2 className="text-2xl font-bold text-gray-800">Gérer les compétences</h2>
-              </div>
-              <button
-                onClick={() => {
-                  setShowCompetenceForm(false)
-                  setSelectedRessource(null)
-                  setCompetencesSelection(new Map())
-                  setCompetencesPersonnalisees([{ nom: '', principale: false }])
-                  setCompetenceFormRessourceId(null)
-                }}
-                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
-            </div>
 
             <div className="space-y-6">
               {/* Compétences prédéfinies */}
@@ -547,14 +558,76 @@ export default function RessourcesPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-                  <h2 className="text-xl font-bold text-gray-800">
-                    {isEditing ? 'Modifier la ressource' : 'Nouvelle ressource'}
-                  </h2>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
+                    <h2 className="text-xl font-bold text-gray-800">
+                      {isEditing ? 'Modifier la ressource' : 'Nouvelle ressource'}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowModal(false)
+                      setIsEditing(false)
+                      setActiveTab('informations')
+                      setFormData({
+                        id: '',
+                        nom: '',
+                        site: '',
+                        type_contrat: '',
+                        responsable: '',
+                        date_debut_contrat: '',
+                        date_fin_contrat: '',
+                        actif: true,
+                      })
+                      setCompetencesSelection(new Map())
+                      setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                      setCompetenceFormRessourceId(null)
+                    }}
+                    className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-600" />
+                  </button>
                 </div>
               </div>
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+              {/* Onglets */}
+              <div className="border-b border-gray-200 px-6">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('informations')}
+                    className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                      activeTab === 'informations'
+                        ? 'border-green-600 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Informations
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('competences')
+                      // Charger les compétences si on passe à l'onglet compétences et qu'on est en mode édition
+                      if (isEditing && formData.id) {
+                        loadCompetencesForRessource(formData.id)
+                      }
+                    }}
+                    className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                      activeTab === 'competences'
+                        ? 'border-green-600 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Compétences
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenu de l'onglet Informations */}
+              {activeTab === 'informations' && (
+                <form onSubmit={handleSubmit} className="p-6 space-y-5">
                 {/* Première ligne : Nom et Site */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -681,19 +754,10 @@ export default function RessourcesPage() {
                   )}
                 </div>
 
-                {/* Boutons d'action */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-3">
-                    {isEditing && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleAddCompetence(formData.id)}
-                          className="px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 font-medium text-sm flex items-center gap-2"
-                        >
-                          <Award className="w-4 h-4" />
-                          Compétences
-                        </button>
+                  {/* Boutons d'action */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      {isEditing && (
                         <button
                           type="button"
                           onClick={() => handleDelete(formData.id)}
@@ -702,40 +766,198 @@ export default function RessourcesPage() {
                           <Trash2 className="w-4 h-4" />
                           Supprimer
                         </button>
-                      </>
-                    )}
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowModal(false)
+                          setIsEditing(false)
+                          setActiveTab('informations')
+                          setFormData({
+                            id: '',
+                            nom: '',
+                            site: '',
+                            type_contrat: '',
+                            responsable: '',
+                            date_debut_contrat: '',
+                            date_fin_contrat: '',
+                            actif: true,
+                          })
+                          setCompetencesSelection(new Map())
+                          setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                          setCompetenceFormRessourceId(null)
+                        }}
+                        className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        {isEditing ? 'Enregistrer' : 'Créer'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowModal(false)
-                        setIsEditing(false)
-                        setFormData({
-                          id: '',
-                          nom: '',
-                          site: '',
-                          type_contrat: '',
-                          responsable: '',
-                          date_debut_contrat: '',
-                          date_fin_contrat: '',
-                          actif: true,
-                        })
-                      }}
-                      className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      {isEditing ? 'Enregistrer' : 'Créer'}
-                    </button>
-                  </div>
+                </form>
+              )}
+
+              {/* Contenu de l'onglet Compétences */}
+              {activeTab === 'competences' && (
+                <div className="p-6 space-y-6">
+                  {!isEditing ? (
+                    <div className="text-center py-8">
+                      <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">
+                        Veuillez d'abord créer la ressource pour gérer ses compétences.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Compétences prédéfinies */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-4">
+                          Compétences prédéfinies
+                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {competencesPredéfinies.map((comp) => {
+                            const compState = competencesSelection.get(comp) || { selected: false, principale: false }
+                            return (
+                              <div
+                                key={comp}
+                                className={`p-3 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                                  compState.selected
+                                    ? compState.principale
+                                      ? 'bg-blue-100 border-blue-400 shadow-md'
+                                      : 'bg-green-50 border-green-300'
+                                    : 'bg-white border-gray-200 hover:border-gray-300'
+                                }`}
+                                onClick={() => handleToggleCompetence(comp)}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={compState.selected}
+                                      onChange={() => handleToggleCompetence(comp)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                    />
+                                    <span className="text-sm font-medium text-gray-900">{comp}</span>
+                                  </div>
+                                  {compState.selected && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleSetPrincipale(comp)
+                                      }}
+                                      className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                                        compState.principale
+                                          ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                                          : 'bg-white border-gray-300 hover:border-blue-400 text-gray-400 hover:text-blue-500'
+                                      }`}
+                                      title={compState.principale ? 'Compétence principale (cliquer pour retirer)' : 'Marquer comme principale'}
+                                    >
+                                      <Star className={`w-4 h-4 ${compState.principale ? 'fill-white' : ''}`} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Compétences personnalisées */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <label className="block text-sm font-semibold text-gray-700">
+                            Compétences personnalisées
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleAddCustomCompetence}
+                            className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Ajouter
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          {competencesPersonnalisees.map((custom, index) => (
+                            <div key={index} className="flex items-center gap-3">
+                              <input
+                                type="text"
+                                value={custom.nom}
+                                onChange={(e) => handleToggleCompetencePersonnalisee(index, e.target.value)}
+                                className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm placeholder:text-gray-500"
+                                placeholder="Nom de la compétence personnalisée..."
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrincipalePersonnalisee(index)}
+                                disabled={!custom.nom.trim()}
+                                className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
+                                  custom.principale
+                                    ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                                    : custom.nom.trim()
+                                    ? 'bg-white border-gray-300 hover:border-blue-400 text-gray-400 hover:text-blue-500'
+                                    : 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+                                }`}
+                                title={custom.principale ? 'Compétence principale (cliquer pour retirer)' : custom.nom.trim() ? 'Marquer comme principale' : 'Saisir d\'abord un nom'}
+                              >
+                                <Star className={`w-5 h-5 ${custom.principale ? 'fill-white' : ''}`} />
+                              </button>
+                              {competencesPersonnalisees.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCustomCompetence(index)}
+                                  className="w-10 h-10 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300 flex items-center justify-center transition-all"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Boutons d'action compétences */}
+                      <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCompetencesSelection(new Map())
+                            setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                            setCompetenceFormRessourceId(null)
+                            setActiveTab('informations')
+                          }}
+                          className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!competenceFormRessourceId && formData.id) {
+                              setCompetenceFormRessourceId(formData.id)
+                            }
+                            await handleSubmitCompetences()
+                            setActiveTab('informations')
+                          }}
+                          className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
+                        >
+                          <Award className="w-4 h-4" />
+                          Enregistrer les compétences
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </form>
+              )}
             </div>
           </div>
         )}
@@ -789,7 +1011,7 @@ export default function RessourcesPage() {
                               </span>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-4">
+                          <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
                             <div>
                               <span className="font-semibold">Site:</span> {ressource.site}
                             </div>
@@ -810,51 +1032,6 @@ export default function RessourcesPage() {
                               </div>
                             )}
                           </div>
-                          {resCompetences.length > 0 && (
-                            <div className="mt-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Award className="w-4 h-4 text-green-600" />
-                                <span className="text-sm font-semibold text-gray-700">Compétences:</span>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {resCompetences
-                                  .sort((a, b) => {
-                                    // Trier : principales d'abord (P), puis secondaires (S)
-                                    const typeA = a.type_comp || 'S'
-                                    const typeB = b.type_comp || 'S'
-                                    if (typeA === 'P' && typeB !== 'P') return -1
-                                    if (typeA !== 'P' && typeB === 'P') return 1
-                                    return 0
-                                  })
-                                  .map((comp) => (
-                                    <span
-                                      key={comp.id}
-                                      className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                                        comp.type_comp === 'P'
-                                          ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
-                                          : 'bg-green-50 text-green-800 border border-green-200'
-                                      }`}
-                                    >
-                                      {comp.type_comp === 'P' && (
-                                        <span className="font-bold" title="Compétence principale">⭐</span>
-                                      )}
-                                      {comp.competence}
-                                      {comp.niveau && <span className="opacity-75">({comp.niveau})</span>}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          deleteCompetence(comp.id)
-                                        }}
-                                        className="text-red-500 hover:text-red-700 ml-1"
-                                        title="Supprimer cette compétence"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
-                                    </span>
-                                  ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>
