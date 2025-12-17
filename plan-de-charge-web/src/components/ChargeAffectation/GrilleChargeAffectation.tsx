@@ -198,20 +198,18 @@ export function GrilleChargeAffectation({
 
     switch (precision) {
       case 'JOUR':
-        // *** MODIFIÉ : En mode JOUR, ne garder que les jours ouvrés (lundi-vendredi, hors fériés) ***
+        // *** MODIFIÉ : En mode JOUR, afficher TOUTES les colonnes (y compris week-ends et fériés) ***
+        // La validation se fera lors de l'enregistrement avec confirmation
         const dates = getDatesBetween(dateDebut, dateFin)
         dates.forEach((date) => {
-          // Filtrer pour ne garder que les jours ouvrés
-          if (isBusinessDay(date)) {
-            const semaineISO = formatSemaineISO(date)
-            cols.push({
-              date,
-              label: format(date, 'dd/MM', { locale: fr }),
-              isWeekend: false, // Toujours false car on filtre les week-ends
-              isHoliday: false, // Toujours false car on filtre les fériés
-              semaineISO,
-            })
-          }
+          const semaineISO = formatSemaineISO(date)
+          cols.push({
+            date,
+            label: format(date, 'dd/MM', { locale: fr }),
+            isWeekend: isWeekend(date),
+            isHoliday: isFrenchHoliday(date),
+            semaineISO,
+          })
         })
         break
 
@@ -628,36 +626,53 @@ export function GrilleChargeAffectation({
         let dateFinPeriode = col.weekEnd || col.date
 
         // *** VALIDATION : Vérifier si les dates tombent un week-end ou jour férié ***
-        // En mode JOUR, on travaille uniquement en jours ouvrés
-        if (precision === 'JOUR') {
-          const datesNonOuvrees: Date[] = []
+        // Mode JOUR : Confirmation nécessaire si planification sur week-end/férié
+        // Mode SEMAINE/MOIS : Ajustement automatique vers jours ouvrés (on ne planifie que du lundi au vendredi hors fériés)
+        const datesNonOuvrees: Date[] = []
+        
+        // Vérifier dateDebutPeriode
+        if (!isBusinessDay(dateDebutPeriode)) {
+          datesNonOuvrees.push(dateDebutPeriode)
+        }
+        
+        // Vérifier dateFinPeriode (si différente de dateDebutPeriode)
+        if (dateFinPeriode.getTime() !== dateDebutPeriode.getTime() && !isBusinessDay(dateFinPeriode)) {
+          datesNonOuvrees.push(dateFinPeriode)
+        }
+        
+        // Si des dates non ouvrées sont détectées
+        if (datesNonOuvrees.length > 0) {
+          const datesNonOuvreesStr = datesNonOuvrees.map(d => {
+            if (isWeekend(d)) {
+              return format(d, 'dd/MM/yyyy (week-end)')
+            } else if (isFrenchHoliday(d)) {
+              return format(d, 'dd/MM/yyyy (férié)')
+            } else {
+              return format(d, 'dd/MM/yyyy')
+            }
+          }).join(', ')
           
-          // Vérifier dateDebutPeriode
-          if (!isBusinessDay(dateDebutPeriode)) {
-            datesNonOuvrees.push(dateDebutPeriode)
-          }
-          
-          // Vérifier dateFinPeriode (si différente de dateDebutPeriode)
-          if (dateFinPeriode.getTime() !== dateDebutPeriode.getTime() && !isBusinessDay(dateFinPeriode)) {
-            datesNonOuvrees.push(dateFinPeriode)
-          }
-          
-          // Si des dates non ouvrées sont détectées, proposer un ajustement
-          if (datesNonOuvrees.length > 0) {
-            const datesNonOuvreesStr = datesNonOuvrees.map(d => {
-              if (isWeekend(d)) {
-                return format(d, 'dd/MM/yyyy (week-end)')
-              } else if (isFrenchHoliday(d)) {
-                return format(d, 'dd/MM/yyyy (férié)')
-              } else {
-                return format(d, 'dd/MM/yyyy')
-              }
-            }).join(', ')
+          if (precision === 'JOUR') {
+            // Mode JOUR : Demander confirmation (on peut planifier sur week-end/férié avec confirmation)
+            const confirmer = confirm(
+              `⚠️ Attention : Vous souhaitez planifier sur les dates suivantes qui ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\n` +
+              `Voulez-vous continuer quand même ?\n\n` +
+              `(La période sera enregistrée telle quelle)`
+            )
             
+            if (!confirmer) {
+              // L'utilisateur a refusé, annuler l'enregistrement
+              setSaving(false)
+              return
+            }
+            // Si l'utilisateur confirme, on continue avec les dates telles quelles
+          } else {
+            // Mode SEMAINE/MOIS : Ajustement automatique obligatoire (on ne planifie que du lundi au vendredi hors fériés)
             const ajuster = confirm(
               `⚠️ Attention : Les dates suivantes ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\n` +
+              `En mode ${precision}, on ne planifie que du lundi au vendredi (hors fériés).\n\n` +
               `Voulez-vous ajuster automatiquement ces dates vers le prochain jour ouvré ?\n\n` +
-              `(Sinon, la période sera enregistrée telle quelle mais ne sera pas visible dans la grille)`
+              `(Sinon, l'enregistrement sera annulé)`
             )
             
             if (ajuster) {
