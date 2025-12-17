@@ -1,18 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { GrilleChargeAffectation } from '@/components/ChargeAffectation/GrilleChargeAffectation'
 import { format, startOfMonth, endOfMonth, startOfWeek, addWeeks } from 'date-fns'
-import { Calendar, AlertCircle, Target, Settings } from 'lucide-react'
+import { Calendar, AlertCircle, Target, Settings, Keyboard, Zap, Search, Clock, XCircle } from 'lucide-react'
 import type { Precision } from '@/types/charge'
 import { useAffaires } from '@/hooks/useAffaires'
 import { SITES_LIST } from '@/utils/siteMap'
+import Link from 'next/link'
 
 // Forcer le rendu dynamique
 export const dynamic = 'force-dynamic'
 
-export default function ChargeAffectationPage() {
+export default function PlanningPage() {
   const { affaires, loading: loadingAffaires } = useAffaires()
   
   const [affaireId, setAffaireId] = useState('')
@@ -20,6 +21,7 @@ export default function ChargeAffectationPage() {
   const [dateDebut, setDateDebut] = useState(startOfMonth(new Date()))
   const [dateFin, setDateFin] = useState(endOfMonth(new Date()))
   const [precision, setPrecision] = useState<Precision>('JOUR')
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
   const affairesActives = affaires.filter(
@@ -31,17 +33,11 @@ export default function ChargeAffectationPage() {
     new Set(affairesActives.map((a) => a.site).filter(Boolean))
   ).sort()
 
-  // Filtrer les affaires par site sélectionné
-  const affairesParSite = affaireId
-    ? affairesActives.filter((a) => a.site === site)
-    : affairesActives
-
   // Ajuster automatiquement la date de fin selon la précision
   useEffect(() => {
     if (precision === 'SEMAINE') {
-      // Ajuster pour commencer et finir sur un lundi
       const weekStart = startOfWeek(dateDebut, { weekStartsOn: 1 })
-      const weekEnd = addWeeks(weekStart, 4) // 4 semaines par défaut
+      const weekEnd = addWeeks(weekStart, 4)
       setDateDebut(weekStart)
       setDateFin(weekEnd)
     } else if (precision === 'MOIS') {
@@ -50,23 +46,138 @@ export default function ChargeAffectationPage() {
     }
   }, [precision])
 
+  // Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K ou Cmd+K : Afficher/masquer les raccourcis
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowShortcuts((prev) => !prev)
+      }
+      
+      // Ctrl+/ : Afficher les raccourcis
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault()
+        setShowShortcuts(true)
+      }
+      
+      // Échap : Masquer les raccourcis
+      if (e.key === 'Escape') {
+        setShowShortcuts(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Raccourcis rapides : Charger une affaire récente
+  const handleQuickLoad = useCallback((affaireId: string) => {
+    const affaire = affairesActives.find((a) => a.affaire_id === affaireId)
+    if (affaire) {
+      setAffaireId(affaireId)
+      setSite(affaire.site)
+    }
+  }, [affairesActives])
+
+  // Affaires récentes (dernières 5 modifiées)
+  const affairesRecentes = affairesActives
+    .sort((a, b) => {
+      const dateA = a.date_modification ? new Date(a.date_modification).getTime() : 0
+      const dateB = b.date_modification ? new Date(b.date_modification).getTime() : 0
+      return dateB - dateA
+    })
+    .slice(0, 5)
+
   return (
     <Layout>
       <div className="space-y-8">
-        {/* En-tête */}
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-            <Target className="w-8 h-8 text-white" />
+        {/* En-tête avec raccourcis */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+              <Target className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Planning Charge & Affectations
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Définissez la charge par compétence et affectez les ressources disponibles
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Charge & Affectations
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Définissez la charge par compétence et affectez les ressources disponibles
-            </p>
-          </div>
+          
+          {/* Bouton raccourcis */}
+          <button
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className="flex items-center gap-2 px-4 py-2 bg-white/70 backdrop-blur-sm rounded-xl shadow-md border border-gray-200/50 hover:bg-white transition-all duration-200 text-gray-700 font-medium"
+            title="Raccourcis clavier (Ctrl+K)"
+          >
+            <Keyboard className="w-4 h-4" />
+            <span className="hidden md:inline">Raccourcis</span>
+            <kbd className="hidden lg:inline px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl+K</kbd>
+          </button>
         </div>
+
+        {/* Modal raccourcis */}
+        {showShortcuts && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowShortcuts(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 border border-gray-200" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <Keyboard className="w-6 h-6 text-blue-600" />
+                  Raccourcis clavier
+                </h2>
+                <button
+                  onClick={() => setShowShortcuts(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Afficher/masquer les raccourcis</span>
+                    <kbd className="px-3 py-1 bg-white border border-gray-300 rounded font-mono text-sm">Ctrl+K</kbd>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Aide rapide</span>
+                    <kbd className="px-3 py-1 bg-white border border-gray-300 rounded font-mono text-sm">Ctrl+/</kbd>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Fermer les modales</span>
+                    <kbd className="px-3 py-1 bg-white border border-gray-300 rounded font-mono text-sm">Échap</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Raccourcis rapides - Affaires récentes */}
+        {affairesRecentes.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl shadow-lg p-6 border border-blue-200/50">
+            <div className="flex items-center gap-2 mb-4">
+              <Zap className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-800">Accès rapide</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {affairesRecentes.map((affaire) => (
+                <button
+                  key={affaire.id}
+                  onClick={() => handleQuickLoad(affaire.affaire_id || '')}
+                  className="px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 text-sm font-medium text-gray-700 hover:text-blue-600"
+                >
+                  {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                  <span className="ml-2 text-xs text-gray-500">({affaire.site})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Paramètres */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
@@ -88,7 +199,6 @@ export default function ChargeAffectationPage() {
                 value={affaireId}
                 onChange={(e) => {
                   setAffaireId(e.target.value)
-                  // Mettre à jour le site automatiquement si une affaire est sélectionnée
                   if (e.target.value) {
                     const affaire = affairesActives.find(
                       (a) => a.affaire_id === e.target.value
@@ -140,7 +250,6 @@ export default function ChargeAffectationPage() {
                 onChange={(e) => {
                   const newDate = new Date(e.target.value)
                   setDateDebut(newDate)
-                  // Ajuster date fin selon précision
                   if (precision === 'MOIS') {
                     setDateFin(endOfMonth(newDate))
                   } else if (precision === 'SEMAINE') {
@@ -166,7 +275,6 @@ export default function ChargeAffectationPage() {
                 onChange={(e) => {
                   const newDate = new Date(e.target.value)
                   setDateFin(newDate)
-                  // Ajuster date début selon précision
                   if (precision === 'MOIS') {
                     setDateDebut(startOfMonth(newDate))
                   } else if (precision === 'SEMAINE') {
@@ -191,7 +299,6 @@ export default function ChargeAffectationPage() {
                   const newPrecision = e.target.value as Precision
                   setPrecision(newPrecision)
                   
-                  // Ajuster les dates selon la précision
                   if (newPrecision === 'MOIS') {
                     setDateDebut(startOfMonth(dateDebut))
                     setDateFin(endOfMonth(dateDebut))
@@ -235,6 +342,48 @@ export default function ChargeAffectationPage() {
             </div>
           </div>
         )}
+
+        {/* Liens rapides vers autres pages */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link
+            href="/affaires"
+            className="flex items-center gap-3 p-4 bg-white/70 backdrop-blur-sm rounded-xl shadow-md border border-gray-200/50 hover:shadow-lg hover:border-blue-300 transition-all duration-200 group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+              <Target className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-800 group-hover:text-indigo-600 transition-colors">Gérer les affaires</p>
+              <p className="text-sm text-gray-500">Créer et modifier les affaires</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/ressources"
+            className="flex items-center gap-3 p-4 bg-white/70 backdrop-blur-sm rounded-xl shadow-md border border-gray-200/50 hover:shadow-lg hover:border-green-300 transition-all duration-200 group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+              <Search className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-800 group-hover:text-green-600 transition-colors">Gérer les ressources</p>
+              <p className="text-sm text-gray-500">Voir et modifier les ressources</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/absences"
+            className="flex items-center gap-3 p-4 bg-white/70 backdrop-blur-sm rounded-xl shadow-md border border-gray-200/50 hover:shadow-lg hover:border-purple-300 transition-all duration-200 group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-800 group-hover:text-purple-600 transition-colors">Gérer les absences</p>
+              <p className="text-sm text-gray-500">Déclarer absences et formations</p>
+            </div>
+          </Link>
+        </div>
       </div>
     </Layout>
   )
