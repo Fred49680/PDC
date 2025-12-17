@@ -7,7 +7,6 @@ import type { Affaire } from '@/types/charge'
 interface UseAffairesOptions {
   affaireId?: string
   site?: string
-  actif?: boolean
 }
 
 export function useAffaires(options: UseAffairesOptions = {}) {
@@ -40,10 +39,6 @@ export function useAffaires(options: UseAffairesOptions = {}) {
 
       if (options.site) {
         query = query.eq('site', options.site)
-      }
-
-      if (options.actif !== undefined) {
-        query = query.eq('actif', options.actif)
       }
 
       const { data, error: queryError } = await query
@@ -79,7 +74,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options.affaireId, options.site, options.actif, getSupabaseClient])
+  }, [options.affaireId, options.site, getSupabaseClient])
 
   const saveAffaire = useCallback(
     async (affaire: Partial<Affaire> & { site: string; libelle: string }) => {

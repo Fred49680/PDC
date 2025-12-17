@@ -6,17 +6,37 @@ import { useAffaires } from '@/hooks/useAffaires'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { generateAffaireId, SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
-  const [filters, setFilters] = useState({ site: '', actif: true })
-  const { affaires, loading, error, saveAffaire, deleteAffaire } = useAffaires({
-    site: filters.site || undefined,
-    actif: filters.actif,
+  const [filters, setFilters] = useState({ search: '', hideClosed: false })
+  const { affaires: allAffaires, loading, error, saveAffaire, deleteAffaire } = useAffaires()
+  
+  // Filtrage intelligent côté client
+  const affaires = allAffaires.filter((affaire) => {
+    // Filtrer les affaires fermées si hideClosed est activé
+    if (filters.hideClosed && affaire.statut === 'Fermée') {
+      return false
+    }
+    
+    // Filtre intelligent : recherche dans plusieurs colonnes
+    if (filters.search.trim() === '') {
+      return true
+    }
+    
+    const searchLower = filters.search.toLowerCase().trim()
+    return (
+      (affaire.affaire_id?.toLowerCase().includes(searchLower) ?? false) ||
+      (affaire.libelle?.toLowerCase().includes(searchLower) ?? false) ||
+      (affaire.site?.toLowerCase().includes(searchLower) ?? false) ||
+      (affaire.responsable?.toLowerCase().includes(searchLower) ?? false) ||
+      (affaire.tranche?.toLowerCase().includes(searchLower) ?? false) ||
+      (affaire.statut?.toLowerCase().includes(searchLower) ?? false)
+    )
   })
 
   const [formData, setFormData] = useState({
@@ -213,33 +233,42 @@ export default function AffairesPage() {
 
         {/* Filtres - Design moderne */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-4">
-            <Search className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-xl font-bold text-gray-800">Filtres</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={filters.site}
-                onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                placeholder="Filtrer par site..."
-              />
-            </div>
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="actifFilter"
-                checked={filters.actif}
-                onChange={(e) => setFilters({ ...filters, actif: e.target.checked })}
-                className="w-5 h-5 rounded border-2 border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-              />
-              <label htmlFor="actifFilter" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                Afficher uniquement les affaires actives
-              </label>
+              <Search className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-xl font-bold text-gray-800">Filtres</h2>
             </div>
+            <button
+              type="button"
+              onClick={() => setFilters({ ...filters, hideClosed: !filters.hideClosed })}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                filters.hideClosed
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {filters.hideClosed ? (
+                <>
+                  <EyeOff className="w-4 h-4" />
+                  Masquer les fermées
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Afficher les fermées
+                </>
+              )}
+            </button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+              placeholder="Recherche intelligente (ID, Libellé, Site, Responsable, Tranche, Statut)..."
+            />
           </div>
         </div>
 
