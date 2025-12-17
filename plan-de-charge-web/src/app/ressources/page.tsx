@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useRessources } from '@/hooks/useRessources'
 import { useSites } from '@/hooks/useSites'
@@ -15,14 +15,21 @@ export const dynamic = 'force-dynamic'
 
 export default function RessourcesPage() {
   const [filters, setFilters] = useState({ site: '', actif: true })
+  
+  // Mémoriser l'objet options pour useRessources
+  const ressourcesOptions = useMemo(() => ({
+    site: filters.site || undefined,
+    actif: filters.actif,
+  }), [filters.site, filters.actif])
+  
   const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch, loadRessources } =
-    useRessources({
-      site: filters.site || undefined,
-      actif: filters.actif,
-    })
+    useRessources(ressourcesOptions)
+  
+  // Mémoriser l'objet options pour useSites
+  const sitesOptions = useMemo(() => ({ actif: true }), [])
   
   // Charger les sites pour le select
-  const { sites: sitesList, loading: sitesLoading } = useSites({ actif: true })
+  const { sites: sitesList, loading: sitesLoading } = useSites(sitesOptions)
 
   const [formData, setFormData] = useState({
     id: '',

@@ -15,6 +15,11 @@ export function useSites(options: UseSitesOptions = {}) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
+  // Mémoriser les valeurs individuelles de options pour éviter les re-renders
+  const region = options.region
+  const centreOuest = options.centreOuest
+  const actif = options.actif
+
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
       throw new Error('Supabase client can only be used on the client side')
@@ -33,8 +38,8 @@ export function useSites(options: UseSitesOptions = {}) {
       throw new Error('Supabase environment variables are not available')
     }
     
-    // Logs de débogage
-    console.log('[useSites] Création du client Supabase - URL:', url.substring(0, 30) + '...', 'Key length:', key.length)
+    // Logs de débogage (désactivés pour éviter spam)
+    // console.log('[useSites] Création du client Supabase - URL:', url.substring(0, 30) + '...', 'Key length:', key.length)
     
     return createClient()
   }, [])
@@ -51,16 +56,16 @@ export function useSites(options: UseSitesOptions = {}) {
         .select('*')
         .order('site', { ascending: true })
 
-      if (options.region) {
-        query = query.eq('region', options.region)
+      if (region) {
+        query = query.eq('region', region)
       }
 
-      if (options.centreOuest) {
-        query = query.eq('centre_ouest', options.centreOuest)
+      if (centreOuest) {
+        query = query.eq('centre_ouest', centreOuest)
       }
 
-      if (options.actif !== undefined) {
-        query = query.eq('actif', options.actif)
+      if (actif !== undefined) {
+        query = query.eq('actif', actif)
       }
 
       const { data, error: queryError } = await query
@@ -86,7 +91,7 @@ export function useSites(options: UseSitesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options.region, options.centreOuest, options.actif, getSupabaseClient])
+  }, [region, centreOuest, actif, getSupabaseClient])
 
   const saveSite = useCallback(
     async (site: Partial<Site> & { site: string; site_key: string; site_map: string }) => {

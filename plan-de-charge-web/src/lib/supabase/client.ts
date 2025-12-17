@@ -39,10 +39,10 @@ export function createClient() {
     )
   }
 
-  // Logs de débogage
-  if (typeof window !== 'undefined') {
-    console.log('[createClient] Création du client Supabase avec URL:', trimmedUrl.substring(0, 30) + '...', 'Key length:', supabaseAnonKey.trim().length)
-  }
+  // Logs de débogage (désactivés pour éviter spam en cas de re-renders)
+  // if (typeof window !== 'undefined') {
+  //   console.log('[createClient] Création du client Supabase avec URL:', trimmedUrl.substring(0, 30) + '...', 'Key length:', supabaseAnonKey.trim().length)
+  // }
 
   return createBrowserClient(trimmedUrl, supabaseAnonKey.trim())
 }

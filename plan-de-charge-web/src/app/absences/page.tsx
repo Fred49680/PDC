@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAbsences } from '@/hooks/useAbsences'
 import { useRessources } from '@/hooks/useRessources'
@@ -16,10 +16,14 @@ export const dynamic = 'force-dynamic'
 export default function AbsencesPage() {
   const [ressourceId, setRessourceId] = useState('')
   const [site, setSite] = useState('')
-  const { absences, loading, error, saveAbsence, deleteAbsence, refresh } = useAbsences({
+  
+  // Mémoriser l'objet options pour éviter les re-renders infinis
+  const absenceOptions = useMemo(() => ({
     ressourceId,
     site,
-  })
+  }), [ressourceId, site])
+  
+  const { absences, loading, error, saveAbsence, deleteAbsence, refresh } = useAbsences(absenceOptions)
 
   // Charger toutes les ressources pour la liste déroulante
   const { ressources, competences: ressourcesCompetences } = useRessources()
