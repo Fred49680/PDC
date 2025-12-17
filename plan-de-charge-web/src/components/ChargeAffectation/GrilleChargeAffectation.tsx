@@ -3,6 +3,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { AlertCircle, CheckCircle2, Info, Users, Target, ChevronLeft, ChevronRight, Filter, Loader2, Save } from 'lucide-react'
 import { normalizeDateToUTC } from '@/utils/calendar'
+import type { Precision } from '@/types/charge'
+
+interface GrilleChargeAffectationProps {
+  affaireId: string
+  site: string
+  dateDebut: Date
+  dateFin: Date
+  precision: Precision
+  onDateChange?: (newDateDebut: Date, newDateFin: Date) => void
+}
 
 // ========================================
 // MOCK DATA & UTILITIES (à remplacer par vos vrais hooks)
@@ -64,11 +74,25 @@ const subWeeks = (date, weeks) => addWeeks(date, -weeks)
 // COMPOSANT PRINCIPAL OPTIMISÉ
 // ========================================
 
-export default function GrilleChargeAffectation() {
-  const [precision] = useState('JOUR')
-  const [dateDebut, setDateDebut] = useState(new Date('2024-01-08'))
-  const [dateFin, setDateFin] = useState(new Date('2024-01-19'))
+export default function GrilleChargeAffectation({
+  affaireId,
+  site,
+  dateDebut: propDateDebut,
+  dateFin: propDateFin,
+  precision: propPrecision,
+  onDateChange,
+}: GrilleChargeAffectationProps) {
+  const [precision, setPrecision] = useState<Precision>(propPrecision)
+  const [dateDebut, setDateDebut] = useState(propDateDebut)
+  const [dateFin, setDateFin] = useState(propDateFin)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  
+  // Synchroniser avec les props si elles changent
+  useEffect(() => {
+    setPrecision(propPrecision)
+    setDateDebut(propDateDebut)
+    setDateFin(propDateFin)
+  }, [propPrecision, propDateDebut, propDateFin])
   
   // États de données
   const [periodes, setPeriodes] = useState(mockPeriodes)
