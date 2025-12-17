@@ -64,7 +64,7 @@ export default function RessourcesPage() {
   const [competenceFormRessourceId, setCompetenceFormRessourceId] = useState<string | null>(null)
 
   const [isEditing, setIsEditing] = useState(false)
-  const [showForm, setShowForm] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   const [showCompetenceForm, setShowCompetenceForm] = useState(false)
   const [selectedRessource, setSelectedRessource] = useState<string | null>(null)
 
@@ -88,7 +88,7 @@ export default function RessourcesPage() {
         actif: true,
       })
       setIsEditing(false)
-      setShowForm(false)
+      setShowModal(false)
     } catch (err) {
       console.error('[RessourcesPage] Erreur:', err)
     }
@@ -108,17 +108,36 @@ export default function RessourcesPage() {
       actif: ressource.actif,
     })
     setIsEditing(true)
-    setShowForm(true)
+    setShowModal(true)
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer cette ressource ?')) {
       try {
         await deleteRessource(id)
+        setShowModal(false)
+        setIsEditing(false)
       } catch (err) {
         console.error('[RessourcesPage] Erreur suppression:', err)
       }
     }
+  }
+
+  const handleRowClick = (ressource: typeof ressources[0]) => {
+    setFormData({
+      id: ressource.id,
+      nom: ressource.nom,
+      site: ressource.site,
+      type_contrat: ressource.type_contrat || '',
+      responsable: ressource.responsable || '',
+      date_debut_contrat: ressource.date_debut_contrat
+        ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
+        : '',
+      date_fin_contrat: ressource.date_fin_contrat ? format(ressource.date_fin_contrat, 'yyyy-MM-dd') : '',
+      actif: ressource.actif,
+    })
+    setIsEditing(true)
+    setShowModal(true)
   }
 
   const handleNew = () => {
@@ -133,7 +152,7 @@ export default function RessourcesPage() {
       actif: true,
     })
     setIsEditing(false)
-    setShowForm(true)
+    setShowModal(true)
   }
 
   const handleAddCompetence = (ressourceId: string) => {
@@ -331,133 +350,6 @@ export default function RessourcesPage() {
           </button>
         </div>
 
-        {/* Formulaire ressource - Design moderne */}
-        {showForm && (
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50 animate-fade-in">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-1 h-8 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                {isEditing ? 'Modifier une ressource' : 'Nouvelle ressource'}
-              </h2>
-            </div>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Nom <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Site <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.site}
-                  onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
-                  required
-                  disabled={sitesLoading}
-                >
-                  <option value="" className="text-gray-500">Sélectionner un site...</option>
-                  {sitesList.map((site) => (
-                    <option key={site.id} value={site.site} className="text-gray-900">
-                      {site.site}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Type de contrat</label>
-                <select
-                  value={formData.type_contrat}
-                  onChange={(e) => setFormData({ ...formData, type_contrat: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white font-medium text-gray-900"
-                >
-                  <option value="" className="text-gray-500">Sélectionner...</option>
-                  <option value="CDI" className="text-gray-900">CDI</option>
-                  <option value="CDD" className="text-gray-900">CDD</option>
-                  <option value="ETT" className="text-gray-900">ETT</option>
-                  <option value="Interim" className="text-gray-900">Intérim</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Responsable</label>
-                <input
-                  type="text"
-                  value={formData.responsable}
-                  onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
-                  placeholder="Nom du responsable"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Date début contrat</label>
-                <input
-                  type="date"
-                  value={formData.date_debut_contrat}
-                  onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Date fin contrat</label>
-                <input
-                  type="date"
-                  value={formData.date_fin_contrat}
-                  onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900"
-                />
-              </div>
-              <div className="md:col-span-2 flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="actif"
-                  checked={formData.actif}
-                  onChange={(e) => setFormData({ ...formData, actif: e.target.checked })}
-                  className="w-5 h-5 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
-                />
-                <label htmlFor="actif" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                  Ressource active
-                </label>
-              </div>
-              <div className="md:col-span-2 flex items-center gap-4">
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                  {isEditing ? 'Enregistrer les modifications' : 'Créer la ressource'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false)
-                    setIsEditing(false)
-                    setFormData({
-                      id: '',
-                      nom: '',
-                      site: '',
-                      type_contrat: '',
-                      responsable: '',
-                      date_debut_contrat: '',
-                      date_fin_contrat: '',
-                      actif: true,
-                    })
-                  }}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Formulaire compétence - Toggle system */}
         {showCompetenceForm && (
@@ -650,6 +542,204 @@ export default function RessourcesPage() {
           </div>
         </div>
 
+        {/* Modal de création/modification */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {isEditing ? 'Modifier la ressource' : 'Nouvelle ressource'}
+                  </h2>
+                </div>
+              </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                {/* Première ligne : Nom et Site */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Nom <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Site <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.site}
+                      onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                      required
+                      disabled={sitesLoading}
+                    >
+                      <option value="">Sélectionner un site...</option>
+                      {sitesList.map((site) => (
+                        <option key={site.id} value={site.site}>
+                          {site.site}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Deuxième ligne : Type contrat et Responsable */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">Type de contrat</label>
+                    <select
+                      value={formData.type_contrat}
+                      onChange={(e) => setFormData({ ...formData, type_contrat: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                    >
+                      <option value="">Sélectionner...</option>
+                      <option value="CDI">CDI</option>
+                      <option value="CDD">CDD</option>
+                      <option value="ETT">ETT</option>
+                      <option value="Interim">Intérim</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">Responsable</label>
+                    <input
+                      type="text"
+                      value={formData.responsable}
+                      onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                      placeholder="Nom du responsable"
+                    />
+                  </div>
+                </div>
+
+                {/* Troisième ligne : Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">Date début contrat</label>
+                    <input
+                      type="date"
+                      value={formData.date_debut_contrat}
+                      onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">Date fin contrat</label>
+                    <input
+                      type="date"
+                      value={formData.date_fin_contrat}
+                      onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Quatrième ligne : Actif avec date de fin conditionnelle */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="actif"
+                      checked={formData.actif}
+                      onChange={(e) => {
+                        const newActif = e.target.checked
+                        setFormData({ 
+                          ...formData, 
+                          actif: newActif,
+                          // Si on désactive, vider la date de fin si elle n'existe pas déjà
+                          date_fin_contrat: newActif ? formData.date_fin_contrat : (formData.date_fin_contrat || '')
+                        })
+                      }}
+                      className="w-5 h-5 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
+                    />
+                    <label htmlFor="actif" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                      Ressource active
+                    </label>
+                  </div>
+                  {!formData.actif && (
+                    <div className="ml-8 space-y-1.5 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Date de fin (rend la ressource inactive à cette date) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.date_fin_contrat}
+                        onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
+                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
+                        required={!formData.actif}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        La ressource sera automatiquement désactivée à partir de cette date.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Boutons d'action */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  <div className="flex items-center gap-3">
+                    {isEditing && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleAddCompetence(formData.id)}
+                          className="px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 font-medium text-sm flex items-center gap-2"
+                        >
+                          <Award className="w-4 h-4" />
+                          Compétences
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(formData.id)}
+                          className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 font-medium text-sm flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Supprimer
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModal(false)
+                        setIsEditing(false)
+                        setFormData({
+                          id: '',
+                          nom: '',
+                          site: '',
+                          type_contrat: '',
+                          responsable: '',
+                          date_debut_contrat: '',
+                          date_fin_contrat: '',
+                          actif: true,
+                        })
+                      }}
+                      className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {isEditing ? 'Enregistrer' : 'Créer'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Liste des ressources */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
           <div className="flex items-center gap-3 mb-6">
@@ -682,7 +772,8 @@ export default function RessourcesPage() {
                   return (
                     <div
                       key={ressource.id}
-                      className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-green-300 transition-all duration-200 shadow-sm hover:shadow-md"
+                      onClick={() => handleRowClick(ressource)}
+                      className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-green-300 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -750,7 +841,10 @@ export default function RessourcesPage() {
                                       {comp.competence}
                                       {comp.niveau && <span className="opacity-75">({comp.niveau})</span>}
                                       <button
-                                        onClick={() => deleteCompetence(comp.id)}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          deleteCompetence(comp.id)
+                                        }}
                                         className="text-red-500 hover:text-red-700 ml-1"
                                         title="Supprimer cette compétence"
                                       >
@@ -761,30 +855,6 @@ export default function RessourcesPage() {
                               </div>
                             </div>
                           )}
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <button
-                            onClick={() => handleAddCompetence(ressource.id)}
-                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 flex items-center gap-2 font-medium text-sm"
-                            title="Ajouter une compétence"
-                          >
-                            <Award className="w-4 h-4" />
-                            Compétence
-                          </button>
-                          <button
-                            onClick={() => handleEdit(ressource)}
-                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 flex items-center gap-2 font-medium text-sm"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Modifier
-                          </button>
-                          <button
-                            onClick={() => handleDelete(ressource.id)}
-                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 flex items-center gap-2 font-medium text-sm"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Supprimer
-                          </button>
                         </div>
                       </div>
                     </div>
