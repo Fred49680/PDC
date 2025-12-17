@@ -13,8 +13,12 @@ export interface Affaire {
   created_by?: string
   updated_by?: string
   // Colonnes pour génération automatique de l'affaire_id
-  tranche?: string // Tranche/Segment (ex: "TOUTE", "T1", "T2")
+  tranche?: string // Tranche/Segment (ex: "TOUTE", "1", "2", etc.)
   statut?: string // Statut (ex: "Ouverte", "Prévisionnelle", "Fermée")
+  // Colonnes budgétaires
+  budget_heures?: number // Budget en heures
+  raf_heures?: number // Reste À Faire en heures
+  date_maj_raf?: Date // Date de mise à jour du RAF
   // Colonnes calculées automatiquement (remplies lors de l'enregistrement des charges)
   // Ne pas inclure dans le formulaire d'ajout/modification
   date_debut_demande?: Date

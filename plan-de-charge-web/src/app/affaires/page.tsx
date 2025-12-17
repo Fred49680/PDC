@@ -7,7 +7,7 @@ import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { generateAffaireId } from '@/utils/siteMap'
+import { generateAffaireId, SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -26,6 +26,9 @@ export default function AffairesPage() {
     libelle: '',
     tranche: '',
     statut: 'Ouverte',
+    budget_heures: 0,
+    raf_heures: 0,
+    date_maj_raf: undefined as Date | undefined,
     actif: true,
   })
 
@@ -70,6 +73,9 @@ export default function AffairesPage() {
         libelle: '',
         tranche: '',
         statut: 'Ouverte',
+        budget_heures: 0,
+        raf_heures: 0,
+        date_maj_raf: undefined,
         actif: true,
       })
       setIsEditing(false)
@@ -93,6 +99,9 @@ export default function AffairesPage() {
       libelle: affaire.libelle,
       tranche: affaire.tranche || '',
       statut: affaire.statut || 'Ouverte',
+      budget_heures: affaire.budget_heures || 0,
+      raf_heures: affaire.raf_heures || 0,
+      date_maj_raf: affaire.date_maj_raf,
       actif: affaire.actif,
     })
     setIsEditing(true)
@@ -117,6 +126,9 @@ export default function AffairesPage() {
       libelle: '',
       tranche: '',
       statut: 'Ouverte',
+      budget_heures: 0,
+      raf_heures: 0,
+      date_maj_raf: undefined,
       actif: true,
     })
     setIsEditing(false)
@@ -183,27 +195,37 @@ export default function AffairesPage() {
                 <label className="block text-sm font-semibold text-gray-700">
                   Site <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.site}
                   onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                   required
-                  placeholder="Ex: Belleville"
-                />
+                >
+                  <option value="">Sélectionner un site...</option>
+                  {SITES_LIST.map((site) => (
+                    <option key={site} value={site}>
+                      {site}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
                   Tranche <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.tranche}
                   onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                   required
-                  placeholder="Ex: TOUTE, T1, T2..."
-                />
+                >
+                  <option value="">Sélectionner une tranche...</option>
+                  {TRANCHES_LIST.map((tranche) => (
+                    <option key={tranche} value={tranche}>
+                      {tranche}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
@@ -231,6 +253,52 @@ export default function AffairesPage() {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                   required
                   placeholder="Ex: PACK TEM"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Budget (H)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.budget_heures || ''}
+                  onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  RAF (H)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.raf_heures || ''}
+                  onChange={(e) => {
+                    const rafValue = parseFloat(e.target.value) || 0
+                    setFormData({ 
+                      ...formData, 
+                      raf_heures: rafValue,
+                      date_maj_raf: rafValue > 0 ? new Date() : formData.date_maj_raf
+                    })
+                  }}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Date MAJ du RAF
+                </label>
+                <input
+                  type="date"
+                  value={formData.date_maj_raf ? format(formData.date_maj_raf, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setFormData({ ...formData, date_maj_raf: e.target.value ? new Date(e.target.value) : undefined })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                 />
               </div>
               <div className="md:col-span-2 flex items-center gap-3">
@@ -265,6 +333,9 @@ export default function AffairesPage() {
                       libelle: '',
                       tranche: '',
                       statut: 'Ouverte',
+                      budget_heures: 0,
+                      raf_heures: 0,
+                      date_maj_raf: undefined,
                       actif: true,
                     })
                   }}
@@ -349,6 +420,15 @@ export default function AffairesPage() {
                       Statut
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Budget (H)
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      RAF (H)
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Date MAJ RAF
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -356,7 +436,7 @@ export default function AffairesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
+                      <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -384,6 +464,15 @@ export default function AffairesPage() {
                               Inactive
                             </span>
                           )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex items-center gap-2">

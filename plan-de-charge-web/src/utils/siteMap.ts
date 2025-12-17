@@ -3,6 +3,48 @@
  * Basé sur la règle Dim_Site
  */
 
+/**
+ * Liste des sites disponibles pour les listes déroulantes
+ */
+export const SITES_LIST = [
+  'Blayais',
+  'Golfech',
+  'Bugey',
+  'Cruas',
+  'Tricastin',
+  'Saint Alban',
+  'Civaux',
+  'Chinon',
+  'Dampierre',
+  'Belleville',
+  'Saint-Laurent',
+  'Autre Site',
+  'Savigny',
+  'Flamanville',
+  'Penly',
+  'Paluel',
+  'Gravelines',
+  'Cattenom',
+  'Fessenheim',
+  'Nogent',
+] as const
+
+/**
+ * Liste des tranches disponibles pour les listes déroulantes
+ */
+export const TRANCHES_LIST = [
+  'TOUTE',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+] as const
+
 const SITE_MAP: Record<string, string> = {
   // Sud Ouest
   'Blayais': 'BLA',
