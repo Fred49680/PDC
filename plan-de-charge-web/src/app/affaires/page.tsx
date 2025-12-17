@@ -147,13 +147,57 @@ export default function AffairesPage() {
     }
   }
 
+  // Fonction pour normaliser le site (correspondance avec SITES_LIST)
+  const normalizeSite = (siteValue: string | undefined | null): string => {
+    if (!siteValue) return ''
+    const normalized = siteValue.trim()
+    
+    // Recherche exacte (insensible à la casse)
+    for (const site of SITES_LIST) {
+      if (site.toLowerCase() === normalized.toLowerCase()) {
+        return site // Retourner la valeur exacte de la liste
+      }
+    }
+    
+    // Si non trouvé, retourner la valeur originale (sera affichée mais ne correspondra pas à une option)
+    console.warn('[AffairesPage] Site non trouvé dans SITES_LIST:', normalized)
+    return normalized
+  }
+
+  // Fonction pour normaliser la tranche (correspondance avec TRANCHES_LIST)
+  const normalizeTranche = (trancheValue: string | undefined | null): string => {
+    if (!trancheValue) return ''
+    const normalized = trancheValue.trim()
+    
+    // Recherche exacte (insensible à la casse)
+    for (const tranche of TRANCHES_LIST) {
+      if (tranche.toLowerCase() === normalized.toLowerCase()) {
+        return tranche // Retourner la valeur exacte de la liste
+      }
+    }
+    
+    // Si non trouvé, retourner la valeur originale (sera affichée mais ne correspondra pas à une option)
+    console.warn('[AffairesPage] Tranche non trouvée dans TRANCHES_LIST:', normalized)
+    return normalized
+  }
+
   const handleRowClick = (affaire: typeof affaires[0]) => {
+    console.log('[AffairesPage] handleRowClick - affaire:', affaire)
+    console.log('[AffairesPage] handleRowClick - affaire.site (raw):', affaire.site)
+    console.log('[AffairesPage] handleRowClick - affaire.tranche (raw):', affaire.tranche)
+    
+    const normalizedSite = normalizeSite(affaire.site)
+    const normalizedTranche = normalizeTranche(affaire.tranche)
+    
+    console.log('[AffairesPage] handleRowClick - normalizedSite:', normalizedSite)
+    console.log('[AffairesPage] handleRowClick - normalizedTranche:', normalizedTranche)
+    
     setFormData({
       id: affaire.id,
       affaire_id: affaire.affaire_id || '',
-      site: affaire.site,
+      site: normalizedSite,
       libelle: affaire.libelle,
-      tranche: affaire.tranche || '',
+      tranche: normalizedTranche,
       statut: affaire.statut || 'Ouverte',
       budget_heures: affaire.budget_heures || 0,
       raf_heures: affaire.raf_heures || 0,
