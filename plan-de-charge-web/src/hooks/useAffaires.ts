@@ -53,9 +53,11 @@ export function useAffaires(options: UseAffairesOptions = {}) {
       setAffaires(
         (data || []).map((item) => ({
           id: item.id,
-          affaire_id: item.affaire_id,
+          affaire_id: item.affaire_id || null, // Peut être NULL
           site: item.site,
           libelle: item.libelle,
+          tranche: item.tranche || undefined,
+          statut: item.statut || 'Ouverte',
           date_creation: new Date(item.date_creation),
           date_modification: new Date(item.date_modification),
           actif: item.actif ?? true,
@@ -76,16 +78,18 @@ export function useAffaires(options: UseAffairesOptions = {}) {
   }, [options.affaireId, options.site, options.actif, getSupabaseClient])
 
   const saveAffaire = useCallback(
-    async (affaire: Partial<Affaire> & { affaire_id: string; site: string; libelle: string }) => {
+    async (affaire: Partial<Affaire> & { site: string; libelle: string }) => {
       try {
         setError(null)
 
         const supabase = getSupabaseClient()
 
         const affaireData: any = {
-          affaire_id: affaire.affaire_id,
+          affaire_id: affaire.affaire_id && affaire.affaire_id.trim() !== '' ? affaire.affaire_id.trim() : null, // Peut être NULL si statut ≠ Ouverte/Prévisionnelle
           site: affaire.site,
           libelle: affaire.libelle,
+          tranche: affaire.tranche && affaire.tranche.trim() !== '' ? affaire.tranche.trim() : null,
+          statut: affaire.statut || 'Ouverte',
           actif: affaire.actif ?? true,
           date_modification: new Date().toISOString(),
         }

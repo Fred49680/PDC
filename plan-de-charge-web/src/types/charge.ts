@@ -4,7 +4,7 @@
 
 export interface Affaire {
   id: string
-  affaire_id: string
+  affaire_id: string | null // Peut être NULL si statut ≠ "Ouverte" ou "Prévisionnelle"
   site: string
   libelle: string
   date_creation: Date
@@ -12,6 +12,9 @@ export interface Affaire {
   actif: boolean
   created_by?: string
   updated_by?: string
+  // Colonnes pour génération automatique de l'affaire_id
+  tranche?: string // Tranche/Segment (ex: "TOUTE", "T1", "T2")
+  statut?: string // Statut (ex: "Ouverte", "Prévisionnelle", "Fermée")
   // Colonnes calculées automatiquement (remplies lors de l'enregistrement des charges)
   // Ne pas inclure dans le formulaire d'ajout/modification
   date_debut_demande?: Date

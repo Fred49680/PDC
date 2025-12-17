@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAffaires } from '@/hooks/useAffaires'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { generateAffaireId } from '@/utils/siteMap'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -23,11 +24,35 @@ export default function AffairesPage() {
     affaire_id: '',
     site: '',
     libelle: '',
+    tranche: '',
+    statut: 'Ouverte',
     actif: true,
   })
 
   const [isEditing, setIsEditing] = useState(false)
   const [showForm, setShowForm] = useState(false)
+
+  // Générer automatiquement l'affaire_id lorsque tranche, site, libelle ou statut changent
+  useEffect(() => {
+    // Générer l'ID uniquement si tous les champs nécessaires sont remplis
+    if (formData.tranche && formData.site && formData.libelle && formData.statut) {
+      const generatedId = generateAffaireId(
+        formData.tranche,
+        formData.site,
+        formData.libelle,
+        formData.statut
+      )
+      // Mettre à jour l'ID seulement s'il est différent (évite les boucles infinies)
+      if (generatedId !== formData.affaire_id) {
+        setFormData((prev) => ({ ...prev, affaire_id: generatedId }))
+      }
+    } else {
+      // Si les champs ne sont plus complets, vider l'ID
+      if (formData.affaire_id) {
+        setFormData((prev) => ({ ...prev, affaire_id: '' }))
+      }
+    }
+  }, [formData.tranche, formData.site, formData.libelle, formData.statut])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,6 +68,8 @@ export default function AffairesPage() {
         affaire_id: '',
         site: '',
         libelle: '',
+        tranche: '',
+        statut: 'Ouverte',
         actif: true,
       })
       setIsEditing(false)
@@ -61,9 +88,11 @@ export default function AffairesPage() {
   const handleEdit = (affaire: typeof affaires[0]) => {
     setFormData({
       id: affaire.id,
-      affaire_id: affaire.affaire_id,
+      affaire_id: affaire.affaire_id || '',
       site: affaire.site,
       libelle: affaire.libelle,
+      tranche: affaire.tranche || '',
+      statut: affaire.statut || 'Ouverte',
       actif: affaire.actif,
     })
     setIsEditing(true)
@@ -86,6 +115,8 @@ export default function AffairesPage() {
       affaire_id: '',
       site: '',
       libelle: '',
+      tranche: '',
+      statut: 'Ouverte',
       actif: true,
     })
     setIsEditing(false)
@@ -129,15 +160,23 @@ export default function AffairesPage() {
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Affaire ID <span className="text-red-500">*</span>
+                  Affaire ID
+                  <span className="text-xs text-gray-500 ml-2">
+                    {formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
+                      ? '(Généré automatiquement)'
+                      : '(Vide si statut ≠ Ouverte/Prévisionnelle)'}
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={formData.affaire_id}
-                  onChange={(e) => setFormData({ ...formData, affaire_id: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  required
-                  disabled={isEditing}
+                  readOnly
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                  placeholder={
+                    formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
+                      ? 'Sera généré automatiquement...'
+                      : 'Vide (statut ≠ Ouverte/Prévisionnelle)'
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -150,11 +189,40 @@ export default function AffairesPage() {
                   onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                   required
+                  placeholder="Ex: Belleville"
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Tranche <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.tranche}
+                  onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  required
+                  placeholder="Ex: TOUTE, T1, T2..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Statut <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.statut}
+                  onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  required
+                >
+                  <option value="Ouverte">Ouverte</option>
+                  <option value="Prévisionnelle">Prévisionnelle</option>
+                  <option value="Fermée">Fermée</option>
+                </select>
               </div>
               <div className="md:col-span-2 space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Libellé <span className="text-red-500">*</span>
+                  Libellé (Affaire) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -162,6 +230,7 @@ export default function AffairesPage() {
                   onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                   required
+                  placeholder="Ex: PACK TEM"
                 />
               </div>
               <div className="md:col-span-2 flex items-center gap-3">
@@ -194,6 +263,8 @@ export default function AffairesPage() {
                       affaire_id: '',
                       site: '',
                       libelle: '',
+                      tranche: '',
+                      statut: 'Ouverte',
                       actif: true,
                     })
                   }}
@@ -296,7 +367,7 @@ export default function AffairesPage() {
                     affaires.map((affaire) => (
                       <tr key={affaire.id} className="hover:bg-gray-50 transition-colors duration-150">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {affaire.affaire_id}
+                          {affaire.affaire_id || <span className="text-gray-400 italic">(vide)</span>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
