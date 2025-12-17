@@ -60,6 +60,9 @@ export default function AffairesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      console.log('[AffairesPage] handleSubmit - formData:', formData)
+      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id)
+      
       await saveAffaire({
         ...formData,
         date_creation: formData.id ? new Date() : new Date(),

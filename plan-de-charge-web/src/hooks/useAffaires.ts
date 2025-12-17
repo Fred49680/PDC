@@ -87,8 +87,18 @@ export function useAffaires(options: UseAffairesOptions = {}) {
 
         const supabase = getSupabaseClient()
 
+        // Préparer l'affaire_id : convertir les chaînes vides en null, garder les valeurs valides
+        let affaireIdValue: string | null = null
+        if (affaire.affaire_id !== undefined && affaire.affaire_id !== null && affaire.affaire_id !== '') {
+          const trimmed = String(affaire.affaire_id).trim()
+          affaireIdValue = trimmed !== '' ? trimmed : null
+        }
+        
+        console.log('[useAffaires] saveAffaire - affaire.affaire_id (raw):', affaire.affaire_id, typeof affaire.affaire_id)
+        console.log('[useAffaires] saveAffaire - affaireIdValue (processed):', affaireIdValue)
+        
         const affaireData: any = {
-          affaire_id: affaire.affaire_id && affaire.affaire_id.trim() !== '' ? affaire.affaire_id.trim() : null, // Peut être NULL si statut ≠ Ouverte/Prévisionnelle
+          affaire_id: affaireIdValue, // Peut être NULL si statut ≠ Ouverte/Prévisionnelle ou si vide
           site: affaire.site,
           libelle: affaire.libelle,
           tranche: affaire.tranche && affaire.tranche.trim() !== '' ? affaire.tranche.trim() : null,
@@ -99,20 +109,38 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           actif: affaire.actif ?? true,
           date_modification: new Date().toISOString(),
         }
+        
+        console.log('[useAffaires] saveAffaire - affaireData:', JSON.stringify(affaireData, null, 2))
 
+        console.log('[useAffaires] saveAffaire - affaireData complet:', JSON.stringify(affaireData, null, 2))
+        
         if (affaire.id) {
           // Mise à jour
-          const { error: updateError } = await supabase
+          console.log('[useAffaires] saveAffaire - Mise à jour affaire ID:', affaire.id)
+          const { data: updateData, error: updateError } = await supabase
             .from('affaires')
             .update(affaireData)
             .eq('id', affaire.id)
+            .select()
 
-          if (updateError) throw updateError
+          if (updateError) {
+            console.error('[useAffaires] saveAffaire - Erreur update:', updateError)
+            throw updateError
+          }
+          console.log('[useAffaires] saveAffaire - Update réussi:', updateData)
         } else {
           // Création
-          const { error: insertError } = await supabase.from('affaires').insert(affaireData)
+          console.log('[useAffaires] saveAffaire - Création nouvelle affaire')
+          const { data: insertData, error: insertError } = await supabase
+            .from('affaires')
+            .insert(affaireData)
+            .select()
 
-          if (insertError) throw insertError
+          if (insertError) {
+            console.error('[useAffaires] saveAffaire - Erreur insert:', insertError)
+            throw insertError
+          }
+          console.log('[useAffaires] saveAffaire - Insert réussi:', insertData)
         }
 
         // Recharger la liste
