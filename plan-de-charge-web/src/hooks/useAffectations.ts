@@ -135,28 +135,43 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
 
       if (upsertError) throw upsertError
 
-      // Recharger les affectations seulement si autoRefresh est activé
-      if (autoRefresh) {
-        await loadAffectations()
-      } else {
-        // Mise à jour optimiste même si autoRefresh est désactivé
-        const affectationAvecDates = {
-          ...data,
-          date_debut: data.date_debut ? new Date(data.date_debut) : new Date(),
-          date_fin: data.date_fin ? new Date(data.date_fin) : new Date(),
-          created_at: data.created_at ? new Date(data.created_at) : new Date(),
-          updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
-        } as Affectation
+      // Mise à jour optimiste immédiate (pour que la checkbox se mette à jour instantanément)
+      const affectationAvecDates = {
+        ...data,
+        date_debut: data.date_debut ? new Date(data.date_debut) : new Date(),
+        date_fin: data.date_fin ? new Date(data.date_fin) : new Date(),
+        created_at: data.created_at ? new Date(data.created_at) : new Date(),
+        updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
+      } as Affectation
+      
+      setAffectations((prev) => {
+        const newAffectations = [...prev]
+        // Chercher si une affectation existante a le même ID
+        let index = newAffectations.findIndex((a) => a.id === affectationAvecDates.id)
         
-        setAffectations((prev) => {
-          const newAffectations = [...prev]
-          const index = newAffectations.findIndex((a) => a.id === affectationAvecDates.id)
-          if (index >= 0) {
-            newAffectations[index] = affectationAvecDates
-          } else {
-            newAffectations.push(affectationAvecDates)
-          }
-          return newAffectations
+        // Si pas trouvé par ID, chercher par ressource/compétence/dates (pour les nouvelles affectations)
+        if (index < 0 && affectationData.ressource_id && affectationData.competence) {
+          index = newAffectations.findIndex((a) => 
+            a.ressource_id === affectationData.ressource_id &&
+            a.competence === affectationData.competence &&
+            Math.abs(new Date(a.date_debut).getTime() - new Date(affectationAvecDates.date_debut).getTime()) < 1000 &&
+            Math.abs(new Date(a.date_fin).getTime() - new Date(affectationAvecDates.date_fin).getTime()) < 1000
+          )
+        }
+        
+        if (index >= 0) {
+          newAffectations[index] = affectationAvecDates
+        } else {
+          newAffectations.push(affectationAvecDates)
+        }
+        return newAffectations
+      })
+
+      // Recharger les affectations seulement si autoRefresh est activé (en arrière-plan)
+      if (autoRefresh) {
+        // Ne pas attendre le rechargement pour que la mise à jour optimiste soit visible immédiatement
+        loadAffectations().catch((err) => {
+          console.error('[useAffectations] Erreur lors du rechargement:', err)
         })
       }
 
@@ -166,7 +181,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur saveAffectation:', err)
       throw err
     }
-  }, [affaireId, site, loadAffectations])
+  }, [affaireId, site, loadAffectations, autoRefresh])
 
   const deleteAffectation = useCallback(async (affectationId: string) => {
     try {

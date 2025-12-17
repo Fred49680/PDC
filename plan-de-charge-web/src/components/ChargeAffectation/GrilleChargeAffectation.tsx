@@ -702,9 +702,9 @@ export function GrilleChargeAffectation({
         if (datesNonOuvrees.length > 0) {
           const datesNonOuvreesStr = datesNonOuvrees.map(d => {
             if (isWeekend(d)) {
-              return format(d, 'dd/MM/yyyy (week-end)')
+              return format(d, "dd/MM/yyyy 'week-end'")
             } else if (isFrenchHoliday(d)) {
-              return format(d, 'dd/MM/yyyy (férié)')
+              return format(d, "dd/MM/yyyy 'férié'")
             } else {
               return format(d, 'dd/MM/yyyy')
             }
@@ -912,7 +912,7 @@ export function GrilleChargeAffectation({
         setSaving(false)
       }
     },
-    [savePeriode, deletePeriode, periodes, colonnes, saving]
+    [savePeriode, deletePeriode, periodes, colonnes, saving, autoRefresh, consolidate, precision]
   )
 
   // Gérer le changement d'affectation avec validation complète
@@ -1052,6 +1052,7 @@ export function GrilleChargeAffectation({
       isBusinessDay,
       isWeekend,
       isFrenchHoliday,
+      autoRefresh,
     ]
   )
 
