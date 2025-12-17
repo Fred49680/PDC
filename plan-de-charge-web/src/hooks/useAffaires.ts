@@ -88,6 +88,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
         const supabase = getSupabaseClient()
 
         // Préparer l'affaire_id : convertir les chaînes vides/undefined en null, garder les valeurs valides
+        // IMPORTANT : Toujours inclure affaire_id dans affaireData (même si null) pour que Supabase le sauvegarde
         let affaireIdValue: string | null = null
         
         // Vérifier si affaire_id existe et n'est pas vide
@@ -99,13 +100,14 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           }
           // Sinon, laisser null (chaîne vide = null)
         }
-        // Si undefined ou null, laisser null
+        // Si undefined ou null, laisser null (mais toujours inclure dans affaireData)
         
         console.log('[useAffaires] saveAffaire - affaire.affaire_id (raw):', affaire.affaire_id, 'type:', typeof affaire.affaire_id)
         console.log('[useAffaires] saveAffaire - affaireIdValue (processed):', affaireIdValue, 'type:', typeof affaireIdValue)
         
         const affaireData: any = {
-          affaire_id: affaireIdValue, // Peut être NULL si statut ≠ Ouverte/Prévisionnelle ou si vide
+          // TOUJOURS inclure affaire_id (même si null) pour que Supabase le sauvegarde
+          affaire_id: affaireIdValue === undefined ? null : affaireIdValue, // Peut être NULL si statut ≠ Ouverte/Prévisionnelle ou si vide
           site: affaire.site,
           libelle: affaire.libelle,
           tranche: affaire.tranche && affaire.tranche.trim() !== '' ? affaire.tranche.trim() : null,
