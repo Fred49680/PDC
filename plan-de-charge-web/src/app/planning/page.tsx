@@ -319,18 +319,22 @@ export default function PlanningPage() {
           </div>
         </div>
 
-        {/* Grille combinée */}
-        {affaireId && site ? (
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
-            <GrilleChargeAffectation
-              affaireId={affaireId}
-              site={site}
-              dateDebut={dateDebut}
-              dateFin={dateFin}
-              precision={precision}
-            />
-          </div>
-        ) : (
+                 {/* Grille combinée */}
+                 {affaireId && site ? (
+                   <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
+                     <GrilleChargeAffectation
+                       affaireId={affaireId}
+                       site={site}
+                       dateDebut={dateDebut}
+                       dateFin={dateFin}
+                       precision={precision}
+                       onDateChange={(newDateDebut, newDateFin) => {
+                         setDateDebut(newDateDebut)
+                         setDateFin(newDateFin)
+                       }}
+                     />
+                   </div>
+                 ) : (
           <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">

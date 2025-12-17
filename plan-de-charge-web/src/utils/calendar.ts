@@ -4,6 +4,7 @@
 
 import { startOfWeek, addDays, format, isWeekend, isSameDay } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { getFrenchHolidaysBetween, isFrenchHoliday } from './holidays'
 
 /**
  * Obtenir le lundi d'une semaine
@@ -69,23 +70,27 @@ export function getDatesBetween(start: Date, end: Date): Date[] {
 
 /**
  * Vérifier si une date est un jour ouvré (pas week-end, pas férié)
- * Note: Cette fonction nécessite la table calendrier dans Supabase
- * pour vérifier les jours fériés
+ * Utilise les fériés français par défaut
  */
-export function isBusinessDay(date: Date, holidays: Date[] = []): boolean {
+export function isBusinessDay(date: Date, holidays: Date[] | null = null): boolean {
   // Vérifier week-end
   if (isWeekend(date)) {
     return false
   }
   
-  // Vérifier jours fériés
+  // Vérifier jours fériés (utiliser fériés français si holidays non fourni)
+  if (holidays === null) {
+    return !isFrenchHoliday(date)
+  }
+  
   return !holidays.some(holiday => isSameDay(holiday, date))
 }
 
 /**
  * Calculer le nombre de jours ouvrés entre deux dates
+ * Utilise les fériés français par défaut
  */
-export function businessDaysBetween(start: Date, end: Date, holidays: Date[] = []): number {
+export function businessDaysBetween(start: Date, end: Date, holidays: Date[] | null = null): number {
   const dates = getDatesBetween(start, end)
   return dates.filter(date => isBusinessDay(date, holidays)).length
 }

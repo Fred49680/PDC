@@ -5,12 +5,13 @@ import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
-import { businessDaysBetween, getDatesBetween, isBusinessDay } from '@/utils/calendar'
+import { businessDaysBetween, getDatesBetween, isBusinessDay, formatSemaineISO } from '@/utils/calendar'
+import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
-import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend } from 'date-fns'
+import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend, subMonths, subWeeks } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
-import { AlertCircle, CheckCircle2, XCircle, Info, Users, Target } from 'lucide-react'
+import { AlertCircle, CheckCircle2, XCircle, Info, Users, Target, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
 
 interface GrilleChargeAffectationProps {
   affaireId: string
@@ -18,6 +19,7 @@ interface GrilleChargeAffectationProps {
   dateDebut: Date
   dateFin: Date
   precision: Precision
+  onDateChange?: (dateDebut: Date, dateFin: Date) => void
 }
 
 // Liste des compétences (à adapter selon vos besoins)
@@ -63,7 +65,12 @@ export function GrilleChargeAffectation({
   dateDebut,
   dateFin,
   precision,
+  onDateChange,
 }: GrilleChargeAffectationProps) {
+  // État pour les compétences filtrées (toggles)
+  const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(
+    new Set(COMPETENCES_LIST)
+  )
   const { periodes, loading: loadingCharge, savePeriode, deletePeriode } = useCharge({
     affaireId,
     site,
@@ -85,7 +92,7 @@ export function GrilleChargeAffectation({
   const [dateFinRessourcesMap, setDateFinRessourcesMap] = useState<Map<string, Date>>(new Map())
   const [saving, setSaving] = useState(false)
 
-  // Générer les colonnes selon la précision
+  // Générer les colonnes selon la précision (avec fériés et semaine ISO)
   const colonnes = useMemo(() => {
     const cols: { 
       date: Date
@@ -93,16 +100,21 @@ export function GrilleChargeAffectation({
       weekStart?: Date
       weekEnd?: Date
       isWeekend?: boolean
+      isHoliday?: boolean
+      semaineISO?: string
     }[] = []
 
     switch (precision) {
       case 'JOUR':
         const dates = getDatesBetween(dateDebut, dateFin)
         dates.forEach((date) => {
+          const semaineISO = formatSemaineISO(date)
           cols.push({
             date,
             label: format(date, 'dd/MM', { locale: fr }),
             isWeekend: isWeekend(date),
+            isHoliday: isFrenchHoliday(date),
+            semaineISO,
           })
         })
         break
@@ -111,11 +123,13 @@ export function GrilleChargeAffectation({
         let currentWeek = startOfWeek(dateDebut, { weekStartsOn: 1 })
         while (currentWeek <= dateFin) {
           const weekEnd = addDays(currentWeek, 6)
+          const semaineISO = formatSemaineISO(currentWeek)
           cols.push({
             date: currentWeek,
             label: `${format(currentWeek, 'dd/MM')} - ${format(weekEnd, 'dd/MM')}`,
             weekStart: currentWeek,
             weekEnd,
+            semaineISO,
           })
           currentWeek = addWeeks(currentWeek, 1)
         }
@@ -125,11 +139,13 @@ export function GrilleChargeAffectation({
         let currentMonth = startOfMonth(dateDebut)
         while (currentMonth <= dateFin) {
           const monthEnd = endOfMonth(currentMonth)
+          const semaineISO = formatSemaineISO(currentMonth)
           cols.push({
             date: currentMonth,
             label: format(currentMonth, 'MMMM yyyy', { locale: fr }),
             weekStart: currentMonth,
             weekEnd: monthEnd,
+            semaineISO,
           })
           currentMonth = addMonths(currentMonth, 1)
         }
@@ -566,6 +582,75 @@ export function GrilleChargeAffectation({
     [allRessources, competencesMap]
   )
 
+  // Navigation temporelle
+  const handlePreviousPeriod = useCallback(() => {
+    let newDateDebut: Date
+    let newDateFin: Date
+
+    if (precision === 'JOUR') {
+      // Navigation par semaine en mode jour
+      newDateDebut = subWeeks(dateDebut, 1)
+      newDateFin = subWeeks(dateFin, 1)
+    } else if (precision === 'SEMAINE') {
+      newDateDebut = subWeeks(dateDebut, 4)
+      newDateFin = subWeeks(dateFin, 4)
+    } else {
+      // MOIS
+      newDateDebut = subMonths(dateDebut, 1)
+      newDateFin = endOfMonth(newDateDebut)
+    }
+
+    if (onDateChange) {
+      onDateChange(newDateDebut, newDateFin)
+    }
+  }, [dateDebut, dateFin, precision, onDateChange])
+
+  const handleNextPeriod = useCallback(() => {
+    let newDateDebut: Date
+    let newDateFin: Date
+
+    if (precision === 'JOUR') {
+      // Navigation par semaine en mode jour
+      newDateDebut = addWeeks(dateDebut, 1)
+      newDateFin = addWeeks(dateFin, 1)
+    } else if (precision === 'SEMAINE') {
+      newDateDebut = addWeeks(dateDebut, 4)
+      newDateFin = addWeeks(dateFin, 4)
+    } else {
+      // MOIS
+      newDateDebut = addMonths(dateDebut, 1)
+      newDateFin = endOfMonth(newDateDebut)
+    }
+
+    if (onDateChange) {
+      onDateChange(newDateDebut, newDateFin)
+    }
+  }, [dateDebut, dateFin, precision, onDateChange])
+
+  // Toggle compétence
+  const toggleCompetence = useCallback((competence: string) => {
+    setCompetencesFiltrees((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(competence)) {
+        newSet.delete(competence)
+      } else {
+        newSet.add(competence)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Compétences avec charge > 0
+  const competencesAvecCharge = useMemo(() => {
+    return COMPETENCES_LIST.filter((comp) => {
+      const totalCharge = colonnes.reduce((sum, col) => {
+        const cellKey = `${comp}|${col.date.getTime()}`
+        return sum + (grilleCharge.get(cellKey) || 0)
+      }, 0)
+      return totalCharge > 0
+    })
+  }, [colonnes, grilleCharge])
+
   if (loadingCharge || loadingAffectations) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -582,7 +667,7 @@ export function GrilleChargeAffectation({
           <Info className="w-5 h-5 text-blue-600" />
           <h3 className="font-semibold text-gray-800">Légende</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm mb-4">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
             <span className="text-gray-700">Besoin (charge)</span>
@@ -607,7 +692,90 @@ export function GrilleChargeAffectation({
             <div className="w-4 h-4 bg-red-200 border-2 border-red-500 rounded"></div>
             <span className="text-gray-700">Sur-affectation</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-pink-200 border-2 border-pink-500 rounded"></div>
+            <span className="text-gray-700">Férié</span>
+          </div>
         </div>
+
+        {/* Toggles compétences */}
+        {competencesAvecCharge.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="w-4 h-4 text-blue-600" />
+              <h4 className="font-semibold text-gray-800 text-sm">Filtrer les compétences</h4>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {COMPETENCES_LIST.map((comp) => {
+                const hasCharge = competencesAvecCharge.includes(comp)
+                const isActive = competencesFiltrees.has(comp)
+                return (
+                  <button
+                    key={comp}
+                    onClick={() => toggleCompetence(comp)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-white text-gray-600 border-2 border-gray-300 hover:border-blue-400'
+                    } ${hasCharge ? 'ring-2 ring-yellow-400' : ''}`}
+                    title={hasCharge ? 'Cette compétence a une charge affectée' : ''}
+                  >
+                    {comp}
+                    {hasCharge && (
+                      <span className="ml-1.5 text-xs">({competencesAvecCharge.indexOf(comp) + 1})</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation temporelle */}
+      <div className="flex items-center justify-between bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
+        <button
+          onClick={handlePreviousPeriod}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+          title={`Précédent (${precision === 'JOUR' ? 'semaine' : precision === 'SEMAINE' ? '4 semaines' : 'mois'})`}
+        >
+          <ChevronLeft className="w-5 h-5" />
+          <span className="hidden md:inline">Précédent</span>
+        </button>
+        
+        <div className="text-center">
+          <div className="font-semibold text-gray-800">
+            {precision === 'JOUR' && (
+              <span>
+                {format(dateDebut, 'dd/MM/yyyy', { locale: fr })} - {format(dateFin, 'dd/MM/yyyy', { locale: fr })}
+              </span>
+            )}
+            {precision === 'SEMAINE' && (
+              <span>
+                Semaines {formatSemaineISO(dateDebut)} à {formatSemaineISO(dateFin)}
+              </span>
+            )}
+            {precision === 'MOIS' && (
+              <span>
+                {format(dateDebut, 'MMMM yyyy', { locale: fr })}
+              </span>
+            )}
+          </div>
+          {precision === 'JOUR' && (
+            <div className="text-xs text-gray-500 mt-1">
+              Semaine ISO : {formatSemaineISO(dateDebut)}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={handleNextPeriod}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+          title={`Suivant (${precision === 'JOUR' ? 'semaine' : precision === 'SEMAINE' ? '4 semaines' : 'mois'})`}
+        >
+          <span className="hidden md:inline">Suivant</span>
+          <ChevronRight className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Grille */}
@@ -625,12 +793,20 @@ export function GrilleChargeAffectation({
                 <th
                   key={idx}
                   className={`border border-gray-300 p-2 text-white font-semibold text-center min-w-[100px] ${
-                    col.isWeekend ? 'bg-blue-500' : ''
+                    col.isWeekend ? 'bg-blue-500' : col.isHoliday ? 'bg-pink-500' : ''
                   }`}
                 >
                   <div className="text-xs font-bold">{col.label}</div>
+                  {col.semaineISO && (
+                    <div className="text-xs opacity-90 mt-1 font-mono">
+                      {col.semaineISO}
+                    </div>
+                  )}
                   {col.isWeekend && (
-                    <div className="text-xs opacity-75 mt-1">WE</div>
+                    <div className="text-xs opacity-75 mt-0.5">WE</div>
+                  )}
+                  {col.isHoliday && !col.isWeekend && (
+                    <div className="text-xs opacity-75 mt-0.5">Férié</div>
                   )}
                 </th>
               ))}
@@ -640,12 +816,15 @@ export function GrilleChargeAffectation({
             </tr>
           </thead>
           <tbody>
-            {COMPETENCES_LIST.map((comp) => {
+            {COMPETENCES_LIST.filter((comp) => competencesFiltrees.has(comp)).map((comp) => {
               const ressourcesComp = getRessourcesForCompetence(comp)
               const totalCharge = colonnes.reduce((sum, col) => {
                 const cellKey = `${comp}|${col.date.getTime()}`
                 return sum + (grilleCharge.get(cellKey) || 0)
               }, 0)
+
+              // Afficher les ressources seulement si charge > 0
+              const hasCharge = totalCharge > 0
 
               return (
                 <React.Fragment key={comp}>
@@ -665,7 +844,7 @@ export function GrilleChargeAffectation({
                         <td
                           key={idx}
                           className={`border border-gray-300 p-1 ${
-                            col.isWeekend ? 'bg-blue-50' : ''
+                            col.isWeekend ? 'bg-blue-50' : col.isHoliday ? 'bg-pink-50' : ''
                           }`}
                         >
                           <input
@@ -706,7 +885,7 @@ export function GrilleChargeAffectation({
                         <td
                           key={idx}
                           className={`border border-gray-300 p-2 text-center font-bold ${
-                            col.isWeekend ? 'bg-blue-50' : ''
+                            col.isWeekend ? 'bg-blue-50' : col.isHoliday ? 'bg-pink-50' : ''
                           } ${isOver ? 'bg-red-200 text-red-900' : ''} ${
                             isUnder ? 'bg-orange-100 text-orange-900' : 'text-green-900'
                           }`}
@@ -730,8 +909,14 @@ export function GrilleChargeAffectation({
                     </td>
                   </tr>
 
-                  {/* Ressources */}
-                  {ressourcesComp.length === 0 ? (
+                  {/* Ressources - Afficher seulement si charge > 0 */}
+                  {!hasCharge ? (
+                    <tr>
+                      <td colSpan={colonnes.length + 2} className="p-4 text-center text-gray-400 italic bg-gray-50">
+                        Aucune charge définie - Définissez une charge pour afficher les ressources disponibles
+                      </td>
+                    </tr>
+                  ) : ressourcesComp.length === 0 ? (
                     <tr>
                       <td colSpan={colonnes.length + 2} className="p-4 text-center text-gray-500 italic">
                         Aucune ressource disponible pour cette compétence
@@ -790,6 +975,10 @@ export function GrilleChargeAffectation({
                               bgColor = 'bg-gray-300'
                               borderColor = 'border-gray-500'
                               tooltip = `❌ ${disponibilite.message}`
+                            } else if (col.isHoliday) {
+                              bgColor = 'bg-pink-50'
+                              borderColor = 'border-pink-300'
+                              tooltip = 'Jour férié'
                             } else if (col.isWeekend) {
                               bgColor = 'bg-blue-50'
                               borderColor = 'border-blue-200'
@@ -806,7 +995,7 @@ export function GrilleChargeAffectation({
                               <td
                                 key={idx}
                                 className={`border-2 ${borderColor} p-1 text-center ${bgColor} ${
-                                  col.isWeekend ? 'bg-blue-50' : ''
+                                  col.isWeekend ? 'bg-blue-50' : col.isHoliday ? 'bg-pink-50' : ''
                                 }`}
                                 title={tooltip}
                               >
