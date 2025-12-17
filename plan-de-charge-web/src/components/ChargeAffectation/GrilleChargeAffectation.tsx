@@ -91,6 +91,8 @@ export function GrilleChargeAffectation({
   const [transfertsMap, setTransfertsMap] = useState<Map<string, DisponibiliteInfo>>(new Map())
   const [dateFinRessourcesMap, setDateFinRessourcesMap] = useState<Map<string, Date>>(new Map())
   const [saving, setSaving] = useState(false)
+  // État pour les modifications en cours (pour éviter que le rechargement écrase les valeurs optimistes)
+  const [pendingChargeChanges, setPendingChargeChanges] = useState<Map<string, number>>(new Map())
 
   // Générer les colonnes selon la précision (avec fériés et semaine ISO)
   const colonnes = useMemo(() => {
@@ -174,8 +176,14 @@ export function GrilleChargeAffectation({
       })
     })
 
+    // *** FUSION : Préserver les modifications en cours (pendingChargeChanges) ***
+    // Cela évite que le rechargement écrase les valeurs optimistes
+    pendingChargeChanges.forEach((value, key) => {
+      newGrille.set(key, value)
+    })
+
     setGrilleCharge(newGrille)
-  }, [periodes, colonnes])
+  }, [periodes, colonnes, pendingChargeChanges])
 
   // Construire la grille d'affectations
   useEffect(() => {
@@ -427,6 +435,31 @@ export function GrilleChargeAffectation({
         // Convertir en nombre entier (arrondir vers le bas)
         const nbRessources = Math.max(0, Math.floor(value))
 
+        // *** MISE À JOUR OPTIMISTE : Mettre à jour l'état local immédiatement ***
+        const cellKey = `${competence}|${col.date.getTime()}`
+        
+        // Mettre à jour l'état des modifications en cours (persiste pendant le rechargement)
+        setPendingChargeChanges((prev) => {
+          const newPending = new Map(prev)
+          if (nbRessources === 0) {
+            newPending.delete(cellKey)
+          } else {
+            newPending.set(cellKey, nbRessources)
+          }
+          return newPending
+        })
+
+        // Mettre à jour aussi grilleCharge immédiatement pour l'affichage
+        setGrilleCharge((prev) => {
+          const newGrille = new Map(prev)
+          if (nbRessources === 0) {
+            newGrille.delete(cellKey)
+          } else {
+            newGrille.set(cellKey, nbRessources)
+          }
+          return newGrille
+        })
+
         if (nbRessources === 0) {
           // Supprimer la période si elle existe
           const periodeExistante = periodes.find(
@@ -437,6 +470,12 @@ export function GrilleChargeAffectation({
           )
           if (periodeExistante) {
             await deletePeriode(periodeExistante.id)
+            // Retirer de pendingChargeChanges après suppression réussie
+            setPendingChargeChanges((prev) => {
+              const newPending = new Map(prev)
+              newPending.delete(cellKey)
+              return newPending
+            })
           }
         } else {
           await savePeriode({
@@ -445,10 +484,24 @@ export function GrilleChargeAffectation({
             date_fin: dateFinPeriode,
             nb_ressources: nbRessources,
           })
+          // Après sauvegarde réussie, retirer de pendingChargeChanges
+          // (les données rechargées vont maintenant contenir la bonne valeur)
+          setPendingChargeChanges((prev) => {
+            const newPending = new Map(prev)
+            newPending.delete(cellKey)
+            return newPending
+          })
         }
       } catch (err) {
         console.error('[GrilleChargeAffectation] Erreur savePeriode:', err)
         alert('Erreur lors de la sauvegarde de la charge')
+        // En cas d'erreur, retirer de pendingChargeChanges pour restaurer l'état depuis periodes
+        const cellKey = `${competence}|${col.date.getTime()}`
+        setPendingChargeChanges((prev) => {
+          const newPending = new Map(prev)
+          newPending.delete(cellKey)
+          return newPending
+        })
       } finally {
         setSaving(false)
       }
@@ -896,6 +949,14 @@ export function GrilleChargeAffectation({
                             onChange={(e) => {
                               const newValue = parseInt(e.target.value) || 0
                               handleChargeChange(comp, col, newValue)
+                            }}
+                            onBlur={(e) => {
+                              // S'assurer que la valeur est sauvegardée même si l'utilisateur clique ailleurs
+                              const newValue = parseInt(e.target.value) || 0
+                              const currentValue = grilleCharge.get(cellKey) || 0
+                              if (newValue !== currentValue) {
+                                handleChargeChange(comp, col, newValue)
+                              }
                             }}
                             className="w-full text-center border-2 border-yellow-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white font-semibold text-gray-800"
                             placeholder="0"
