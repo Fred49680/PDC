@@ -108,10 +108,46 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
 
       if (upsertError) throw upsertError
 
-      // Recharger les périodes
-      await loadPeriodes()
+      // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
+      // Cela évite que le rechargement écrase les valeurs en cours de saisie
+      const periodeAvecDates = {
+        ...data,
+        date_debut: data.date_debut ? new Date(data.date_debut) : new Date(),
+        date_fin: data.date_fin ? new Date(data.date_fin) : new Date(),
+        created_at: data.created_at ? new Date(data.created_at) : new Date(),
+        updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
+      } as PeriodeCharge
 
-      return data as PeriodeCharge
+      // Mettre à jour optimistement periodes (remplacer ou ajouter la période)
+      setPeriodes((prev) => {
+        const newPeriodes = [...prev]
+        const index = newPeriodes.findIndex(
+          (p) => p.id === periodeAvecDates.id || 
+          (p.affaire_id === periodeAvecDates.affaire_id &&
+           p.site === periodeAvecDates.site &&
+           p.competence === periodeAvecDates.competence &&
+           new Date(p.date_debut).getTime() === periodeAvecDates.date_debut.getTime() &&
+           new Date(p.date_fin).getTime() === periodeAvecDates.date_fin.getTime())
+        )
+        
+        if (index >= 0) {
+          newPeriodes[index] = periodeAvecDates
+        } else {
+          newPeriodes.push(periodeAvecDates)
+        }
+        
+        return newPeriodes
+      })
+
+      // Recharger les périodes en arrière-plan (avec un petit délai pour éviter les conflits)
+      // Cela permet de synchroniser avec la BDD sans bloquer l'UI
+      setTimeout(() => {
+        loadPeriodes().catch((err) => {
+          console.error('[useCharge] Erreur lors du rechargement différé:', err)
+        })
+      }, 500)
+
+      return periodeAvecDates
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur savePeriode:', err)
@@ -132,8 +168,16 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
 
       if (deleteError) throw deleteError
 
-      // Recharger les périodes
-      await loadPeriodes()
+      // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
+      // Supprimer la période de l'état local immédiatement
+      setPeriodes((prev) => prev.filter((p) => p.id !== periodeId))
+
+      // Recharger les périodes en arrière-plan (avec un petit délai pour éviter les conflits)
+      setTimeout(() => {
+        loadPeriodes().catch((err) => {
+          console.error('[useCharge] Erreur lors du rechargement différé:', err)
+        })
+      }, 500)
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur deletePeriode:', err)

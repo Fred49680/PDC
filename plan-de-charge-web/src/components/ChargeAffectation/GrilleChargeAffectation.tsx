@@ -303,17 +303,33 @@ export function GrilleChargeAffectation({
       return newPending
     })
     
+    // *** NETTOYAGE localInputValues : Ne nettoyer QUE si la valeur correspond exactement ET qu'elle n'est pas en cours de modification ***
+    // IMPORTANT : Ne pas nettoyer si pendingChargeChanges contient encore cette clé (modification en cours)
     setLocalInputValues((prev) => {
+      if (prev.size === 0) return prev // Pas de nettoyage si vide
+      
       const newLocal = new Map(prev)
-      // Ne garder que les valeurs locales qui ne sont pas encore dans la grille
-      // (celles qui sont en cours de modification)
+      let cleanedCount = 0
+      
       newLocal.forEach((localValue, key) => {
+        // Ne pas nettoyer si la modification est encore en cours (dans pendingChargeChanges)
+        if (pendingChargeChanges.has(key)) {
+          // La modification est en cours, garder la valeur locale
+          return
+        }
+        
         const gridValue = newGrille.get(key) || 0
-        if (localValue === gridValue) {
-          // La valeur locale correspond à la grille, on peut la nettoyer
+        // Si la valeur locale correspond EXACTEMENT à la valeur dans la grille (chargée depuis la BDD), on peut la nettoyer
+        if (localValue === gridValue && gridValue > 0) {
           newLocal.delete(key)
+          cleanedCount++
         }
       })
+      
+      if (cleanedCount > 0) {
+        console.log(`[GrilleChargeAffectation] Nettoyage de ${cleanedCount} entrée(s) de localInputValues (valeurs confirmées dans la BDD)`)
+      }
+      
       return newLocal
     })
   }, [periodes, colonnes, pendingChargeChanges])
