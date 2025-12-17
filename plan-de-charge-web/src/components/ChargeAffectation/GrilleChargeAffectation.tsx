@@ -92,41 +92,46 @@ export function GrilleChargeAffectation({
       if (!maxDate || pFin > maxDate) maxDate = pFin
     })
 
-    if (minDate && maxDate) {
-      // Vérifier si les dates actuelles ne couvrent pas les périodes
-      const currentStart = dateDebut
-      const currentEnd = dateFin
+    // Vérifier que minDate et maxDate sont définis avant de les utiliser
+    if (minDate === null || maxDate === null) return
 
-      // Si les périodes sont en dehors de la plage actuelle, ajuster
-      if (minDate < currentStart || maxDate > currentEnd) {
-        // Ajuster pour couvrir toutes les périodes avec une marge
-        let newDateDebut: Date
-        let newDateFin: Date
+    // Utiliser des variables locales pour garantir le type narrowing
+    const minDateValue = minDate
+    const maxDateValue = maxDate
 
-        if (precision === 'JOUR') {
-          newDateDebut = minDate
-          newDateFin = maxDate
-        } else if (precision === 'SEMAINE') {
-          newDateDebut = startOfWeek(minDate, { weekStartsOn: 1 })
-          const weekEnd = startOfWeek(maxDate, { weekStartsOn: 1 })
-          newDateFin = addDays(weekEnd, 6)
-        } else {
-          // MOIS
-          newDateDebut = startOfMonth(minDate)
-          newDateFin = endOfMonth(maxDate)
-        }
+    // Vérifier si les dates actuelles ne couvrent pas les périodes
+    const currentStart = dateDebut
+    const currentEnd = dateFin
 
-        // Ajuster seulement si nécessaire (éviter les boucles infinies)
-        if (
-          newDateDebut.getTime() !== currentStart.getTime() ||
-          newDateFin.getTime() !== currentEnd.getTime()
-        ) {
-          console.log(`[GrilleChargeAffectation] Ajustement automatique des dates pour couvrir les périodes: ${format(newDateDebut, 'dd/MM/yyyy')} -> ${format(newDateFin, 'dd/MM/yyyy')}`)
-          onDateChange(newDateDebut, newDateFin)
-        }
+    // Si les périodes sont en dehors de la plage actuelle, ajuster
+    if (minDateValue < currentStart || maxDateValue > currentEnd) {
+      // Ajuster pour couvrir toutes les périodes avec une marge
+      let newDateDebut: Date
+      let newDateFin: Date
+
+      if (precision === 'JOUR') {
+        newDateDebut = minDateValue
+        newDateFin = maxDateValue
+      } else if (precision === 'SEMAINE') {
+        newDateDebut = startOfWeek(minDateValue, { weekStartsOn: 1 })
+        const weekEnd = startOfWeek(maxDateValue, { weekStartsOn: 1 })
+        newDateFin = addDays(weekEnd, 6)
+      } else {
+        // MOIS
+        newDateDebut = startOfMonth(minDateValue)
+        newDateFin = endOfMonth(maxDateValue)
+      }
+
+      // Ajuster seulement si nécessaire (éviter les boucles infinies)
+      if (
+        newDateDebut.getTime() !== currentStart.getTime() ||
+        newDateFin.getTime() !== currentEnd.getTime()
+      ) {
+        console.log(`[GrilleChargeAffectation] Ajustement automatique des dates pour couvrir les périodes: ${format(newDateDebut, 'dd/MM/yyyy')} -> ${format(newDateFin, 'dd/MM/yyyy')}`)
+        onDateChange(newDateDebut, newDateFin)
       }
     }
-  }, [periodes, precision, onDateChange]) // Ne pas inclure dateDebut/dateFin pour éviter les boucles
+  }, [periodes, precision, onDateChange, dateDebut, dateFin]) // Inclure dateDebut/dateFin pour la comparaison
 
   const { affectations, ressources, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
     affaireId,
