@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAbsences } from '@/hooks/useAbsences'
+import { useRessources } from '@/hooks/useRessources'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Calendar, Plus, Trash2, Search, AlertCircle } from 'lucide-react'
+import { Calendar, Plus, Trash2, Search, AlertCircle, X, CheckCircle2 } from 'lucide-react'
+import type { Absence } from '@/types/absences'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -14,12 +16,18 @@ export const dynamic = 'force-dynamic'
 export default function AbsencesPage() {
   const [ressourceId, setRessourceId] = useState('')
   const [site, setSite] = useState('')
-  const { absences, loading, error, saveAbsence, deleteAbsence } = useAbsences({
+  const { absences, loading, error, saveAbsence, deleteAbsence, refresh } = useAbsences({
     ressourceId,
     site,
   })
 
+  // Charger toutes les ressources pour la liste déroulante
+  const { ressources, competences: ressourcesCompetences } = useRessources()
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   const [formData, setFormData] = useState({
+    id: '',
     ressource_id: '',
     site: '',
     date_debut: format(new Date(), 'yyyy-MM-dd'),
@@ -29,6 +37,27 @@ export default function AbsencesPage() {
     commentaire: '',
   })
 
+  // Fonction pour récupérer la compétence principale d'une ressource
+  const getPrincipaleCompetence = (ressourceId: string): string => {
+    const resCompetences = ressourcesCompetences.get(ressourceId) || []
+    const principale = resCompetences.find(c => c.type_comp === 'P')
+    return principale ? principale.competence : ''
+  }
+
+  // Handler quand une ressource est sélectionnée
+  const handleRessourceChange = (selectedRessourceId: string) => {
+    const selectedRessource = ressources.find(r => r.id === selectedRessourceId)
+    if (selectedRessource) {
+      const principaleComp = getPrincipaleCompetence(selectedRessourceId)
+      setFormData({
+        ...formData,
+        ressource_id: selectedRessourceId,
+        site: selectedRessource.site,
+        competence: principaleComp,
+      })
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -37,8 +66,11 @@ export default function AbsencesPage() {
         date_debut: new Date(formData.date_debut),
         date_fin: new Date(formData.date_fin),
       })
-      // Réinitialiser le formulaire
+      // Fermer le modal et réinitialiser
+      setShowModal(false)
+      setIsEditing(false)
       setFormData({
+        id: '',
         ressource_id: '',
         site: '',
         date_debut: format(new Date(), 'yyyy-MM-dd'),
@@ -47,8 +79,53 @@ export default function AbsencesPage() {
         competence: '',
         commentaire: '',
       })
+      await refresh()
     } catch (err) {
       console.error('[AbsencesPage] Erreur:', err)
+    }
+  }
+
+  const handleNew = () => {
+    setIsEditing(false)
+    setFormData({
+      id: '',
+      ressource_id: '',
+      site: '',
+      date_debut: format(new Date(), 'yyyy-MM-dd'),
+      date_fin: format(new Date(), 'yyyy-MM-dd'),
+      type: 'Congés payés',
+      competence: '',
+      commentaire: '',
+    })
+    setShowModal(true)
+  }
+
+  const handleRowClick = (absence: Absence) => {
+    setIsEditing(true)
+    setFormData({
+      id: absence.id,
+      ressource_id: absence.ressource_id,
+      site: absence.site,
+      date_debut: format(new Date(absence.date_debut), 'yyyy-MM-dd'),
+      date_fin: format(new Date(absence.date_fin), 'yyyy-MM-dd'),
+      type: absence.type,
+      competence: absence.competence || '',
+      commentaire: absence.commentaire || '',
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = async (absenceId: string) => {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette absence ?')) {
+      try {
+        await deleteAbsence(absenceId)
+        if (isEditing && formData.id === absenceId) {
+          setShowModal(false)
+          setIsEditing(false)
+        }
+      } catch (err) {
+        console.error('[AbsencesPage] Erreur suppression:', err)
+      }
     }
   }
 
@@ -68,115 +145,15 @@ export default function AbsencesPage() {
           </div>
         </div>
 
-        {/* Formulaire - Design moderne */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-purple-500 to-indigo-600 rounded-full"></div>
-            <div className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-purple-600" />
-              <h2 className="text-2xl font-bold text-gray-800">Nouvelle absence</h2>
-            </div>
-          </div>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Ressource ID
-              </label>
-              <input
-                type="text"
-                value={formData.ressource_id}
-                onChange={(e) => setFormData({ ...formData, ressource_id: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Site
-              </label>
-              <input
-                type="text"
-                value={formData.site}
-                onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Type
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white font-medium"
-                required
-              >
-                <option value="Formation">Formation</option>
-                <option value="Congés payés">Congés payés</option>
-                <option value="Maladie">Maladie</option>
-                <option value="Paternité">Paternité</option>
-                <option value="Maternité">Maternité</option>
-                <option value="Parental">Parental</option>
-                <option value="Autre">Autre</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Date début
-              </label>
-              <input
-                type="date"
-                value={formData.date_debut}
-                onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Date fin
-              </label>
-              <input
-                type="date"
-                value={formData.date_fin}
-                onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Compétence (optionnel)
-              </label>
-              <input
-                type="text"
-                value={formData.competence}
-                onChange={(e) => setFormData({ ...formData, competence: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-              />
-            </div>
-            <div className="md:col-span-2 lg:col-span-3 space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Commentaire
-              </label>
-              <textarea
-                value={formData.commentaire}
-                onChange={(e) => setFormData({ ...formData, commentaire: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white resize-none"
-                rows={3}
-              />
-            </div>
-            <div className="md:col-span-2 lg:col-span-3">
-              <button
-                type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Enregistrer l'absence
-              </button>
-            </div>
-          </form>
+        {/* Bouton Nouvelle absence */}
+        <div className="flex items-center justify-end">
+          <button
+            onClick={handleNew}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Nouvelle absence
+          </button>
         </div>
 
         {/* Liste des absences */}
@@ -231,13 +208,12 @@ export default function AbsencesPage() {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Compétence</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Commentaire</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {absences.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Calendar className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune absence trouvée</p>
@@ -245,40 +221,251 @@ export default function AbsencesPage() {
                       </td>
                     </tr>
                   ) : (
-                    absences.map((absence) => (
-                      <tr key={absence.id} className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{absence.ressource_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.site}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                            {absence.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {format(new Date(absence.date_debut), 'dd/MM/yyyy', { locale: fr })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {format(new Date(absence.date_fin), 'dd/MM/yyyy', { locale: fr })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.competence || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{absence.commentaire || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => deleteAbsence(absence.id)}
-                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2 font-medium"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Supprimer
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    absences.map((absence) => {
+                      // Trouver le nom de la ressource
+                      const ressource = ressources.find(r => r.id === absence.ressource_id)
+                      const ressourceNom = ressource ? ressource.nom : absence.ressource_id
+                      
+                      return (
+                        <tr 
+                          key={absence.id} 
+                          className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                          onClick={() => handleRowClick(absence)}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{ressourceNom}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.site}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                              {absence.type}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {format(new Date(absence.date_debut), 'dd/MM/yyyy', { locale: fr })}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {format(new Date(absence.date_fin), 'dd/MM/yyyy', { locale: fr })}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.competence || '-'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{absence.commentaire || '-'}</td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
             </div>
           )}
         </div>
+
+        {/* Modal de création/modification */}
+        {showModal && (
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+            onClick={() => {
+              setShowModal(false)
+              setIsEditing(false)
+              setFormData({
+                id: '',
+                ressource_id: '',
+                site: '',
+                date_debut: format(new Date(), 'yyyy-MM-dd'),
+                date_fin: format(new Date(), 'yyyy-MM-dd'),
+                type: 'Congés payés',
+                competence: '',
+                commentaire: '',
+              })
+            }}
+          >
+            <div 
+              className="bg-white rounded-xl shadow-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-indigo-600 rounded-full"></div>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {isEditing ? 'Modifier une absence' : 'Nouvelle absence'}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowModal(false)
+                    setIsEditing(false)
+                    setFormData({
+                      id: '',
+                      ressource_id: '',
+                      site: '',
+                      date_debut: format(new Date(), 'yyyy-MM-dd'),
+                      date_fin: format(new Date(), 'yyyy-MM-dd'),
+                      type: 'Congés payés',
+                      competence: '',
+                      commentaire: '',
+                    })
+                  }}
+                  className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Première ligne : Ressource et Type */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Ressource <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.ressource_id}
+                      onChange={(e) => handleRessourceChange(e.target.value)}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
+                      required
+                    >
+                      <option value="">Sélectionner une ressource...</option>
+                      {ressources.map((ressource) => (
+                        <option key={ressource.id} value={ressource.id}>
+                          {ressource.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm font-medium"
+                      required
+                    >
+                      <option value="Formation">Formation</option>
+                      <option value="Congés payés">Congés payés</option>
+                      <option value="Maladie">Maladie</option>
+                      <option value="Paternité">Paternité</option>
+                      <option value="Maternité">Maternité</option>
+                      <option value="Parental">Parental</option>
+                      <option value="Autre">Autre</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Deuxième ligne : Site et Compétence (automatiques) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Site <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.site}
+                      readOnly
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600 cursor-not-allowed"
+                      required
+                    />
+                    <p className="text-xs text-gray-500">Rempli automatiquement selon la ressource</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Compétence
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.competence}
+                      readOnly
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-gray-500">Compétence principale de la ressource</p>
+                  </div>
+                </div>
+
+                {/* Troisième ligne : Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Date début <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.date_debut}
+                      onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Date fin <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.date_fin}
+                      onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Quatrième ligne : Commentaire */}
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Commentaire
+                  </label>
+                  <textarea
+                    value={formData.commentaire}
+                    onChange={(e) => setFormData({ ...formData, commentaire: e.target.value })}
+                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white resize-none text-sm"
+                    rows={3}
+                  />
+                </div>
+
+                {/* Boutons d'action */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(formData.id)}
+                      className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 font-medium text-sm flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Supprimer
+                    </button>
+                  )}
+                  <div className="flex items-center gap-3 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModal(false)
+                        setIsEditing(false)
+                        setFormData({
+                          id: '',
+                          ressource_id: '',
+                          site: '',
+                          date_debut: format(new Date(), 'yyyy-MM-dd'),
+                          date_fin: format(new Date(), 'yyyy-MM-dd'),
+                          type: 'Congés payés',
+                          competence: '',
+                          commentaire: '',
+                        })
+                      }}
+                      className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {isEditing ? 'Enregistrer' : 'Créer'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   )
