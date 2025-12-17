@@ -61,6 +61,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           budget_heures: item.budget_heures ? Number(item.budget_heures) : undefined,
           raf_heures: item.raf_heures ? Number(item.raf_heures) : undefined,
           date_maj_raf: item.date_maj_raf ? new Date(item.date_maj_raf) : undefined,
+          responsable: item.responsable || undefined,
           date_creation: new Date(item.date_creation),
           date_modification: new Date(item.date_modification),
           actif: item.actif ?? true,
@@ -116,6 +117,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           budget_heures: affaire.budget_heures !== undefined && affaire.budget_heures !== null ? Number(affaire.budget_heures) : null,
           raf_heures: affaire.raf_heures !== undefined && affaire.raf_heures !== null ? Number(affaire.raf_heures) : null,
           date_maj_raf: affaire.date_maj_raf ? new Date(affaire.date_maj_raf).toISOString().split('T')[0] : null,
+          responsable: affaire.responsable && affaire.responsable.trim() !== '' ? affaire.responsable.trim() : null,
           actif: affaire.actif ?? true,
           date_modification: new Date().toISOString(),
         }

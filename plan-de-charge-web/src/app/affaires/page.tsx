@@ -29,11 +29,14 @@ export default function AffairesPage() {
     budget_heures: 0,
     raf_heures: 0,
     date_maj_raf: undefined as Date | undefined,
+    responsable: '',
     actif: true,
   })
 
   const [isEditing, setIsEditing] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [selectedAffaire, setSelectedAffaire] = useState<typeof affaires[0] | null>(null)
 
   // Générer automatiquement l'affaire_id lorsque tranche, site, libelle ou statut changent
   useEffect(() => {
@@ -134,16 +137,26 @@ export default function AffairesPage() {
       budget_heures: affaire.budget_heures || 0,
       raf_heures: affaire.raf_heures || 0,
       date_maj_raf: affaire.date_maj_raf,
+      responsable: affaire.responsable || '',
       actif: affaire.actif,
     })
     setIsEditing(true)
     setShowForm(true)
+    setShowModal(false)
+    setSelectedAffaire(null)
+  }
+
+  const handleRowClick = (affaire: typeof affaires[0]) => {
+    setSelectedAffaire(affaire)
+    setShowModal(true)
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
       try {
         await deleteAffaire(id)
+        setShowModal(false)
+        setSelectedAffaire(null)
       } catch (err) {
         console.error('[AffairesPage] Erreur suppression:', err)
       }
@@ -333,6 +346,18 @@ export default function AffairesPage() {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                 />
               </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Responsable
+                </label>
+                <input
+                  type="text"
+                  value={formData.responsable || ''}
+                  onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  placeholder="Nom du responsable"
+                />
+              </div>
               <div className="md:col-span-2 flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -368,6 +393,7 @@ export default function AffairesPage() {
                       budget_heures: 0,
                       raf_heures: 0,
                       date_maj_raf: undefined,
+                      responsable: '',
                       actif: true,
                     })
                   }}
@@ -461,7 +487,7 @@ export default function AffairesPage() {
                       Date MAJ RAF
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Actions
+                      Responsable
                     </th>
                   </tr>
                 </thead>
@@ -477,7 +503,11 @@ export default function AffairesPage() {
                     </tr>
                   ) : (
                     affaires.map((affaire) => (
-                      <tr key={affaire.id} className="hover:bg-gray-50 transition-colors duration-150">
+                      <tr 
+                        key={affaire.id} 
+                        className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                        onClick={() => handleRowClick(affaire)}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.affaire_id || <span className="text-gray-400 italic">(vide)</span>}
                         </td>
@@ -515,23 +545,8 @@ export default function AffairesPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleEdit(affaire)}
-                              className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2 font-medium"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                              Modifier
-                            </button>
-                            <button
-                              onClick={() => handleDelete(affaire.id)}
-                              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2 font-medium"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Supprimer
-                            </button>
-                          </div>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.responsable || '-'}
                         </td>
                       </tr>
                     ))
@@ -541,6 +556,64 @@ export default function AffairesPage() {
             </div>
           )}
         </div>
+
+        {/* Modal de modification/suppression */}
+        {showModal && selectedAffaire && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
+                <h2 className="text-2xl font-bold text-gray-800">Actions</h2>
+              </div>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Affaire ID</p>
+                  <p className="text-lg font-semibold text-gray-900">{selectedAffaire.affaire_id || '(vide)'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Libellé</p>
+                  <p className="text-lg font-semibold text-gray-900">{selectedAffaire.libelle}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Site</p>
+                  <p className="text-lg font-semibold text-gray-900">{selectedAffaire.site}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    handleEdit(selectedAffaire)
+                  }}
+                  className="flex-1 px-6 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2 font-semibold"
+                >
+                  <Edit2 className="w-5 h-5" />
+                  Modifier
+                </button>
+                <button
+                  onClick={() => {
+                    setShowModal(false)
+                    handleDelete(selectedAffaire.id)
+                  }}
+                  className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2 font-semibold"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Supprimer
+                </button>
+                <button
+                  onClick={() => {
+                    setShowModal(false)
+                    setSelectedAffaire(null)
+                  }}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   )

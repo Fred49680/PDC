@@ -19,6 +19,8 @@ export interface Affaire {
   budget_heures?: number // Budget en heures
   raf_heures?: number // Reste À Faire en heures
   date_maj_raf?: Date // Date de mise à jour du RAF
+  // Responsable
+  responsable?: string // Responsable de l'affaire
   // Colonnes calculées automatiquement (remplies lors de l'enregistrement des charges)
   // Ne pas inclure dans le formulaire d'ajout/modification
   date_debut_demande?: Date
