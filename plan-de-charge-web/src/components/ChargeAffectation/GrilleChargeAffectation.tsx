@@ -95,9 +95,9 @@ export function GrilleChargeAffectation({
     // Vérifier que minDate et maxDate sont définis avant de les utiliser
     if (minDate === null || maxDate === null) return
 
-    // Utiliser des variables locales pour garantir le type narrowing
-    const minDateValue = minDate
-    const maxDateValue = maxDate
+    // Utiliser des variables locales avec assertion de type pour garantir le type narrowing
+    const minDateValue: Date = minDate as Date
+    const maxDateValue: Date = maxDate as Date
 
     // Vérifier si les dates actuelles ne couvrent pas les périodes
     const currentStart = dateDebut
