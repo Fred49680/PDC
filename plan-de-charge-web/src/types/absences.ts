@@ -16,6 +16,8 @@ export interface Absence {
   date_saisie: Date | string // Accepte Date ou string ISO
   valide_par?: string | null // Accepte string, undefined ou null
   date_validation?: Date | string | null // Accepte Date, string ISO ou null
+  statut?: 'Actif' | 'Clôturé' // Statut de l'absence (Actif/Clôturé)
+  type_arret_maladie?: 'Initial' | 'Prolongation' | null // Type d'arrêt maladie (optionnel, seulement pour arrêts maladie)
   created_at: Date | string // Accepte Date ou string ISO
   updated_at: Date | string // Accepte Date ou string ISO
 }

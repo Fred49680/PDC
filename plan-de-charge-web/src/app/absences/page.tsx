@@ -39,6 +39,8 @@ export default function AbsencesPage() {
     type: 'Congés payés',
     competence: '',
     commentaire: '',
+    statut: 'Actif' as 'Actif' | 'Clôturé',
+    type_arret_maladie: '' as 'Initial' | 'Prolongation' | '',
   })
 
   // Fonction pour récupérer la compétence principale d'une ressource
@@ -93,6 +95,12 @@ export default function AbsencesPage() {
         commentaire: formData.commentaire && formData.commentaire.trim() !== '' ? formData.commentaire.trim() : null,
         validation_saisie: 'Non' as const,
         date_saisie: new Date().toISOString(),
+        statut: formData.statut,
+        // Type d'arrêt maladie : seulement si c'est un arrêt maladie
+        type_arret_maladie: (formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) 
+          && formData.type_arret_maladie !== '' 
+          ? formData.type_arret_maladie as 'Initial' | 'Prolongation' 
+          : null,
       }
 
       // Si c'est une modification, inclure l'id
@@ -113,6 +121,8 @@ export default function AbsencesPage() {
         type: 'Congés payés',
         competence: '',
         commentaire: '',
+        statut: 'Actif',
+        type_arret_maladie: '',
       })
       await refresh()
     } catch (err: any) {
@@ -156,6 +166,8 @@ export default function AbsencesPage() {
       type: absence.type,
       competence: absence.competence || '',
       commentaire: absence.commentaire || '',
+      statut: absence.statut || 'Actif',
+      type_arret_maladie: absence.type_arret_maladie || '',
     })
     setShowModal(true)
   }
@@ -251,6 +263,8 @@ export default function AbsencesPage() {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type arrêt</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Compétence</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Commentaire</th>
                   </tr>
@@ -258,7 +272,7 @@ export default function AbsencesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {absences.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Calendar className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune absence trouvée</p>
@@ -270,6 +284,7 @@ export default function AbsencesPage() {
                       // Trouver le nom de la ressource
                       const ressource = ressources.find(r => r.id === absence.ressource_id)
                       const ressourceNom = ressource ? ressource.nom : absence.ressource_id
+                      const isArretMaladie = absence.type.toLowerCase().includes('maladie') || absence.type.toLowerCase().includes('arrêt')
                       
                       return (
                         <tr 
@@ -289,6 +304,22 @@ export default function AbsencesPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {format(new Date(absence.date_fin), 'dd/MM/yyyy', { locale: fr })}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              absence.statut === 'Clôturé' 
+                                ? 'bg-gray-100 text-gray-700' 
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {absence.statut || 'Actif'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {isArretMaladie && absence.type_arret_maladie ? (
+                              <span className="px-2 py-1 inline-flex text-xs leading-5 font-medium rounded bg-blue-100 text-blue-800">
+                                {absence.type_arret_maladie}
+                              </span>
+                            ) : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.competence || '-'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{absence.commentaire || '-'}</td>
@@ -380,7 +411,16 @@ export default function AbsencesPage() {
                     </label>
                     <select
                       value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      onChange={(e) => {
+                        const newType = e.target.value
+                        const isArretMaladie = newType.toLowerCase().includes('maladie') || newType.toLowerCase().includes('arrêt')
+                        setFormData({ 
+                          ...formData, 
+                          type: newType,
+                          // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
+                          type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
+                        })
+                      }}
                       className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm font-medium"
                       required
                     >
@@ -452,7 +492,57 @@ export default function AbsencesPage() {
                   </div>
                 </div>
 
-                {/* Quatrième ligne : Commentaire */}
+                {/* Quatrième ligne : Statut et Type arrêt maladie (si maladie) */}
+                {(formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Type d'arrêt maladie
+                      </label>
+                      <select
+                        value={formData.type_arret_maladie}
+                        onChange={(e) => setFormData({ ...formData, type_arret_maladie: e.target.value as 'Initial' | 'Prolongation' | '' })}
+                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
+                      >
+                        <option value="">Sélectionner...</option>
+                        <option value="Initial">Initial</option>
+                        <option value="Prolongation">Prolongation</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Statut
+                      </label>
+                      <select
+                        value={formData.statut}
+                        onChange={(e) => setFormData({ ...formData, statut: e.target.value as 'Actif' | 'Clôturé' })}
+                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
+                      >
+                        <option value="Actif">Actif</option>
+                        <option value="Clôturé">Clôturé</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Statut (si ce n'est pas un arrêt maladie) */}
+                {!(formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) && (
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Statut
+                    </label>
+                    <select
+                      value={formData.statut}
+                      onChange={(e) => setFormData({ ...formData, statut: e.target.value as 'Actif' | 'Clôturé' })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
+                    >
+                      <option value="Actif">Actif</option>
+                      <option value="Clôturé">Clôturé</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Cinquième ligne : Commentaire */}
                 <div className="space-y-1.5">
                   <label className="block text-sm font-semibold text-gray-700">
                     Commentaire

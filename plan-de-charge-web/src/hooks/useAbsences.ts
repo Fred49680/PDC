@@ -148,6 +148,25 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
         absenceData.date_saisie = new Date().toISOString()
       }
 
+      // Statut (par défaut 'Actif' si non fourni)
+      if (absence.statut) {
+        absenceData.statut = absence.statut
+      } else {
+        absenceData.statut = 'Actif'
+      }
+
+      // Type d'arrêt maladie (seulement si c'est un arrêt maladie)
+      const isArretMaladie = absence.type && (
+        absence.type.toLowerCase().includes('maladie') || 
+        absence.type.toLowerCase().includes('arrêt')
+      )
+      
+      if (isArretMaladie && absence.type_arret_maladie) {
+        absenceData.type_arret_maladie = absence.type_arret_maladie
+      } else {
+        absenceData.type_arret_maladie = null
+      }
+
       // Si c'est une modification, inclure l'id
       if (absence.id && absence.id.trim() !== '') {
         absenceData.id = absence.id
