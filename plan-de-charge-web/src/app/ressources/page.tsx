@@ -842,62 +842,72 @@ export default function RessourcesPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {ressources.length === 0 ? (
-                <div className="text-center py-12">
-                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 font-medium text-lg">Aucune ressource trouvée</p>
-                </div>
-              ) : (
-                ressources.map((ressource) => {
-                  const resCompetences = competences.get(ressource.id) || []
-                  return (
-                    <div
-                      key={ressource.id}
-                      onClick={() => handleRowClick(ressource)}
-                      className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-green-300 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-xl font-bold text-gray-900">{ressource.nom}</h3>
-                            {ressource.actif ? (
-                              <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                Active
-                              </span>
-                            ) : (
-                              <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                Inactive
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
-                            <div>
-                              <span className="font-semibold">Site:</span> {ressource.site}
-                            </div>
-                            {ressource.type_contrat && (
-                              <div>
-                                <span className="font-semibold">Contrat:</span> {ressource.type_contrat}
-                              </div>
-                            )}
-                            {ressource.responsable && (
-                              <div>
-                                <span className="font-semibold">Responsable:</span> {ressource.responsable}
-                              </div>
-                            )}
-                            {ressource.date_fin_contrat && (
-                              <div>
-                                <span className="font-semibold">Fin contrat:</span>{' '}
-                                {format(ressource.date_fin_contrat, 'dd/MM/yyyy', { locale: fr })}
-                              </div>
-                            )}
-                          </div>
+            <div className="overflow-x-auto rounded-xl border-2 border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gradient-to-r from-green-50 to-emerald-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Nom
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Site
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Contrat
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Responsable
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Actif
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {ressources.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Users className="w-12 h-12 text-gray-300" />
+                          <p className="text-gray-500 font-medium">Aucune ressource trouvée</p>
                         </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
+                      </td>
+                    </tr>
+                  ) : (
+                    ressources.map((ressource) => (
+                      <tr 
+                        key={ressource.id} 
+                        className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                        onClick={() => handleRowClick(ressource)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {ressource.nom}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {ressource.site}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {ressource.type_contrat || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {ressource.responsable || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {ressource.actif ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                              Inactive
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
