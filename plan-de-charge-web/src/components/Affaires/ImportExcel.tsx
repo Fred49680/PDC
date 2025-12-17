@@ -301,77 +301,142 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
       let skippedCount = 0
 
       // Séparer les lignes avec affaire_id et sans affaire_id
-      // Les lignes avec affaire_id peuvent utiliser upsert
+      // Les lignes avec affaire_id nécessitent une vérification manuelle (l'index unique partiel n'est pas reconnu par Supabase pour onConflict)
       // Les lignes sans affaire_id doivent être insérées normalement
       const rowsWithId = preview.filter((row) => row.affaire_id !== null && row.affaire_id.trim() !== '')
       const rowsWithoutId = preview.filter((row) => row.affaire_id === null || row.affaire_id.trim() === '')
 
-      // Importer les lignes avec affaire_id par batch (upsert)
-      const batchSize = 50
-      for (let i = 0; i < rowsWithId.length; i += batchSize) {
-        const batch = rowsWithId.slice(i, i + batchSize)
-
-        // Préparer les données pour l'insertion
-        const dataToInsert = batch.map((row) => ({
-          affaire_id: row.affaire_id,
-          site: row.site,
-          libelle: row.libelle,
-          tranche: row.tranche,
-          statut: row.statut || 'Ouverte',
-          budget_heures: row.budget_heures,
-          raf_heures: row.raf_heures,
-          date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
-          responsable: row.responsable,
-          actif: row.actif ?? true,
-          date_creation: new Date().toISOString(),
-          date_modification: new Date().toISOString(),
-        }))
-
-        // Utiliser upsert pour éviter les doublons (basé sur affaire_id qui est UNIQUE)
-        const { data, error } = await supabase
+      // Pour les lignes avec affaire_id : vérifier d'abord quelles existent déjà
+      if (rowsWithId.length > 0) {
+        // Récupérer tous les affaire_id existants en une seule requête
+        const affaireIds = rowsWithId.map((row) => row.affaire_id).filter((id): id is string => id !== null && id.trim() !== '')
+        
+        const { data: existingAffaires, error: selectError } = await supabase
           .from('affaires')
-          .upsert(dataToInsert, {
-            onConflict: 'affaire_id', // Utiliser la contrainte unique sur affaire_id
-            ignoreDuplicates: false, // Mettre à jour les doublons
+          .select('affaire_id')
+          .in('affaire_id', affaireIds)
+
+        if (selectError) {
+          console.error('[ImportExcel] Erreur lors de la vérification des affaires existantes:', selectError)
+        }
+
+        // Créer un Set des affaire_id existants pour recherche rapide
+        const existingIds = new Set<string>()
+        if (existingAffaires) {
+          existingAffaires.forEach((affaire: any) => {
+            if (affaire.affaire_id) {
+              existingIds.add(affaire.affaire_id)
+            }
           })
-          .select()
+        }
 
-        if (error) {
-          // Si erreur globale, essayer ligne par ligne pour identifier les problèmes
-          console.error('[ImportExcel] Erreur batch:', error)
-          
-          // Essayer ligne par ligne pour ce batch
-          for (let j = 0; j < batch.length; j++) {
-            const row = batch[j]
-            const rowData = dataToInsert[j]
+        // Séparer en lignes à insérer et lignes à mettre à jour
+        const rowsToInsert: MappedRow[] = []
+        const rowsToUpdate: MappedRow[] = []
+
+        rowsWithId.forEach((row) => {
+          if (row.affaire_id && existingIds.has(row.affaire_id)) {
+            rowsToUpdate.push(row)
+          } else {
+            rowsToInsert.push(row)
+          }
+        })
+
+        // Traiter les INSERT par batch
+        const batchSize = 50
+        for (let i = 0; i < rowsToInsert.length; i += batchSize) {
+          const batch = rowsToInsert.slice(i, i + batchSize)
+
+          const dataToInsert = batch.map((row) => ({
+            affaire_id: row.affaire_id,
+            site: row.site,
+            libelle: row.libelle,
+            tranche: row.tranche,
+            statut: row.statut || 'Ouverte',
+            budget_heures: row.budget_heures,
+            raf_heures: row.raf_heures,
+            date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
+            responsable: row.responsable,
+            actif: row.actif ?? true,
+            date_creation: new Date().toISOString(),
+            date_modification: new Date().toISOString(),
+          }))
+
+          const { error: insertError } = await supabase
+            .from('affaires')
+            .insert(dataToInsert)
+
+          if (insertError) {
+            console.error('[ImportExcel] Erreur batch INSERT:', insertError)
             
-            try {
-              const { error: rowError } = await supabase
-                .from('affaires')
-                .upsert([rowData], {
-                  onConflict: 'affaire_id',
-                  ignoreDuplicates: false,
-                })
+            // Essayer ligne par ligne pour identifier les problèmes
+            for (let j = 0; j < batch.length; j++) {
+              const row = batch[j]
+              const rowData = dataToInsert[j]
+              
+              try {
+                const { error: rowError } = await supabase
+                  .from('affaires')
+                  .insert([rowData])
 
-              if (rowError) {
+                if (rowError) {
+                  errors.push({
+                    row: preview.indexOf(row) + 1,
+                    message: rowError.message || 'Erreur inconnue',
+                    data: row,
+                  })
+                } else {
+                  successCount++
+                }
+              } catch (err: any) {
                 errors.push({
                   row: preview.indexOf(row) + 1,
-                  message: rowError.message || 'Erreur inconnue',
+                  message: err.message || 'Erreur inconnue',
                   data: row,
                 })
-              } else {
-                successCount++
               }
-            } catch (err: any) {
+            }
+          } else {
+            successCount += batch.length
+          }
+        }
+
+        // Traiter les UPDATE par batch
+        for (let i = 0; i < rowsToUpdate.length; i += batchSize) {
+          const batch = rowsToUpdate.slice(i, i + batchSize)
+
+          // Pour chaque ligne, faire un UPDATE individuel (Supabase ne supporte pas UPDATE batch avec WHERE différent)
+          for (const row of batch) {
+            if (!row.affaire_id) continue
+
+            const dataToUpdate = {
+              site: row.site,
+              libelle: row.libelle,
+              tranche: row.tranche,
+              statut: row.statut || 'Ouverte',
+              budget_heures: row.budget_heures,
+              raf_heures: row.raf_heures,
+              date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
+              responsable: row.responsable,
+              actif: row.actif ?? true,
+              date_modification: new Date().toISOString(),
+            }
+
+            const { error: updateError } = await supabase
+              .from('affaires')
+              .update(dataToUpdate)
+              .eq('affaire_id', row.affaire_id)
+
+            if (updateError) {
               errors.push({
                 row: preview.indexOf(row) + 1,
-                message: err.message || 'Erreur inconnue',
+                message: updateError.message || 'Erreur lors de la mise à jour',
                 data: row,
               })
+            } else {
+              successCount++
             }
           }
-        } else {
-          successCount += data?.length || 0
         }
       }
 
