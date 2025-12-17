@@ -76,6 +76,58 @@ export function GrilleChargeAffectation({
     site,
   })
 
+  // *** NOUVEAU : Ajuster automatiquement les dates pour couvrir les périodes existantes ***
+  useEffect(() => {
+    if (periodes.length === 0 || !onDateChange) return
+
+    // Trouver la date min et max des périodes
+    let minDate: Date | null = null
+    let maxDate: Date | null = null
+
+    periodes.forEach((periode) => {
+      const pDeb = periode.date_debut instanceof Date ? periode.date_debut : new Date(periode.date_debut)
+      const pFin = periode.date_fin instanceof Date ? periode.date_fin : new Date(periode.date_fin)
+
+      if (!minDate || pDeb < minDate) minDate = pDeb
+      if (!maxDate || pFin > maxDate) maxDate = pFin
+    })
+
+    if (minDate && maxDate) {
+      // Vérifier si les dates actuelles ne couvrent pas les périodes
+      const currentStart = dateDebut
+      const currentEnd = dateFin
+
+      // Si les périodes sont en dehors de la plage actuelle, ajuster
+      if (minDate < currentStart || maxDate > currentEnd) {
+        // Ajuster pour couvrir toutes les périodes avec une marge
+        let newDateDebut: Date
+        let newDateFin: Date
+
+        if (precision === 'JOUR') {
+          newDateDebut = minDate
+          newDateFin = maxDate
+        } else if (precision === 'SEMAINE') {
+          newDateDebut = startOfWeek(minDate, { weekStartsOn: 1 })
+          const weekEnd = startOfWeek(maxDate, { weekStartsOn: 1 })
+          newDateFin = addDays(weekEnd, 6)
+        } else {
+          // MOIS
+          newDateDebut = startOfMonth(minDate)
+          newDateFin = endOfMonth(maxDate)
+        }
+
+        // Ajuster seulement si nécessaire (éviter les boucles infinies)
+        if (
+          newDateDebut.getTime() !== currentStart.getTime() ||
+          newDateFin.getTime() !== currentEnd.getTime()
+        ) {
+          console.log(`[GrilleChargeAffectation] Ajustement automatique des dates pour couvrir les périodes: ${format(newDateDebut, 'dd/MM/yyyy')} -> ${format(newDateFin, 'dd/MM/yyyy')}`)
+          onDateChange(newDateDebut, newDateFin)
+        }
+      }
+    }
+  }, [periodes, precision, onDateChange]) // Ne pas inclure dateDebut/dateFin pour éviter les boucles
+
   const { affectations, ressources, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
     affaireId,
     site,
@@ -163,6 +215,17 @@ export function GrilleChargeAffectation({
   useEffect(() => {
     const newGrille = new Map<string, number>()
 
+    // Debug : Afficher les dates des colonnes et des périodes
+    if (periodes.length > 0 && colonnes.length > 0) {
+      console.log(`[GrilleChargeAffectation] DEBUG - ${periodes.length} période(s), ${colonnes.length} colonne(s)`)
+      console.log(`[GrilleChargeAffectation] DEBUG - Plage colonnes: ${format(colonnes[0].date, 'dd/MM/yyyy')} -> ${format(colonnes[colonnes.length - 1].date, 'dd/MM/yyyy')}`)
+      periodes.forEach((p, idx) => {
+        const pDeb = p.date_debut instanceof Date ? p.date_debut : new Date(p.date_debut)
+        const pFin = p.date_fin instanceof Date ? p.date_fin : new Date(p.date_fin)
+        console.log(`[GrilleChargeAffectation] DEBUG - Période ${idx + 1}: ${p.competence} du ${format(pDeb, 'dd/MM/yyyy')} au ${format(pFin, 'dd/MM/yyyy')}`)
+      })
+    }
+
     periodes.forEach((periode) => {
       // Normaliser les dates (s'assurer qu'elles sont des objets Date valides)
       const periodeDebut = periode.date_debut instanceof Date 
@@ -172,6 +235,7 @@ export function GrilleChargeAffectation({
         ? periode.date_fin 
         : new Date(periode.date_fin)
       
+      let matchCount = 0
       colonnes.forEach((col) => {
         const colDate = col.weekStart || col.date
         const colEnd = col.weekEnd || col.date
@@ -186,8 +250,14 @@ export function GrilleChargeAffectation({
           // Si plusieurs périodes correspondent à la même cellule, prendre la dernière (ou la somme selon la logique métier)
           // Pour l'instant, on écrase (la consolidation devrait être faite côté serveur)
           newGrille.set(cellKey, periode.nb_ressources)
+          matchCount++
         }
       })
+      
+      // Debug : Afficher si une période a trouvé des correspondances
+      if (matchCount === 0 && periodes.length > 0) {
+        console.warn(`[GrilleChargeAffectation] ATTENTION - Période ${periode.competence} (${format(periodeDebut, 'dd/MM/yyyy')} - ${format(periodeFin, 'dd/MM/yyyy')}) n'a trouvé aucune correspondance avec les colonnes`)
+      }
     })
     
     // Debug : Afficher le nombre de périodes chargées et le nombre de cellules créées
