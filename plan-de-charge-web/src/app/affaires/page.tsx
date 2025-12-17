@@ -446,6 +446,9 @@ export default function AffairesPage() {
                       Date MAJ RAF
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Actif
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -453,7 +456,7 @@ export default function AffairesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center">
+                      <td colSpan={10} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -472,13 +475,22 @@ export default function AffairesPage() {
                           {format(affaire.date_creation, 'dd/MM/yyyy', { locale: fr })}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {affaire.actif ? (
+                          {/* Afficher le statut réel (Ouverte/Prévisionnelle/Fermée) */}
+                          {affaire.statut === 'Ouverte' ? (
                             <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              Active
+                              Ouverte
+                            </span>
+                          ) : affaire.statut === 'Prévisionnelle' ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                              Prévisionnelle
+                            </span>
+                          ) : affaire.statut === 'Fermée' ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                              Fermée
                             </span>
                           ) : (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                              Inactive
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              {affaire.statut || 'Non défini'}
                             </span>
                           )}
                         </td>
@@ -490,6 +502,18 @@ export default function AffairesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {/* Afficher actif/inactif */}
+                          {affaire.actif ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              ✓ Actif
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                              ✗ Inactif
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex items-center gap-2">
