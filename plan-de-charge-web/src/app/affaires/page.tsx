@@ -111,6 +111,7 @@ export default function AffairesPage() {
         budget_heures: 0,
         raf_heures: 0,
         date_maj_raf: undefined,
+        responsable: '',
         actif: true,
       })
       setIsEditing(false)
@@ -174,6 +175,7 @@ export default function AffairesPage() {
       budget_heures: 0,
       raf_heures: 0,
       date_maj_raf: undefined,
+      responsable: '',
       actif: true,
     })
     setIsEditing(false)
