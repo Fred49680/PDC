@@ -8,9 +8,10 @@ interface UseAffectationsOptions {
   affaireId: string
   site: string
   competence?: string
+  autoRefresh?: boolean // Option pour désactiver le refresh automatique
 }
 
-export function useAffectations({ affaireId, site, competence }: UseAffectationsOptions) {
+export function useAffectations({ affaireId, site, competence, autoRefresh = true }: UseAffectationsOptions) {
   const [affectations, setAffectations] = useState<Affectation[]>([])
   const [ressources, setRessources] = useState<Ressource[]>([])
   const [loading, setLoading] = useState(true)
@@ -134,8 +135,30 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
 
       if (upsertError) throw upsertError
 
-      // Recharger les affectations
-      await loadAffectations()
+      // Recharger les affectations seulement si autoRefresh est activé
+      if (autoRefresh) {
+        await loadAffectations()
+      } else {
+        // Mise à jour optimiste même si autoRefresh est désactivé
+        const affectationAvecDates = {
+          ...data,
+          date_debut: data.date_debut ? new Date(data.date_debut) : new Date(),
+          date_fin: data.date_fin ? new Date(data.date_fin) : new Date(),
+          created_at: data.created_at ? new Date(data.created_at) : new Date(),
+          updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
+        } as Affectation
+        
+        setAffectations((prev) => {
+          const newAffectations = [...prev]
+          const index = newAffectations.findIndex((a) => a.id === affectationAvecDates.id)
+          if (index >= 0) {
+            newAffectations[index] = affectationAvecDates
+          } else {
+            newAffectations.push(affectationAvecDates)
+          }
+          return newAffectations
+        })
+      }
 
       return data as Affectation
     } catch (err) {
@@ -158,8 +181,13 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
 
       if (deleteError) throw deleteError
 
-      // Recharger les affectations
-      await loadAffectations()
+      // Recharger les affectations seulement si autoRefresh est activé
+      if (autoRefresh) {
+        await loadAffectations()
+      } else {
+        // Mise à jour optimiste : supprimer de l'état local
+        setAffectations((prev) => prev.filter((a) => a.id !== affectationId))
+      }
     } catch (err) {
       setError(err as Error)
       console.error('[useAffectations] Erreur deleteAffectation:', err)

@@ -71,9 +71,10 @@ export function GrilleChargeAffectation({
   const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(
     new Set()
   )
-  const { periodes, loading: loadingCharge, savePeriode, deletePeriode } = useCharge({
+  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate } = useCharge({
     affaireId,
     site,
+    autoRefresh, // Utiliser l'état autoRefresh pour contrôler le refresh
   })
 
   // *** NOUVEAU : Ajuster automatiquement les dates pour couvrir les périodes existantes ***
@@ -159,6 +160,7 @@ export function GrilleChargeAffectation({
   const { affectations, ressources, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
     affaireId,
     site,
+    autoRefresh, // Utiliser l'état autoRefresh pour contrôler le refresh
   })
 
   const { ressources: allRessources, competences: competencesMap } = useRessources({ site, actif: true })
@@ -171,6 +173,8 @@ export function GrilleChargeAffectation({
   const [transfertsMap, setTransfertsMap] = useState<Map<string, DisponibiliteInfo>>(new Map())
   const [dateFinRessourcesMap, setDateFinRessourcesMap] = useState<Map<string, Date>>(new Map())
   const [saving, setSaving] = useState(false)
+  // État pour désactiver le refresh automatique
+  const [autoRefresh, setAutoRefresh] = useState(true)
   // État pour les modifications en cours (pour éviter que le rechargement écrase les valeurs optimistes)
   const [pendingChargeChanges, setPendingChargeChanges] = useState<Map<string, number>>(new Map())
   // Ref pour accéder à la valeur actuelle de pendingChargeChanges sans déclencher de re-render
@@ -860,6 +864,11 @@ export function GrilleChargeAffectation({
                   await deletePeriode(periodeExistante.id)
                 }
               }
+              
+              // *** NOUVEAU : Consolider après suppression en mode JOUR ***
+              if (autoRefresh) {
+                await consolidate(competence)
+              }
             } else {
               // Mode SEMAINE/MOIS : Supprimer la période complète
               await deletePeriode(periodeExistante.id)
@@ -878,6 +887,13 @@ export function GrilleChargeAffectation({
             date_fin: dateFinNormalisee,
             nb_ressources: nbRessources,
           })
+          
+          // *** NOUVEAU : Consolider automatiquement après enregistrement en mode JOUR ***
+          // Cela regroupe les périodes consécutives avec la même charge pour limiter le nombre de lignes
+          if (precision === 'JOUR' && autoRefresh) {
+            await consolidate(competence)
+          }
+          
           // NE PAS retirer de pendingChargeChanges immédiatement
           // Le useEffect qui construit grilleCharge va fusionner les nouvelles periodes
           // et pendingChargeChanges sera nettoyé automatiquement quand les données correspondront
@@ -918,6 +934,7 @@ export function GrilleChargeAffectation({
         const ressource = allRessources.find((r) => r.id === ressourceId)
         if (!ressource) {
           alert('Ressource introuvable')
+          setSaving(false)
           return
         }
 
@@ -930,16 +947,47 @@ export function GrilleChargeAffectation({
           alert(
             `❌ La ressource ${ressource.nom} n'a pas la compétence ${competence}`
           )
+          setSaving(false)
           return
         }
 
         // Si on coche, vérifier la disponibilité
         if (checked) {
-          // Vérifier toutes les dates de la période
+          // *** NOUVEAU : Vérifier week-end/férié en mode JOUR avec confirmation ***
+          if (precision === 'JOUR') {
+            const dateAffectation = col.date
+            if (!isBusinessDay(dateAffectation)) {
+              let messageType = ''
+              if (isWeekend(dateAffectation)) {
+                messageType = 'week-end'
+              } else if (isFrenchHoliday(dateAffectation)) {
+                messageType = 'jour férié'
+              }
+              
+              if (messageType) {
+                const message = `⚠️ Attention : Vous souhaitez affecter ${ressource.nom} sur un ${messageType} (${format(dateAffectation, 'dd/MM/yyyy')}).\n\nVoulez-vous continuer quand même ?\n\n(L'affectation sera enregistrée telle quelle)`
+                const confirmer = confirm(message)
+                
+                if (!confirmer) {
+                  // L'utilisateur a refusé, annuler l'affectation
+                  setSaving(false)
+                  return
+                }
+                // Si l'utilisateur confirme, on continue avec la date telle quelle
+              }
+            }
+          }
+          
+          // Vérifier toutes les dates de la période (jours ouvrés uniquement pour la validation de disponibilité)
           const dates = getDatesBetween(dateDebutPeriode, dateFinPeriode)
           const joursOuvres = dates.filter((d) => isBusinessDay(d))
           
-          for (const date of joursOuvres) {
+          // En mode JOUR sur week-end/férié, on vérifie quand même la disponibilité sur cette date
+          const datesAVerifier = precision === 'JOUR' && !isBusinessDay(col.date) 
+            ? [col.date] // Vérifier la date même si c'est un week-end/férié
+            : joursOuvres // Sinon, vérifier uniquement les jours ouvrés
+          
+          for (const date of datesAVerifier) {
             // Créer une colonne temporaire pour cette date
             const tempCol = { ...col, date, weekStart: date, weekEnd: date }
             const disponibilite = checkDisponibilite(ressourceId, tempCol)
@@ -948,6 +996,7 @@ export function GrilleChargeAffectation({
               alert(
                 `❌ ${ressource.nom} n'est pas disponible :\n\n${disponibilite.message || disponibilite.status}`
               )
+              setSaving(false)
               return
             }
           }
@@ -956,9 +1005,8 @@ export function GrilleChargeAffectation({
           let nbJoursOuvres = 0
           
           if (precision === 'JOUR') {
-            if (isBusinessDay(col.date)) {
-              nbJoursOuvres = 1
-            }
+            // En mode JOUR, toujours compter 1 jour (même si week-end/férié, après confirmation)
+            nbJoursOuvres = 1
           } else {
             nbJoursOuvres = businessDaysBetween(dateDebutPeriode, dateFinPeriode)
           }
@@ -1001,6 +1049,9 @@ export function GrilleChargeAffectation({
       precision,
       checkDisponibilite,
       saving,
+      isBusinessDay,
+      isWeekend,
+      isFrenchHoliday,
     ]
   )
 
@@ -1241,7 +1292,7 @@ export function GrilleChargeAffectation({
           <span className="hidden md:inline">Précédent</span>
         </button>
         
-        <div className="text-center">
+        <div className="text-center flex-1">
           <div className="font-semibold text-gray-800">
             {precision === 'JOUR' && (
               <span>
@@ -1266,14 +1317,30 @@ export function GrilleChargeAffectation({
           )}
         </div>
 
-        <button
-          onClick={handleNextPeriod}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-          title={`Suivant (${precision === 'JOUR' ? 'semaine' : precision === 'SEMAINE' ? '4 semaines' : 'mois'})`}
-        >
-          <span className="hidden md:inline">Suivant</span>
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Bouton pour activer/désactiver le refresh automatique */}
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-md text-sm ${
+              autoRefresh
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-gray-400 text-white hover:bg-gray-500'
+            }`}
+            title={autoRefresh ? 'Refresh automatique activé - Cliquer pour désactiver' : 'Refresh automatique désactivé - Cliquer pour activer'}
+          >
+            <span className="hidden md:inline">{autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}</span>
+            <span className="md:hidden">{autoRefresh ? 'ON' : 'OFF'}</span>
+          </button>
+
+          <button
+            onClick={handleNextPeriod}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+            title={`Suivant (${precision === 'JOUR' ? 'semaine' : precision === 'SEMAINE' ? '4 semaines' : 'mois'})`}
+          >
+            <span className="hidden md:inline">Suivant</span>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Grille */}

@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { normalizeDateToUTC } from '@/utils/calendar'
+import { normalizeDateToUTC, isBusinessDay, getDatesBetween } from '@/utils/calendar'
+import { addDays, isSameDay } from 'date-fns'
 import type { PeriodeCharge } from '@/types/charge'
 
 interface UseChargeOptions {
   affaireId: string
   site: string
+  autoRefresh?: boolean // Option pour désactiver le refresh automatique
 }
 
-export function useCharge({ affaireId, site }: UseChargeOptions) {
+export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOptions) {
   const [periodes, setPeriodes] = useState<PeriodeCharge[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -150,11 +152,14 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
 
       // Recharger les périodes en arrière-plan (avec un petit délai pour éviter les conflits)
       // Cela permet de synchroniser avec la BDD sans bloquer l'UI
-      setTimeout(() => {
-        loadPeriodes().catch((err) => {
-          console.error('[useCharge] Erreur lors du rechargement différé:', err)
-        })
-      }, 500)
+      // Seulement si autoRefresh est activé
+      if (autoRefresh) {
+        setTimeout(() => {
+          loadPeriodes().catch((err) => {
+            console.error('[useCharge] Erreur lors du rechargement différé:', err)
+          })
+        }, 500)
+      }
 
       return periodeAvecDates
     } catch (err) {
@@ -182,11 +187,14 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
       setPeriodes((prev) => prev.filter((p) => p.id !== periodeId))
 
       // Recharger les périodes en arrière-plan (avec un petit délai pour éviter les conflits)
-      setTimeout(() => {
-        loadPeriodes().catch((err) => {
-          console.error('[useCharge] Erreur lors du rechargement différé:', err)
-        })
-      }, 500)
+      // Seulement si autoRefresh est activé
+      if (autoRefresh) {
+        setTimeout(() => {
+          loadPeriodes().catch((err) => {
+            console.error('[useCharge] Erreur lors du rechargement différé:', err)
+          })
+        }, 500)
+      }
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur deletePeriode:', err)
@@ -194,11 +202,164 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
     }
   }, [loadPeriodes])
 
-  const consolidate = useCallback(async () => {
-    // TODO: Implémenter la consolidation
-    // Pour l'instant, on recharge simplement les périodes
-    await loadPeriodes()
-  }, [loadPeriodes])
+  const consolidate = useCallback(async (competence?: string) => {
+    try {
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', site)
+        .single()
+
+      if (affaireError || !affaireData) {
+        throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
+      }
+
+      // Charger toutes les périodes pour cette affaire/site (et compétence si spécifiée)
+      let query = supabase
+        .from('periodes_charge')
+        .select('*')
+        .eq('affaire_id', affaireData.id)
+        .eq('site', site)
+        .order('competence', { ascending: true })
+        .order('date_debut', { ascending: true })
+
+      if (competence) {
+        query = query.eq('competence', competence)
+      }
+
+      const { data: allPeriodes, error: queryError } = await query
+
+      if (queryError) throw queryError
+
+      if (!allPeriodes || allPeriodes.length === 0) {
+        await loadPeriodes()
+        return
+      }
+
+      // Grouper par compétence
+      const periodesParCompetence = new Map<string, typeof allPeriodes>()
+      allPeriodes.forEach((p: any) => {
+        const comp = p.competence
+        if (!periodesParCompetence.has(comp)) {
+          periodesParCompetence.set(comp, [])
+        }
+        periodesParCompetence.get(comp)!.push(p)
+      })
+
+      // Pour chaque compétence, consolider les périodes
+      for (const [comp, periodesComp] of periodesParCompetence.entries()) {
+        // Déplier jour par jour (jours ouvrés uniquement)
+        const joursParCharge = new Map<string, number>() // Clé: date ISO (YYYY-MM-DD), Valeur: nb_ressources
+
+        periodesComp.forEach((p: any) => {
+          const dateDebut = new Date(p.date_debut)
+          const dateFin = new Date(p.date_fin)
+          const nbRessources = p.nb_ressources || 0
+
+          if (nbRessources <= 0) return
+
+          // Parcourir tous les jours de la période
+          const currentDate = new Date(dateDebut)
+          while (currentDate <= dateFin) {
+            // Vérifier si c'est un jour ouvré (utiliser isBusinessDay qui gère week-ends et fériés)
+            if (isBusinessDay(currentDate)) {
+              const dateKey = currentDate.toISOString().split('T')[0] // Format YYYY-MM-DD
+              joursParCharge.set(dateKey, nbRessources)
+            }
+
+            currentDate.setDate(currentDate.getDate() + 1)
+          }
+        })
+
+        if (joursParCharge.size === 0) {
+          // Aucune période avec charge > 0, supprimer toutes les périodes de cette compétence
+          for (const p of periodesComp) {
+            await supabase.from('periodes_charge').delete().eq('id', p.id)
+          }
+          continue
+        }
+
+        // Trier les dates
+        const datesTriees = Array.from(joursParCharge.keys()).sort()
+
+        // Regrouper les périodes consécutives avec la même charge
+        const nouvellesPeriodes: Array<{
+          date_debut: Date
+          date_fin: Date
+          nb_ressources: number
+        }> = []
+
+        if (datesTriees.length > 0) {
+          let periodeDebut = new Date(datesTriees[0] + 'T00:00:00') // Ajouter l'heure pour éviter les problèmes de timezone
+          let periodeFin = new Date(datesTriees[0] + 'T00:00:00')
+          let chargeActuelle = joursParCharge.get(datesTriees[0])!
+
+          for (let i = 1; i < datesTriees.length; i++) {
+            const dateActuelle = new Date(datesTriees[i] + 'T00:00:00')
+            const datePrecedente = new Date(datesTriees[i - 1] + 'T00:00:00')
+            const chargeActuelleDate = joursParCharge.get(datesTriees[i])!
+
+            // Vérifier si la date actuelle est le jour suivant (consécutif)
+            const jourSuivant = addDays(datePrecedente, 1)
+            const isConsecutif = isSameDay(dateActuelle, jourSuivant)
+
+            // Si consécutif (jour suivant) ET même charge, étendre la période
+            if (isConsecutif && chargeActuelleDate === chargeActuelle) {
+              periodeFin = dateActuelle
+            } else {
+              // Nouvelle période : sauvegarder l'ancienne
+              nouvellesPeriodes.push({
+                date_debut: periodeDebut,
+                date_fin: periodeFin,
+                nb_ressources: chargeActuelle,
+              })
+
+              // Commencer une nouvelle période
+              periodeDebut = dateActuelle
+              periodeFin = dateActuelle
+              chargeActuelle = chargeActuelleDate
+            }
+          }
+
+          // Ajouter la dernière période
+          nouvellesPeriodes.push({
+            date_debut: periodeDebut,
+            date_fin: periodeFin,
+            nb_ressources: chargeActuelle,
+          })
+        }
+
+        // Supprimer toutes les anciennes périodes de cette compétence
+        for (const p of periodesComp) {
+          await supabase.from('periodes_charge').delete().eq('id', p.id)
+        }
+
+        // Créer les nouvelles périodes consolidées
+        for (const nouvellePeriode of nouvellesPeriodes) {
+          await supabase.from('periodes_charge').insert({
+            affaire_id: affaireData.id,
+            site,
+            competence: comp,
+            date_debut: normalizeDateToUTC(nouvellePeriode.date_debut),
+            date_fin: normalizeDateToUTC(nouvellePeriode.date_fin),
+            nb_ressources: nouvellePeriode.nb_ressources,
+          })
+        }
+      }
+
+      // Recharger les périodes après consolidation
+      await loadPeriodes()
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur consolidate:', err)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes])
 
   return {
     periodes,
