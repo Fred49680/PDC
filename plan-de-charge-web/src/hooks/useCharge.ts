@@ -50,7 +50,16 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
 
       if (queryError) throw queryError
 
-      setPeriodes((data || []) as PeriodeCharge[])
+      // Convertir les dates de string ISO en Date
+      const periodesAvecDates = (data || []).map((p: any) => ({
+        ...p,
+        date_debut: p.date_debut ? new Date(p.date_debut) : new Date(),
+        date_fin: p.date_fin ? new Date(p.date_fin) : new Date(),
+        created_at: p.created_at ? new Date(p.created_at) : new Date(),
+        updated_at: p.updated_at ? new Date(p.updated_at) : new Date(),
+      })) as PeriodeCharge[]
+
+      setPeriodes(periodesAvecDates)
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur:', err)

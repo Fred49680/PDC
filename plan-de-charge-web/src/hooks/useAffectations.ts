@@ -58,7 +58,16 @@ export function useAffectations({ affaireId, site, competence }: UseAffectations
 
       if (queryError) throw queryError
 
-      setAffectations((data || []) as Affectation[])
+      // Convertir les dates de string ISO en Date
+      const affectationsAvecDates = (data || []).map((a: any) => ({
+        ...a,
+        date_debut: a.date_debut ? new Date(a.date_debut) : new Date(),
+        date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
+        created_at: a.created_at ? new Date(a.created_at) : new Date(),
+        updated_at: a.updated_at ? new Date(a.updated_at) : new Date(),
+      })) as Affectation[]
+
+      setAffectations(affectationsAvecDates)
     } catch (err) {
       setError(err as Error)
       console.error('[useAffectations] Erreur:', err)
