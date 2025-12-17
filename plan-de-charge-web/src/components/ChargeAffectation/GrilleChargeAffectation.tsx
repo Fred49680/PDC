@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
@@ -67,9 +67,9 @@ export function GrilleChargeAffectation({
   precision,
   onDateChange,
 }: GrilleChargeAffectationProps) {
-  // État pour les compétences filtrées (toggles)
+  // État pour les compétences filtrées (toggles) - Par défaut, toutes désactivées
   const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(
-    new Set(COMPETENCES_LIST)
+    new Set()
   )
   const { periodes, loading: loadingCharge, savePeriode, deletePeriode } = useCharge({
     affaireId,
@@ -721,6 +721,35 @@ export function GrilleChargeAffectation({
       return totalCharge > 0
     })
   }, [colonnes, grilleCharge])
+
+  // *** NOUVEAU : Activer automatiquement les toggles des compétences qui ont une charge dans la BDD ***
+  // Utiliser un ref pour éviter de réactiver les toggles à chaque rechargement (seulement au chargement initial)
+  const togglesInitialises = useRef(false)
+  
+  useEffect(() => {
+    // Ne s'exécuter qu'une seule fois au chargement initial (quand periodes est chargé pour la première fois)
+    // Les toggles ne doivent pas être réactivés lors de la saisie, seulement au chargement initial depuis la BDD
+    if (togglesInitialises.current || periodes.length === 0) return
+
+    // Récupérer les compétences uniques qui ont une charge dans periodes
+    const competencesAvecChargeBDD = new Set<string>()
+    periodes.forEach((periode) => {
+      if (periode.nb_ressources > 0) {
+        competencesAvecChargeBDD.add(periode.competence)
+      }
+    })
+
+    // Activer les toggles pour ces compétences uniquement au chargement initial
+    if (competencesAvecChargeBDD.size > 0) {
+      setCompetencesFiltrees(new Set(competencesAvecChargeBDD))
+      togglesInitialises.current = true
+    }
+  }, [periodes]) // Se déclenche uniquement quand periodes change (chargement initial depuis la BDD)
+  
+  // Réinitialiser le flag si l'affaire ou le site change (pour permettre la réinitialisation des toggles)
+  useEffect(() => {
+    togglesInitialises.current = false
+  }, [affaireId, site])
 
   if (loadingCharge || loadingAffectations) {
     return (
