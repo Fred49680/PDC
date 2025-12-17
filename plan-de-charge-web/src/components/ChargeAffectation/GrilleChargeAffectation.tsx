@@ -8,7 +8,7 @@ import { useAbsences } from '@/hooks/useAbsences'
 import { businessDaysBetween, getDatesBetween, isBusinessDay, formatSemaineISO, nextBusinessDay } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
-import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend, subMonths, subWeeks } from 'date-fns'
+import { format, startOfWeek, addDays, subDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend, subMonths, subWeeks } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
 import { AlertCircle, CheckCircle2, XCircle, Info, Users, Target, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
@@ -654,11 +654,8 @@ export function GrilleChargeAffectation({
           
           if (precision === 'JOUR') {
             // Mode JOUR : Demander confirmation (on peut planifier sur week-end/férié avec confirmation)
-            const confirmer = confirm(
-              `⚠️ Attention : Vous souhaitez planifier sur les dates suivantes qui ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\n` +
-              `Voulez-vous continuer quand même ?\n\n` +
-              `(La période sera enregistrée telle quelle)`
-            )
+            const message = `⚠️ Attention : Vous souhaitez planifier sur les dates suivantes qui ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\nVoulez-vous continuer quand même ?\n\n(La période sera enregistrée telle quelle)`
+            const confirmer = confirm(message)
             
             if (!confirmer) {
               // L'utilisateur a refusé, annuler l'enregistrement
@@ -668,12 +665,8 @@ export function GrilleChargeAffectation({
             // Si l'utilisateur confirme, on continue avec les dates telles quelles
           } else {
             // Mode SEMAINE/MOIS : Ajustement automatique obligatoire (on ne planifie que du lundi au vendredi hors fériés)
-            const ajuster = confirm(
-              `⚠️ Attention : Les dates suivantes ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\n` +
-              `En mode ${precision}, on ne planifie que du lundi au vendredi (hors fériés).\n\n` +
-              `Voulez-vous ajuster automatiquement ces dates vers le prochain jour ouvré ?\n\n` +
-              `(Sinon, l'enregistrement sera annulé)`
-            )
+            const message = `⚠️ Attention : Les dates suivantes ne sont pas des jours ouvrés :\n\n${datesNonOuvreesStr}\n\nEn mode ${precision}, on ne planifie que du lundi au vendredi (hors fériés).\n\nVoulez-vous ajuster automatiquement ces dates vers le prochain jour ouvré ?\n\n(Sinon, l'enregistrement sera annulé)`
+            const ajuster = confirm(message)
             
             if (ajuster) {
               // Ajuster dateDebutPeriode vers le prochain jour ouvré
@@ -729,7 +722,6 @@ export function GrilleChargeAffectation({
         })
 
         if (nbRessources === 0) {
-          // Supprimer la période si elle existe
           // Chercher une période qui chevauche avec cette colonne
           const periodeExistante = periodes.find(
             (p) => {
@@ -740,8 +732,84 @@ export function GrilleChargeAffectation({
               return pDebut <= dateFinPeriode && pFin >= dateDebutPeriode
             }
           )
+          
           if (periodeExistante) {
-            await deletePeriode(periodeExistante.id)
+            // *** MODE JOUR : Découper la période au lieu de la supprimer complètement ***
+            if (precision === 'JOUR') {
+              const pDebut = new Date(periodeExistante.date_debut)
+              const pFin = new Date(periodeExistante.date_fin)
+              const jourASupprimer = dateDebutPeriode // En mode JOUR, dateDebutPeriode = dateFinPeriode
+              
+              // Vérifier si la période ne couvre qu'un seul jour
+              if (pDebut.getTime() === pFin.getTime()) {
+                // Période d'un seul jour : supprimer complètement
+                await deletePeriode(periodeExistante.id)
+              } else {
+                // Période de plusieurs jours : découper
+                // Cas 1 : Le jour supprimé est au début (pDebut = jourASupprimer)
+                if (pDebut.getTime() === jourASupprimer.getTime()) {
+                  // Créer une nouvelle période du jour suivant à la fin
+                  const nouvelleDateDebut = addDays(jourASupprimer, 1)
+                  if (nouvelleDateDebut <= pFin) {
+                    await savePeriode({
+                      competence,
+                      date_debut: nouvelleDateDebut,
+                      date_fin: pFin,
+                      nb_ressources: periodeExistante.nb_ressources,
+                    })
+                  }
+                  await deletePeriode(periodeExistante.id)
+                }
+                // Cas 2 : Le jour supprimé est à la fin (pFin = jourASupprimer)
+                else if (pFin.getTime() === jourASupprimer.getTime()) {
+                  // Créer une nouvelle période du début au jour précédent
+                  const nouvelleDateFin = subDays(jourASupprimer, 1)
+                  if (pDebut <= nouvelleDateFin) {
+                    await savePeriode({
+                      competence,
+                      date_debut: pDebut,
+                      date_fin: nouvelleDateFin,
+                      nb_ressources: periodeExistante.nb_ressources,
+                    })
+                  }
+                  await deletePeriode(periodeExistante.id)
+                }
+                // Cas 3 : Le jour supprimé est au milieu
+                else if (pDebut < jourASupprimer && jourASupprimer < pFin) {
+                  // Créer deux nouvelles périodes : avant et après
+                  const dateFinAvant = subDays(jourASupprimer, 1)
+                  const dateDebutApres = addDays(jourASupprimer, 1)
+                  
+                  // Période avant
+                  if (pDebut <= dateFinAvant) {
+                    await savePeriode({
+                      competence,
+                      date_debut: pDebut,
+                      date_fin: dateFinAvant,
+                      nb_ressources: periodeExistante.nb_ressources,
+                    })
+                  }
+                  
+                  // Période après
+                  if (dateDebutApres <= pFin) {
+                    await savePeriode({
+                      competence,
+                      date_debut: dateDebutApres,
+                      date_fin: pFin,
+                      nb_ressources: periodeExistante.nb_ressources,
+                    })
+                  }
+                  
+                  await deletePeriode(periodeExistante.id)
+                } else {
+                  // Jour non trouvé dans la période (ne devrait pas arriver), supprimer quand même
+                  await deletePeriode(periodeExistante.id)
+                }
+              }
+            } else {
+              // Mode SEMAINE/MOIS : Supprimer la période complète
+              await deletePeriode(periodeExistante.id)
+            }
             // NE PAS retirer de pendingChargeChanges immédiatement
             // Le useEffect va nettoyer automatiquement quand les nouvelles periodes seront chargées
           }
