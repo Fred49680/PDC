@@ -64,12 +64,43 @@ export default function AbsencesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validation côté client
+    if (!formData.ressource_id || formData.ressource_id.trim() === '') {
+      alert('Veuillez sélectionner une ressource')
+      return
+    }
+    
+    if (!formData.site || formData.site.trim() === '') {
+      alert('Le site est requis')
+      return
+    }
+    
+    if (!formData.date_debut || !formData.date_fin) {
+      alert('Les dates de début et de fin sont requises')
+      return
+    }
+    
     try {
-      await saveAbsence({
-        ...formData,
-        date_debut: new Date(formData.date_debut),
-        date_fin: new Date(formData.date_fin),
-      })
+      // Préparer les données pour Supabase
+      const absenceData: Partial<Absence> = {
+        ressource_id: formData.ressource_id.trim(),
+        site: formData.site.trim(),
+        date_debut: formData.date_debut, // Format ISO déjà (YYYY-MM-DD)
+        date_fin: formData.date_fin, // Format ISO déjà (YYYY-MM-DD)
+        type: formData.type.trim(),
+        competence: formData.competence && formData.competence.trim() !== '' ? formData.competence.trim() : null,
+        commentaire: formData.commentaire && formData.commentaire.trim() !== '' ? formData.commentaire.trim() : null,
+        validation_saisie: 'Non' as const,
+        date_saisie: new Date().toISOString(),
+      }
+
+      // Si c'est une modification, inclure l'id
+      if (isEditing && formData.id && formData.id.trim() !== '') {
+        absenceData.id = formData.id.trim()
+      }
+
+      await saveAbsence(absenceData)
       // Fermer le modal et réinitialiser
       setShowModal(false)
       setIsEditing(false)
@@ -84,8 +115,18 @@ export default function AbsencesPage() {
         commentaire: '',
       })
       await refresh()
-    } catch (err) {
-      console.error('[AbsencesPage] Erreur:', err)
+    } catch (err: any) {
+      console.error('[AbsencesPage] Erreur complète:', err)
+      // Afficher un message d'erreur plus détaillé
+      let errorMessage = 'Erreur lors de la sauvegarde'
+      if (err?.message) {
+        errorMessage = err.message
+      } else if (err?.error?.message) {
+        errorMessage = err.error.message
+      } else if (typeof err === 'string') {
+        errorMessage = err
+      }
+      alert(`Erreur: ${errorMessage}\n\nVérifiez que tous les champs requis sont remplis.`)
     }
   }
 

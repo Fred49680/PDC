@@ -73,24 +73,133 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
     try {
       setError(null)
 
+      // Validation des champs requis
+      if (!absence.ressource_id || absence.ressource_id.trim() === '') {
+        throw new Error('L\'ID de la ressource est requis')
+      }
+      
+      if (!absence.site || absence.site.trim() === '') {
+        throw new Error('Le site est requis')
+      }
+      
+      if (!absence.date_debut || !absence.date_fin) {
+        throw new Error('Les dates de début et de fin sont requises')
+      }
+      
+      if (!absence.type || absence.type.trim() === '') {
+        throw new Error('Le type d\'absence est requis')
+      }
+
       const supabase = getSupabaseClient()
 
-      const { data, error: upsertError } = await supabase
-        .from('absences')
-        .upsert(absence)
-        .select()
-        .single()
+      // Préparer les données pour Supabase
+      // S'assurer que les dates sont au format ISO string (YYYY-MM-DD)
+      let dateDebut = absence.date_debut
+      let dateFin = absence.date_fin
+      
+      // Si ce sont des objets Date, les convertir en ISO string
+      if (dateDebut instanceof Date) {
+        dateDebut = dateDebut.toISOString().split('T')[0] // Extraire seulement la date (YYYY-MM-DD)
+      } else if (typeof dateDebut === 'string') {
+        // S'assurer que c'est bien au format YYYY-MM-DD
+        dateDebut = dateDebut.trim()
+      }
+      
+      if (dateFin instanceof Date) {
+        dateFin = dateFin.toISOString().split('T')[0] // Extraire seulement la date (YYYY-MM-DD)
+      } else if (typeof dateFin === 'string') {
+        // S'assurer que c'est bien au format YYYY-MM-DD
+        dateFin = dateFin.trim()
+      }
+      
+      const absenceData: any = {
+        ressource_id: absence.ressource_id.trim(),
+        site: absence.site.trim(),
+        date_debut: dateDebut, // Format ISO string (YYYY-MM-DD)
+        date_fin: dateFin, // Format ISO string (YYYY-MM-DD)
+        type: absence.type.trim(),
+      }
 
-      if (upsertError) throw upsertError
+      // Champs optionnels (convertir chaînes vides en null)
+      if (absence.competence && absence.competence.trim() !== '') {
+        absenceData.competence = absence.competence.trim()
+      } else {
+        absenceData.competence = null
+      }
+      
+      if (absence.commentaire && absence.commentaire.trim() !== '') {
+        absenceData.commentaire = absence.commentaire.trim()
+      } else {
+        absenceData.commentaire = null
+      }
+      
+      if (absence.validation_saisie) {
+        absenceData.validation_saisie = absence.validation_saisie
+      } else {
+        absenceData.validation_saisie = 'Non'
+      }
+      
+      if (absence.date_saisie) {
+        // Convertir en ISO string si c'est un objet Date
+        absenceData.date_saisie = typeof absence.date_saisie === 'string' 
+          ? absence.date_saisie 
+          : new Date(absence.date_saisie).toISOString()
+      } else {
+        absenceData.date_saisie = new Date().toISOString()
+      }
+
+      // Si c'est une modification, inclure l'id
+      if (absence.id && absence.id.trim() !== '') {
+        absenceData.id = absence.id
+      }
+      
+      console.log('[useAbsences] Données à envoyer:', JSON.stringify(absenceData, null, 2))
+
+      let data: any
+      let error: any
+
+      // Si c'est une modification (avec id), utiliser update
+      if (absenceData.id) {
+        const { id, ...updateData } = absenceData
+        const result = await supabase
+          .from('absences')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single()
+        data = result.data
+        error = result.error
+      } else {
+        // Sinon, utiliser insert pour une nouvelle absence
+        const result = await supabase
+          .from('absences')
+          .insert(absenceData)
+          .select()
+          .single()
+        data = result.data
+        error = result.error
+      }
+
+      if (error) {
+        console.error('[useAbsences] Erreur Supabase complète:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        const errorMsg = error.message || error.details || 'Erreur lors de la sauvegarde'
+        throw new Error(errorMsg)
+      }
 
       // Recharger les absences
       await loadAbsences()
 
       return data as Absence
-    } catch (err) {
-      setError(err as Error)
+    } catch (err: any) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      setError(error)
       console.error('[useAbsences] Erreur saveAbsence:', err)
-      throw err
+      throw error
     }
   }, [getSupabaseClient, loadAbsences])
 
