@@ -169,6 +169,11 @@ export default function AffairesPage() {
     if (!trancheValue) return ''
     const normalized = trancheValue.trim()
     
+    // Cas spécial : "0" peut être utilisé comme tranche
+    if (normalized === '0') {
+      return '0'
+    }
+    
     // Recherche exacte (insensible à la casse)
     for (const tranche of TRANCHES_LIST) {
       if (tranche.toLowerCase() === normalized.toLowerCase()) {

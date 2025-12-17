@@ -33,6 +33,7 @@ export const SITES_LIST = [
  * Liste des tranches disponibles pour les listes déroulantes
  */
 export const TRANCHES_LIST = [
+  '0',
   'TOUTE',
   '1',
   '2',
