@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAffaires } from '@/hooks/useAffaires'
-import { useSites } from '@/hooks/useSites'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, Info } from 'lucide-react'
+import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -18,24 +17,12 @@ export default function AffairesPage() {
     site: filters.site || undefined,
     actif: filters.actif,
   })
-  const { sites } = useSites({ actif: true })
 
   const [formData, setFormData] = useState({
     id: '',
-    affaire_id: '', // Lecture seule (généré automatiquement)
+    affaire_id: '',
     site: '',
     libelle: '',
-    // Nouveaux champs pour génération AffaireID
-    tranche: '',
-    affaire_nom: '',
-    statut: 'Ouverte',
-    compte: '',
-    date_debut_dem: '',
-    date_fin_dem: '',
-    responsable: '',
-    budget_heures: '',
-    raf: '',
-    total_planifie: '',
     actif: true,
   })
 
@@ -46,21 +33,9 @@ export default function AffairesPage() {
     e.preventDefault()
     try {
       await saveAffaire({
-        id: formData.id || undefined,
-        site: formData.site,
-        libelle: formData.libelle,
-        // Nouveaux champs
-        tranche: formData.tranche || undefined,
-        affaire_nom: formData.affaire_nom || undefined,
-        statut: formData.statut || 'Ouverte',
-        compte: formData.compte || undefined,
-        date_debut_dem: formData.date_debut_dem ? new Date(formData.date_debut_dem) : undefined,
-        date_fin_dem: formData.date_fin_dem ? new Date(formData.date_fin_dem) : undefined,
-        responsable: formData.responsable || undefined,
-        budget_heures: formData.budget_heures ? Number(formData.budget_heures) : undefined,
-        raf: formData.raf ? Number(formData.raf) : undefined,
-        total_planifie: formData.total_planifie ? Number(formData.total_planifie) : undefined,
-        actif: formData.actif,
+        ...formData,
+        date_creation: formData.id ? new Date() : new Date(),
+        date_modification: new Date(),
       })
       // Réinitialiser le formulaire
       setFormData({
@@ -68,42 +43,27 @@ export default function AffairesPage() {
         affaire_id: '',
         site: '',
         libelle: '',
-        tranche: '',
-        affaire_nom: '',
-        statut: 'Ouverte',
-        compte: '',
-        date_debut_dem: '',
-        date_fin_dem: '',
-        responsable: '',
-        budget_heures: '',
-        raf: '',
-        total_planifie: '',
         actif: true,
       })
       setIsEditing(false)
       setShowForm(false)
-    } catch (err) {
+    } catch (err: any) {
       console.error('[AffairesPage] Erreur:', err)
+      // Afficher un message d'erreur à l'utilisateur
+      alert(
+        'Erreur lors de l\'enregistrement :\n\n' +
+        (err.message || 'Une erreur inattendue s\'est produite') +
+        '\n\nVeuillez consulter la console pour plus de détails.'
+      )
     }
   }
 
   const handleEdit = (affaire: typeof affaires[0]) => {
     setFormData({
       id: affaire.id,
-      affaire_id: affaire.affaire_id || '',
+      affaire_id: affaire.affaire_id,
       site: affaire.site,
       libelle: affaire.libelle,
-      // Nouveaux champs
-      tranche: affaire.tranche || '',
-      affaire_nom: affaire.affaire_nom || '',
-      statut: affaire.statut || 'Ouverte',
-      compte: affaire.compte || '',
-      date_debut_dem: affaire.date_debut_dem ? format(affaire.date_debut_dem, 'yyyy-MM-dd') : '',
-      date_fin_dem: affaire.date_fin_dem ? format(affaire.date_fin_dem, 'yyyy-MM-dd') : '',
-      responsable: affaire.responsable || '',
-      budget_heures: affaire.budget_heures?.toString() || '',
-      raf: affaire.raf?.toString() || '',
-      total_planifie: affaire.total_planifie?.toString() || '',
       actif: affaire.actif,
     })
     setIsEditing(true)
@@ -126,16 +86,6 @@ export default function AffairesPage() {
       affaire_id: '',
       site: '',
       libelle: '',
-      tranche: '',
-      affaire_nom: '',
-      statut: 'Ouverte',
-      compte: '',
-      date_debut_dem: '',
-      date_fin_dem: '',
-      responsable: '',
-      budget_heures: '',
-      raf: '',
-      total_planifie: '',
       actif: true,
     })
     setIsEditing(false)
@@ -177,122 +127,31 @@ export default function AffairesPage() {
               </h2>
             </div>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Affaire ID - Lecture seule (généré automatiquement) */}
-              <div className="md:col-span-2 space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Affaire ID <span className="text-gray-500 text-xs">(Généré automatiquement)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.affaire_id || '(Sera généré automatiquement)'}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-100 text-gray-600 cursor-not-allowed"
-                    disabled
-                    readOnly
-                  />
-                </div>
-                <div className="flex items-start gap-2 mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-xs text-blue-800">
-                    <p className="font-semibold mb-1">Génération automatique :</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>Format : <code className="bg-blue-100 px-1 rounded">[Tranche][SiteMap][Affaire]</code></li>
-                      <li>Généré uniquement si Statut = "Ouverte" ou "Prévisionnelle"</li>
-                      <li>Le SiteMap est récupéré automatiquement depuis la table sites</li>
-                      <li>Exemple : <code className="bg-blue-100 px-1 rounded">[TOUTE][BEL][PACK TEM]</code></li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              {/* Statut - Détermine si AffaireID est généré */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Statut <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.statut}
-                  onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  required
-                >
-                  <option value="Ouverte">Ouverte</option>
-                  <option value="Prévisionnelle">Prévisionnelle</option>
-                  <option value="Fermée">Fermée</option>
-                  <option value="Suspendue">Suspendue</option>
-                </select>
-              </div>
-
-              {/* Tranche - Obligatoire pour générer AffaireID */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Tranche <span className="text-red-500">*</span>
+                  Affaire ID <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={formData.tranche}
-                  onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
+                  value={formData.affaire_id}
+                  onChange={(e) => setFormData({ ...formData, affaire_id: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: TOUTE, 1, 2..."
                   required
+                  disabled={isEditing}
                 />
               </div>
-
-              {/* Site - Obligatoire (sélecteur) */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
                   Site <span className="text-red-500">*</span>
                 </label>
-                <select
+                <input
+                  type="text"
                   value={formData.site}
                   onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                   required
-                >
-                  <option value="">Sélectionner un site</option>
-                  {sites.map((site) => (
-                    <option key={site.id} value={site.site}>
-                      {site.site} {site.site_map ? `(${site.site_map})` : ''}
-                    </option>
-                  ))}
-                </select>
-                {formData.site && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    SiteMap: {sites.find(s => s.site === formData.site)?.site_map || 'Non trouvé'}
-                  </p>
-                )}
-              </div>
-
-              {/* Nom de l'affaire - Obligatoire pour générer AffaireID */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Nom de l'affaire <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.affaire_nom}
-                  onChange={(e) => setFormData({ ...formData, affaire_nom: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: PACK TEM, PNPE 3313..."
-                  required
                 />
               </div>
-
-              {/* Compte */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Compte
-                </label>
-                <input
-                  type="text"
-                  value={formData.compte}
-                  onChange={(e) => setFormData({ ...formData, compte: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: 2VPBA0"
-                />
-              </div>
-
-              {/* Libellé */}
               <div className="md:col-span-2 space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
                   Libellé <span className="text-red-500">*</span>
@@ -305,92 +164,6 @@ export default function AffairesPage() {
                   required
                 />
               </div>
-
-              {/* Dates demande */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Date début demande
-                </label>
-                <input
-                  type="date"
-                  value={formData.date_debut_dem}
-                  onChange={(e) => setFormData({ ...formData, date_debut_dem: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Date fin demande
-                </label>
-                <input
-                  type="date"
-                  value={formData.date_fin_dem}
-                  onChange={(e) => setFormData({ ...formData, date_fin_dem: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                />
-              </div>
-
-              {/* Responsable */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Responsable
-                </label>
-                <input
-                  type="text"
-                  value={formData.responsable}
-                  onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: BARBEROT Matthieu"
-                />
-              </div>
-
-              {/* Budget heures */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Budget (heures)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.budget_heures}
-                  onChange={(e) => setFormData({ ...formData, budget_heures: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: 3402"
-                />
-              </div>
-
-              {/* RAF */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Reste À Faire (heures)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.raf}
-                  onChange={(e) => setFormData({ ...formData, raf: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: 500"
-                />
-              </div>
-
-              {/* Total planifié */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Total planifié (heures)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.total_planifie}
-                  onChange={(e) => setFormData({ ...formData, total_planifie: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                  placeholder="Ex: 2902"
-                />
-              </div>
-
-              {/* Actif */}
               <div className="md:col-span-2 flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -421,16 +194,6 @@ export default function AffairesPage() {
                       affaire_id: '',
                       site: '',
                       libelle: '',
-                      tranche: '',
-                      affaire_nom: '',
-                      statut: 'Ouverte',
-                      compte: '',
-                      date_debut_dem: '',
-                      date_fin_dem: '',
-                      responsable: '',
-                      budget_heures: '',
-                      raf: '',
-                      total_planifie: '',
                       actif: true,
                     })
                   }}
@@ -503,28 +266,16 @@ export default function AffairesPage() {
                       Affaire ID
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Tranche
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Site
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Nom
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Statut
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Libellé
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Responsable
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Budget (h)
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Date création
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Statut
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Actions
@@ -534,7 +285,7 @@ export default function AffairesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center">
+                      <td colSpan={6} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -545,43 +296,23 @@ export default function AffairesPage() {
                     affaires.map((affaire) => (
                       <tr key={affaire.id} className="hover:bg-gray-50 transition-colors duration-150">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {affaire.affaire_id || (
-                            <span className="text-gray-400 italic">(Non généré)</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.tranche || '-'}
+                          {affaire.affaire_id}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.affaire_nom || '-'}
+                          {format(affaire.date_creation, 'dd/MM/yyyy', { locale: fr })}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {affaire.statut ? (
-                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              affaire.statut === 'Ouverte' || affaire.statut === 'Prévisionnelle'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {affaire.statut}
+                          {affaire.actif ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              Active
                             </span>
                           ) : (
                             <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                              -
+                              Inactive
                             </span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title={affaire.libelle}>
-                          {affaire.libelle}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.responsable || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.budget_heures ? affaire.budget_heures.toLocaleString('fr-FR') : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {format(affaire.date_creation, 'dd/MM/yyyy', { locale: fr })}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex items-center gap-2">
