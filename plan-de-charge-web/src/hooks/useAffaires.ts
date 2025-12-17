@@ -105,9 +105,10 @@ export function useAffaires(options: UseAffairesOptions = {}) {
         console.log('[useAffaires] saveAffaire - affaire.affaire_id (raw):', affaire.affaire_id, 'type:', typeof affaire.affaire_id)
         console.log('[useAffaires] saveAffaire - affaireIdValue (processed):', affaireIdValue, 'type:', typeof affaireIdValue)
         
+        // IMPORTANT : Toujours inclure affaire_id dans affaireData, même si null
+        // Supabase ignore les champs undefined, donc on force null au lieu de undefined
         const affaireData: any = {
-          // TOUJOURS inclure affaire_id (même si null) pour que Supabase le sauvegarde
-          affaire_id: affaireIdValue === undefined ? null : affaireIdValue, // Peut être NULL si statut ≠ Ouverte/Prévisionnelle ou si vide
+          affaire_id: affaireIdValue, // null ou string, jamais undefined
           site: affaire.site,
           libelle: affaire.libelle,
           tranche: affaire.tranche && affaire.tranche.trim() !== '' ? affaire.tranche.trim() : null,
@@ -119,9 +120,14 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           date_modification: new Date().toISOString(),
         }
         
-        console.log('[useAffaires] saveAffaire - affaireData:', JSON.stringify(affaireData, null, 2))
-
+        // Vérifier explicitement que affaire_id est bien inclus
+        if (!('affaire_id' in affaireData)) {
+          console.error('[useAffaires] saveAffaire - ERREUR: affaire_id manquant dans affaireData!')
+          affaireData.affaire_id = affaireIdValue // Forcer l'ajout
+        }
+        
         console.log('[useAffaires] saveAffaire - affaireData complet:', JSON.stringify(affaireData, null, 2))
+        console.log('[useAffaires] saveAffaire - affaireData.affaire_id explicite:', affaireData.affaire_id, 'type:', typeof affaireData.affaire_id)
         
         if (affaire.id) {
           // Mise à jour
