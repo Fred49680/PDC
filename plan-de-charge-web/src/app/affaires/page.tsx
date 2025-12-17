@@ -64,15 +64,22 @@ export default function AffairesPage() {
       console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id, typeof formData.affaire_id)
       
       // S'assurer que affaire_id est bien inclus dans les données envoyées
+      // Convertir chaîne vide en null explicitement
+      const affaireIdToSave = formData.affaire_id && formData.affaire_id.trim() !== '' 
+        ? formData.affaire_id.trim() 
+        : null
+      
       const affaireToSave = {
         ...formData,
-        affaire_id: formData.affaire_id || null, // Forcer null si vide/undefined
+        affaire_id: affaireIdToSave, // null si vide, sinon la valeur trimée
         date_creation: formData.id ? new Date() : new Date(),
         date_modification: new Date(),
       }
       
+      console.log('[AffairesPage] handleSubmit - formData.affaire_id:', formData.affaire_id, 'type:', typeof formData.affaire_id)
+      console.log('[AffairesPage] handleSubmit - affaireIdToSave:', affaireIdToSave, 'type:', typeof affaireIdToSave)
       console.log('[AffairesPage] handleSubmit - affaireToSave:', affaireToSave)
-      console.log('[AffairesPage] handleSubmit - affaireToSave.affaire_id:', affaireToSave.affaire_id)
+      console.log('[AffairesPage] handleSubmit - affaireToSave.affaire_id:', affaireToSave.affaire_id, 'type:', typeof affaireToSave.affaire_id)
       
       await saveAffaire(affaireToSave)
       // Réinitialiser le formulaire
