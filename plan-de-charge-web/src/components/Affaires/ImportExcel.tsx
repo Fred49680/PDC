@@ -539,6 +539,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
             </div>
             <button
               type="button"
+              onClick={() => fileInputRef.current?.click()}
               className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
             >
               <Upload className="w-5 h-5" />
