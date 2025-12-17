@@ -93,6 +93,8 @@ export function GrilleChargeAffectation({
   const [saving, setSaving] = useState(false)
   // État pour les modifications en cours (pour éviter que le rechargement écrase les valeurs optimistes)
   const [pendingChargeChanges, setPendingChargeChanges] = useState<Map<string, number>>(new Map())
+  // État local pour chaque input (pour éviter que le re-render réinitialise la valeur)
+  const [localInputValues, setLocalInputValues] = useState<Map<string, number>>(new Map())
 
   // Générer les colonnes selon la précision (avec fériés et semaine ISO)
   const colonnes = useMemo(() => {
@@ -183,6 +185,22 @@ export function GrilleChargeAffectation({
     })
 
     setGrilleCharge(newGrille)
+    
+    // *** NETTOYAGE : Nettoyer les valeurs locales qui correspondent aux données rechargées ***
+    // Cela évite les incohérences entre localInputValues et grilleCharge
+    setLocalInputValues((prev) => {
+      const newLocal = new Map(prev)
+      // Ne garder que les valeurs locales qui ne sont pas encore dans la grille
+      // (celles qui sont en cours de modification)
+      newLocal.forEach((localValue, key) => {
+        const gridValue = newGrille.get(key) || 0
+        if (localValue === gridValue) {
+          // La valeur locale correspond à la grille, on peut la nettoyer
+          newLocal.delete(key)
+        }
+      })
+      return newLocal
+    })
   }, [periodes, colonnes, pendingChargeChanges])
 
   // Construire la grille d'affectations
@@ -932,7 +950,10 @@ export function GrilleChargeAffectation({
                     </td>
                     {colonnes.map((col, idx) => {
                       const cellKey = `${comp}|${col.date.getTime()}`
-                      const value = grilleCharge.get(cellKey) || 0
+                      // Utiliser la valeur locale si elle existe, sinon la valeur de la grille
+                      const localValue = localInputValues.get(cellKey)
+                      const gridValue = grilleCharge.get(cellKey) || 0
+                      const value = localValue !== undefined ? localValue : gridValue
 
                       return (
                         <td
@@ -948,6 +969,13 @@ export function GrilleChargeAffectation({
                             value={value}
                             onChange={(e) => {
                               const newValue = parseInt(e.target.value) || 0
+                              // Mettre à jour la valeur locale immédiatement (pour l'affichage)
+                              setLocalInputValues((prev) => {
+                                const newMap = new Map(prev)
+                                newMap.set(cellKey, newValue)
+                                return newMap
+                              })
+                              // Sauvegarder dans Supabase
                               handleChargeChange(comp, col, newValue)
                             }}
                             onBlur={(e) => {
@@ -957,6 +985,12 @@ export function GrilleChargeAffectation({
                               if (newValue !== currentValue) {
                                 handleChargeChange(comp, col, newValue)
                               }
+                              // Nettoyer la valeur locale après le blur (la grille sera à jour)
+                              setLocalInputValues((prev) => {
+                                const newMap = new Map(prev)
+                                newMap.delete(cellKey)
+                                return newMap
+                              })
                             }}
                             className="w-full text-center border-2 border-yellow-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white font-semibold text-gray-800"
                             placeholder="0"
