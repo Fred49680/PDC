@@ -468,7 +468,7 @@ export default function AffairesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center">
+                      <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
