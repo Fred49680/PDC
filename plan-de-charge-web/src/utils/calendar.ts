@@ -109,3 +109,20 @@ export function nextBusinessDay(date: Date, holidays: Date[] | null = null): Dat
   }
   return nextDate
 }
+
+/**
+ * Normaliser une date à minuit UTC (pour éviter les problèmes de timezone)
+ * Cette fonction crée une nouvelle date avec l'année, le mois et le jour de la date source,
+ * mais à minuit UTC, ce qui évite les décalages lors de l'envoi à Supabase
+ */
+export function normalizeDateToUTC(date: Date): Date {
+  return new Date(Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0, // Heure à minuit
+    0, // Minutes
+    0, // Secondes
+    0  // Millisecondes
+  ))
+}

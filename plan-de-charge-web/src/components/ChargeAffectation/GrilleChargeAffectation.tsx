@@ -5,7 +5,7 @@ import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
-import { businessDaysBetween, getDatesBetween, isBusinessDay, formatSemaineISO, nextBusinessDay } from '@/utils/calendar'
+import { businessDaysBetween, getDatesBetween, isBusinessDay, formatSemaineISO, nextBusinessDay, normalizeDateToUTC } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, subDays, addWeeks, startOfMonth, addMonths, endOfMonth, isWeekend, subMonths, subWeeks } from 'date-fns'
@@ -622,8 +622,43 @@ export function GrilleChargeAffectation({
       
       try {
         setSaving(true)
-        let dateDebutPeriode = col.weekStart || col.date
-        let dateFinPeriode = col.weekEnd || col.date
+        
+        // *** PÉRIODES FIXES selon la précision (ne varient pas selon l'enregistrement) ***
+        let dateDebutPeriode: Date
+        let dateFinPeriode: Date
+        
+        switch (precision) {
+          case 'JOUR':
+            // Mode JOUR : période = exactement le jour sélectionné
+            dateDebutPeriode = col.date
+            dateFinPeriode = col.date
+            break
+          case 'SEMAINE':
+            // Mode SEMAINE : période = exactement la semaine (lundi au dimanche)
+            if (col.weekStart && col.weekEnd) {
+              dateDebutPeriode = col.weekStart
+              dateFinPeriode = col.weekEnd
+            } else {
+              // Fallback si weekStart/weekEnd non définis
+              dateDebutPeriode = col.date
+              dateFinPeriode = col.date
+            }
+            break
+          case 'MOIS':
+            // Mode MOIS : période = exactement le mois (1er au dernier jour)
+            if (col.weekStart && col.weekEnd) {
+              dateDebutPeriode = col.weekStart // Début du mois
+              dateFinPeriode = col.weekEnd // Fin du mois
+            } else {
+              // Fallback si weekStart/weekEnd non définis
+              dateDebutPeriode = col.date
+              dateFinPeriode = col.date
+            }
+            break
+          default:
+            dateDebutPeriode = col.date
+            dateFinPeriode = col.date
+        }
 
         // *** VALIDATION : Vérifier si les dates tombent un week-end ou jour férié ***
         // Mode JOUR : Confirmation nécessaire si planification sur week-end/férié
@@ -753,8 +788,8 @@ export function GrilleChargeAffectation({
                   if (nouvelleDateDebut <= pFin) {
                     await savePeriode({
                       competence,
-                      date_debut: nouvelleDateDebut,
-                      date_fin: pFin,
+                      date_debut: normalizeDateToUTC(nouvelleDateDebut),
+                      date_fin: normalizeDateToUTC(pFin),
                       nb_ressources: periodeExistante.nb_ressources,
                     })
                   }
@@ -767,8 +802,8 @@ export function GrilleChargeAffectation({
                   if (pDebut <= nouvelleDateFin) {
                     await savePeriode({
                       competence,
-                      date_debut: pDebut,
-                      date_fin: nouvelleDateFin,
+                      date_debut: normalizeDateToUTC(pDebut),
+                      date_fin: normalizeDateToUTC(nouvelleDateFin),
                       nb_ressources: periodeExistante.nb_ressources,
                     })
                   }
@@ -784,8 +819,8 @@ export function GrilleChargeAffectation({
                   if (pDebut <= dateFinAvant) {
                     await savePeriode({
                       competence,
-                      date_debut: pDebut,
-                      date_fin: dateFinAvant,
+                      date_debut: normalizeDateToUTC(pDebut),
+                      date_fin: normalizeDateToUTC(dateFinAvant),
                       nb_ressources: periodeExistante.nb_ressources,
                     })
                   }
@@ -794,8 +829,8 @@ export function GrilleChargeAffectation({
                   if (dateDebutApres <= pFin) {
                     await savePeriode({
                       competence,
-                      date_debut: dateDebutApres,
-                      date_fin: pFin,
+                      date_debut: normalizeDateToUTC(dateDebutApres),
+                      date_fin: normalizeDateToUTC(pFin),
                       nb_ressources: periodeExistante.nb_ressources,
                     })
                   }
@@ -814,10 +849,14 @@ export function GrilleChargeAffectation({
             // Le useEffect va nettoyer automatiquement quand les nouvelles periodes seront chargées
           }
         } else {
+          // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
+          const dateDebutNormalisee = normalizeDateToUTC(dateDebutPeriode)
+          const dateFinNormalisee = normalizeDateToUTC(dateFinPeriode)
+          
           await savePeriode({
             competence,
-            date_debut: dateDebutPeriode,
-            date_fin: dateFinPeriode,
+            date_debut: dateDebutNormalisee,
+            date_fin: dateFinNormalisee,
             nb_ressources: nbRessources,
           })
           // NE PAS retirer de pendingChargeChanges immédiatement

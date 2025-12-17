@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { normalizeDateToUTC } from '@/utils/calendar'
 import type { PeriodeCharge } from '@/types/charge'
 
 interface UseChargeOptions {
@@ -92,10 +93,18 @@ export function useCharge({ affaireId, site }: UseChargeOptions) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 
+      // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
       const periodeData = {
         ...periode,
         affaire_id: affaireData.id,
         site,
+        // Normaliser date_debut et date_fin si elles sont des objets Date
+        date_debut: periode.date_debut instanceof Date 
+          ? normalizeDateToUTC(periode.date_debut)
+          : periode.date_debut,
+        date_fin: periode.date_fin instanceof Date
+          ? normalizeDateToUTC(periode.date_fin)
+          : periode.date_fin,
       }
 
       const { data, error: upsertError } = await supabase
