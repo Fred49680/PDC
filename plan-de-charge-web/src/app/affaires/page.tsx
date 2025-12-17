@@ -461,9 +461,6 @@ export default function AffairesPage() {
                       Date MAJ RAF
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Actif
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -481,7 +478,7 @@ export default function AffairesPage() {
                   ) : (
                     affaires.map((affaire) => (
                       <tr key={affaire.id} className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.affaire_id || <span className="text-gray-400 italic">(vide)</span>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
@@ -517,18 +514,6 @@ export default function AffairesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {/* Afficher actif/inactif */}
-                          {affaire.actif ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              ✓ Actif
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                              ✗ Inactif
-                            </span>
-                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex items-center gap-2">
