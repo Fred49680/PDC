@@ -1,9 +1,12 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { AlertCircle, CheckCircle2, Info, Users, Target, ChevronLeft, ChevronRight, Filter, Loader2, Save } from 'lucide-react'
+import { CheckCircle2, Info, Users, Target, ChevronLeft, ChevronRight, Filter, Loader2 } from 'lucide-react'
 import { normalizeDateToUTC } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
+import { useCharge } from '@/hooks/useCharge'
+import { useAffectations } from '@/hooks/useAffectations'
+import { useRessources } from '@/hooks/useRessources'
 
 interface GrilleChargeAffectationProps {
   affaireId: string
@@ -22,43 +25,13 @@ interface ColonneDate {
   semaineISO: string
 }
 
-interface Ressource {
-  id: string
-  nom: string
-  date_fin_contrat: Date | null
-}
-
 // ========================================
-// MOCK DATA & UTILITIES (à remplacer par vos vrais hooks)
+// UTILITIES
 // ========================================
-
-const mockPeriodes = [
-  { id: '1', competence: 'BE_IES', date_debut: new Date('2024-01-08'), date_fin: new Date('2024-01-12'), nb_ressources: 2 },
-  { id: '2', competence: 'IES', date_debut: new Date('2024-01-15'), date_fin: new Date('2024-01-19'), nb_ressources: 3 }
-]
-
-const mockAffectations = [
-  { id: '1', ressource_id: 'r1', competence: 'BE_IES', date_debut: new Date('2024-01-08'), date_fin: new Date('2024-01-12'), charge: 5 }
-]
-
-const mockRessources = [
-  { id: 'r1', nom: 'Jean Dupont', date_fin_contrat: new Date('2025-12-31') },
-  { id: 'r2', nom: 'Marie Martin', date_fin_contrat: null },
-  { id: 'r3', nom: 'Pierre Dubois', date_fin_contrat: new Date('2024-06-30') }
-]
-
-const mockCompetencesMap = new Map([
-  ['r1', [{ competence: 'BE_IES', type_comp: 'P' }, { competence: 'IES', type_comp: 'S' }]],
-  ['r2', [{ competence: 'IES', type_comp: 'P' }]],
-  ['r3', [{ competence: 'BE_IES', type_comp: 'S' }]]
-])
-
-const COMPETENCES_LIST = ['BE_IES', 'IES', 'INSTRUM', 'ROB', 'AUTO', 'FIBRE OPTIQUE']
 
 // Utility functions simplifiées
 const isWeekend = (date: Date): boolean => [0, 6].includes(date.getDay())
-const isFrenchHoliday = (date: Date): boolean => false // Simplification
-const isBusinessDay = (date: Date): boolean => !isWeekend(date) && !isFrenchHoliday(date)
+const isFrenchHoliday = (_date: Date): boolean => false // Simplification
 
 const getDatesBetween = (start: Date, end: Date): Date[] => {
   const dates: Date[] = []
@@ -108,14 +81,54 @@ export default function GrilleChargeAffectation({
     setDateFin(propDateFin)
   }, [propPrecision, propDateDebut, propDateFin])
   
-  // États de données
-  const [periodes, setPeriodes] = useState(mockPeriodes)
-  const [affectations, setAffectations] = useState(mockAffectations)
-  const [ressources] = useState(mockRessources)
-  const [competencesMap] = useState(mockCompetencesMap)
+  // ========================================
+  // CHARGEMENT DES DONNÉES RÉELLES
+  // ========================================
+  const { periodes, loading: loadingCharge, savePeriode, consolidate } = useCharge({
+    affaireId,
+    site,
+    autoRefresh,
+  })
+  
+  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
+    affaireId,
+    site,
+    autoRefresh,
+  })
+  
+  const { ressources, competences: competencesMap, loading: loadingRessources } = useRessources({
+    site,
+    actif: true,
+  })
   
   // États de filtres
-  const [competencesFiltrees, setCompetencesFiltrees] = useState(new Set(['BE_IES', 'IES']))
+  const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(new Set<string>())
+  
+  // Extraire la liste des compétences depuis les périodes et les ressources
+  const competencesList = useMemo(() => {
+    const compSet = new Set<string>()
+    
+    // Ajouter les compétences depuis les périodes
+    periodes.forEach(p => {
+      if (p.competence) compSet.add(p.competence)
+    })
+    
+    // Ajouter les compétences depuis les ressources
+    competencesMap.forEach((comps) => {
+      comps.forEach(comp => {
+        if (comp.competence) compSet.add(comp.competence)
+      })
+    })
+    
+    return Array.from(compSet).sort()
+  }, [periodes, competencesMap])
+  
+  // Initialiser les compétences filtrées avec toutes les compétences disponibles
+  useEffect(() => {
+    if (competencesList.length > 0 && competencesFiltrees.size === 0) {
+      setCompetencesFiltrees(new Set(competencesList))
+    }
+  }, [competencesList, competencesFiltrees.size])
   
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set<string>())
@@ -175,9 +188,14 @@ export default function GrilleChargeAffectation({
     
     affectations.forEach((affectation) => {
       colonnes.forEach((col) => {
+        // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
+        const affectationDateDebut = normalizeDateToUTC(new Date(affectation.date_debut))
+        const affectationDateFin = normalizeDateToUTC(new Date(affectation.date_fin))
+        const colDate = normalizeDateToUTC(col.date)
+        
         if (
-          new Date(affectation.date_debut) <= col.date &&
-          new Date(affectation.date_fin) >= col.date
+          affectationDateDebut <= colDate &&
+          affectationDateFin >= colDate
         ) {
           const cellKey = `${affectation.competence}|${col.date.getTime()}`
           if (!grille.has(cellKey)) {
@@ -198,9 +216,9 @@ export default function GrilleChargeAffectation({
   // RESSOURCES PAR COMPÉTENCE - Mémoïsées
   // ========================================
   const ressourcesParCompetence = useMemo(() => {
-    const map = new Map<string, Ressource[]>()
+    const map = new Map<string, typeof ressources>()
     
-    COMPETENCES_LIST.forEach((comp) => {
+    competencesList.forEach((comp) => {
       const ressourcesComp = ressources.filter((r) => {
         const competencesRessource = competencesMap.get(r.id) || []
         return competencesRessource.some((c) => c.competence === comp)
@@ -209,7 +227,7 @@ export default function GrilleChargeAffectation({
     })
     
     return map
-  }, [ressources, competencesMap])
+  }, [ressources, competencesMap, competencesList])
 
   // ========================================
   // HANDLER CHARGE AVEC DEBOUNCING
@@ -218,42 +236,8 @@ export default function GrilleChargeAffectation({
     const cellKey = `${competence}|${col.date.getTime()}`
     const nbRessources = Math.max(0, Math.floor(value))
     
-    // Mise à jour optimiste immédiate
     // *** CORRECTION : Normaliser les dates à minuit UTC ***
     const colDateNormalisee = normalizeDateToUTC(col.date)
-    
-    setPeriodes((prev) => {
-      const periodeExistante = prev.find(
-        (p) => {
-          const pDateDebut = normalizeDateToUTC(new Date(p.date_debut))
-          const pDateFin = normalizeDateToUTC(new Date(p.date_fin))
-          return p.competence === competence && 
-                 pDateDebut <= colDateNormalisee && 
-                 pDateFin >= colDateNormalisee
-        }
-      )
-      
-      if (nbRessources === 0 && periodeExistante) {
-        return prev.filter(p => p.id !== periodeExistante.id)
-      } else if (nbRessources > 0) {
-        if (periodeExistante) {
-          return prev.map(p => 
-            p.id === periodeExistante.id 
-              ? { ...p, nb_ressources: nbRessources }
-              : p
-          )
-        } else {
-          return [...prev, {
-            id: `temp-${Date.now()}`,
-            competence,
-            date_debut: colDateNormalisee,
-            date_fin: colDateNormalisee,
-            nb_ressources: nbRessources
-          }]
-        }
-      }
-      return prev
-    })
     
     // Indicateur de sauvegarde
     setSavingCells(prev => new Set(prev).add(cellKey))
@@ -263,55 +247,98 @@ export default function GrilleChargeAffectation({
       clearTimeout(saveTimeoutRef.current.get(cellKey))
     }
     
-    const timeout = setTimeout(() => {
-      console.log(`💾 Sauvegarde ${competence} - ${col.label}: ${nbRessources}`)
-      // ICI : Appel API réel savePeriode()
-      
-      setSavingCells(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(cellKey)
-        return newSet
-      })
-      saveTimeoutRef.current.delete(cellKey)
+    const timeout = setTimeout(async () => {
+      try {
+        console.log(`💾 Sauvegarde ${competence} - ${col.label}: ${nbRessources}`)
+        
+        // Trouver la période existante pour cette compétence/date
+        const periodeExistante = periodes.find(
+          (p) => {
+            const pDateDebut = normalizeDateToUTC(new Date(p.date_debut))
+            const pDateFin = normalizeDateToUTC(new Date(p.date_fin))
+            return p.competence === competence && 
+                   pDateDebut <= colDateNormalisee && 
+                   pDateFin >= colDateNormalisee
+          }
+        )
+        
+        if (nbRessources === 0 && periodeExistante) {
+          // Supprimer la période si elle existe
+          // Note: Le hook useCharge gère la suppression via deletePeriode
+          // Pour l'instant, on laisse la période avec nb_ressources = 0
+          // La consolidation la supprimera automatiquement
+        } else if (nbRessources > 0) {
+          // Appel API réel savePeriode() (le hook gère la mise à jour optimiste)
+          await savePeriode({
+            id: periodeExistante?.id,
+            competence,
+            date_debut: colDateNormalisee,
+            date_fin: colDateNormalisee,
+            nb_ressources: nbRessources,
+          })
+          
+          // Si mode JOUR et autoRefresh activé, consolider après sauvegarde
+          if (precision === 'JOUR' && autoRefresh) {
+            setTimeout(() => {
+              consolidate(competence).catch(err => {
+                console.error('[GrilleChargeAffectation] Erreur consolidation:', err)
+              })
+            }, 1000)
+          }
+        }
+      } catch (err) {
+        console.error('[GrilleChargeAffectation] Erreur savePeriode:', err)
+      } finally {
+        setSavingCells(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(cellKey)
+          return newSet
+        })
+        saveTimeoutRef.current.delete(cellKey)
+      }
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [])
+  }, [periodes, savePeriode, consolidate, precision, autoRefresh])
 
   // ========================================
   // HANDLER AFFECTATION
   // ========================================
-  const handleAffectationChange = useCallback((competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
+  const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
     console.log(`✅ Affectation ${checked ? 'ajoutée' : 'retirée'}: ${ressourceId} - ${competence} - ${col.label}`)
     
     // *** CORRECTION : Normaliser les dates à minuit UTC ***
     const colDateNormalisee = normalizeDateToUTC(col.date)
     
-    // Mise à jour optimiste
-    if (checked) {
-      setAffectations(prev => [...prev, {
-        id: `temp-${Date.now()}`,
-        ressource_id: ressourceId,
-        competence,
-        date_debut: colDateNormalisee,
-        date_fin: colDateNormalisee,
-        charge: 1
-      }])
-    } else {
-      setAffectations(prev => prev.filter(
-        a => {
+    try {
+      if (checked) {
+        // Appel API réel saveAffectation() (le hook gère la mise à jour optimiste)
+        await saveAffectation({
+          ressource_id: ressourceId,
+          competence,
+          date_debut: colDateNormalisee,
+          date_fin: colDateNormalisee,
+          charge: 1,
+        })
+      } else {
+        // Trouver l'affectation à supprimer
+        const affectationASupprimer = affectations.find(a => {
           const aDateDebut = normalizeDateToUTC(new Date(a.date_debut))
           const aDateFin = normalizeDateToUTC(new Date(a.date_fin))
-          return !(a.ressource_id === ressourceId && 
-                   a.competence === competence &&
-                   aDateDebut <= colDateNormalisee &&
-                   aDateFin >= colDateNormalisee)
+          return a.ressource_id === ressourceId && 
+                 a.competence === competence &&
+                 aDateDebut <= colDateNormalisee &&
+                 aDateFin >= colDateNormalisee
+        })
+        
+        if (affectationASupprimer?.id) {
+          await deleteAffectation(affectationASupprimer.id)
         }
-      ))
+      }
+    } catch (err) {
+      console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-    
-    // ICI : Appel API réel saveAffectation() / deleteAffectation()
-  }, [])
+  }, [affectations, saveAffectation, deleteAffectation])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
@@ -362,6 +389,12 @@ export default function GrilleChargeAffectation({
             Grille Charge & Affectations
           </h1>
           <p className="text-gray-600">Planifiez et affectez vos ressources en temps réel</p>
+          {(loadingCharge || loadingAffectations || loadingRessources) && (
+            <div className="mt-4 flex items-center gap-2 text-blue-600">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Chargement des données...</span>
+            </div>
+          )}
         </div>
 
         {/* FILTRES COMPÉTENCES */}
@@ -373,7 +406,7 @@ export default function GrilleChargeAffectation({
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setCompetencesFiltrees(new Set(COMPETENCES_LIST))}
+                onClick={() => setCompetencesFiltrees(new Set(competencesList))}
                 className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
               >
                 Tout sélectionner
@@ -388,7 +421,7 @@ export default function GrilleChargeAffectation({
           </div>
           
           <div className="flex flex-wrap gap-2">
-            {COMPETENCES_LIST.map((comp) => {
+            {competencesList.map((comp) => {
               const isActive = competencesFiltrees.has(comp)
               const hasCharge = Array.from(grilleCharge.keys()).some(key => key.startsWith(comp))
               
@@ -591,7 +624,13 @@ export default function GrilleChargeAffectation({
                         </tr>
 
                         {/* RESSOURCES */}
-                        {totalCharge === 0 ? (
+                        {loadingRessources ? (
+                          <tr>
+                            <td colSpan={colonnes.length + 2} className="p-6 text-center">
+                              <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-500" />
+                            </td>
+                          </tr>
+                        ) : totalCharge === 0 ? (
                           <tr>
                             <td colSpan={colonnes.length + 2} className="p-6 text-center text-gray-400 italic bg-gray-50/50">
                               Définissez une charge pour voir les ressources
@@ -600,7 +639,7 @@ export default function GrilleChargeAffectation({
                         ) : ressourcesComp.length === 0 ? (
                           <tr>
                             <td colSpan={colonnes.length + 2} className="p-6 text-center text-gray-500 italic">
-                              Aucune ressource disponible
+                              Aucune ressource disponible pour cette compétence
                             </td>
                           </tr>
                         ) : (
