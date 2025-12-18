@@ -101,6 +101,17 @@ export default function GrilleChargeAffectation({
     actif: true,
   })
   
+  // Debug: Vérifier que les données sont bien chargées
+  useEffect(() => {
+    console.log(`[GrilleChargeAffectation] État chargement - Charge: ${loadingCharge ? 'en cours' : 'terminé'} (${periodes.length} périodes), Affectations: ${loadingAffectations ? 'en cours' : 'terminé'} (${affectations.length} affectations), Ressources: ${loadingRessources ? 'en cours' : 'terminé'} (${ressources.length} ressources)`)
+    if (!loadingCharge && periodes.length > 0) {
+      console.log(`[GrilleChargeAffectation] Exemple période chargée:`, periodes[0])
+    }
+    if (!loadingAffectations && affectations.length > 0) {
+      console.log(`[GrilleChargeAffectation] Exemple affectation chargée:`, affectations[0])
+    }
+  }, [loadingCharge, loadingAffectations, loadingRessources, periodes, affectations, ressources])
+  
   // États de filtres
   const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(new Set<string>())
   
@@ -160,11 +171,21 @@ export default function GrilleChargeAffectation({
   const grilleCharge = useMemo(() => {
     const grille = new Map<string, number>()
     
-    periodes.forEach((periode) => {
+    console.log(`[GrilleChargeAffectation] DEBUG - ${periodes.length} période(s), ${colonnes.length} colonne(s)`)
+    if (periodes.length > 0 && colonnes.length > 0) {
+      console.log(`[GrilleChargeAffectation] DEBUG - Plage colonnes: ${colonnes[0].label} -> ${colonnes[colonnes.length - 1].label}`)
+    }
+    
+    let nbCellulesRemplies = 0
+    let nbPeriodesSansCorrespondance = 0
+    periodes.forEach((periode, idx) => {
+      const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
+      const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
+      console.log(`[GrilleChargeAffectation] DEBUG - Période ${idx + 1}: ${periode.competence} du ${periodeDateDebut.toLocaleDateString('fr-FR')} au ${periodeDateFin.toLocaleDateString('fr-FR')}`)
+      
+      let trouvee = false
       colonnes.forEach((col) => {
         // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
-        const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
-        const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
         const colDate = normalizeDateToUTC(col.date)
         
         if (
@@ -173,9 +194,18 @@ export default function GrilleChargeAffectation({
         ) {
           const cellKey = `${periode.competence}|${col.date.getTime()}`
           grille.set(cellKey, periode.nb_ressources)
+          nbCellulesRemplies++
+          trouvee = true
         }
       })
+      
+      if (!trouvee) {
+        nbPeriodesSansCorrespondance++
+        console.log(`[GrilleChargeAffectation] ATTENTION - Période ${periode.competence} (${periodeDateDebut.toLocaleDateString('fr-FR')} - ${periodeDateFin.toLocaleDateString('fr-FR')}) n'a trouvé aucune correspondance avec les colonnes`)
+      }
     })
+    
+    console.log(`[GrilleChargeAffectation] ${periodes.length} période(s) chargée(s) -> ${nbCellulesRemplies} cellule(s) dans la grille${nbPeriodesSansCorrespondance > 0 ? ` (${nbPeriodesSansCorrespondance} période(s) sans correspondance)` : ''}`)
     
     return grille
   }, [periodes, colonnes])
@@ -186,11 +216,18 @@ export default function GrilleChargeAffectation({
   const grilleAffectations = useMemo(() => {
     const grille = new Map<string, Set<string>>()
     
-    affectations.forEach((affectation) => {
+    console.log(`[GrilleChargeAffectation] DEBUG Affectations - ${affectations.length} affectation(s), ${colonnes.length} colonne(s)`)
+    
+    let nbCellulesRemplies = 0
+    let nbAffectationsSansCorrespondance = 0
+    affectations.forEach((affectation, idx) => {
+      const affectationDateDebut = normalizeDateToUTC(new Date(affectation.date_debut))
+      const affectationDateFin = normalizeDateToUTC(new Date(affectation.date_fin))
+      console.log(`[GrilleChargeAffectation] DEBUG - Affectation ${idx + 1}: ${affectation.ressource_id} / ${affectation.competence} du ${affectationDateDebut.toLocaleDateString('fr-FR')} au ${affectationDateFin.toLocaleDateString('fr-FR')}`)
+      
+      let trouvee = false
       colonnes.forEach((col) => {
         // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
-        const affectationDateDebut = normalizeDateToUTC(new Date(affectation.date_debut))
-        const affectationDateFin = normalizeDateToUTC(new Date(affectation.date_fin))
         const colDate = normalizeDateToUTC(col.date)
         
         if (
@@ -204,10 +241,19 @@ export default function GrilleChargeAffectation({
           const affectationsSet = grille.get(cellKey)
           if (affectationsSet) {
             affectationsSet.add(affectation.ressource_id)
+            nbCellulesRemplies++
+            trouvee = true
           }
         }
       })
+      
+      if (!trouvee) {
+        nbAffectationsSansCorrespondance++
+        console.log(`[GrilleChargeAffectation] ATTENTION - Affectation ${affectation.ressource_id} / ${affectation.competence} (${affectationDateDebut.toLocaleDateString('fr-FR')} - ${affectationDateFin.toLocaleDateString('fr-FR')}) n'a trouvé aucune correspondance avec les colonnes`)
+      }
     })
+    
+    console.log(`[GrilleChargeAffectation] ${affectations.length} affectation(s) chargée(s) -> ${nbCellulesRemplies} cellule(s) dans la grille${nbAffectationsSansCorrespondance > 0 ? ` (${nbAffectationsSansCorrespondance} affectation(s) sans correspondance)` : ''}`)
     
     return grille
   }, [affectations, colonnes])
