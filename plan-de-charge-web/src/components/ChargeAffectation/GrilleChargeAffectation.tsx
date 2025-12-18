@@ -9,6 +9,8 @@ import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
+import { createClient } from '@/lib/supabase/client'
+import type { Affectation } from '@/types/affectations'
 
 interface GrilleChargeAffectationProps {
   affaireId: string
@@ -115,6 +117,82 @@ export default function GrilleChargeAffectation({
     site,
     actif: true,
   })
+
+  // État pour stocker toutes les affectations de toutes les ressources (toutes affaires confondues)
+  // Utilisé pour détecter les sur-affectations
+  const [toutesAffectationsRessources, setToutesAffectationsRessources] = useState<Map<string, Affectation[]>>(new Map())
+
+  // État pour stocker les détails des affaires (pour les tooltips)
+  const [affairesDetails, setAffairesDetails] = useState<Map<string, { affaire_id: string; site: string; libelle: string }>>(new Map())
+
+  // Charger toutes les affectations de toutes les ressources (toutes affaires confondues)
+  useEffect(() => {
+    const loadAllAffectations = async () => {
+      try {
+        const supabase = createClient()
+        const affectationsMap = new Map<string, Affectation[]>()
+        const affairesMap = new Map<string, { affaire_id: string; site: string; libelle: string }>()
+
+        // Charger toutes les affectations pour toutes les ressources
+        const { data, error } = await supabase
+          .from('affectations')
+          .select(`
+            *,
+            affaires!inner(affaire_id, site, libelle)
+          `)
+          .order('date_debut', { ascending: true })
+
+        if (error) {
+          console.error('[GrilleChargeAffectation] Erreur chargement toutes affectations:', error)
+          return
+        }
+
+        // Grouper par ressource_id et stocker les détails des affaires
+        if (data) {
+          data.forEach((a: any) => {
+            const ressourceId = a.ressource_id
+            if (!affectationsMap.has(ressourceId)) {
+              affectationsMap.set(ressourceId, [])
+            }
+            
+            // Stocker les détails de l'affaire
+            if (a.affaires && !affairesMap.has(a.affaire_id)) {
+              affairesMap.set(a.affaire_id, {
+                affaire_id: a.affaires.affaire_id || '',
+                site: a.affaires.site || '',
+                libelle: a.affaires.libelle || '',
+              })
+            }
+            
+            const affectation: Affectation = {
+              id: a.id,
+              affaire_id: a.affaire_id,
+              site: a.site,
+              ressource_id: a.ressource_id,
+              competence: a.competence,
+              date_debut: new Date(a.date_debut),
+              date_fin: new Date(a.date_fin),
+              charge: a.charge,
+              created_at: new Date(a.created_at),
+              updated_at: new Date(a.updated_at),
+              created_by: a.created_by,
+              updated_by: a.updated_by,
+            }
+            
+            affectationsMap.get(ressourceId)!.push(affectation)
+          })
+        }
+
+        setToutesAffectationsRessources(affectationsMap)
+        setAffairesDetails(affairesMap)
+        console.log(`[GrilleChargeAffectation] ${affectationsMap.size} ressource(s) avec affectations chargée(s), ${affairesMap.size} affaire(s) chargée(s)`)
+      } catch (err) {
+        console.error('[GrilleChargeAffectation] Erreur chargement toutes affectations:', err)
+      }
+    }
+
+    loadAllAffectations()
+  }, []) // Charger une seule fois au montage
   
   // Debug: Vérifier que les données sont bien chargées
   useEffect(() => {
@@ -509,6 +587,23 @@ export default function GrilleChargeAffectation({
   }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin])
 
   // ========================================
+  // FONCTION : Vérifier les affectations existantes d'une ressource
+  // ========================================
+  const getAffectationsExistantess = useCallback((ressourceId: string, dateDebut: Date, dateFin: Date): Affectation[] => {
+    const affectationsRessource = toutesAffectationsRessources.get(ressourceId) || []
+    const dateDebutUTC = normalizeDateToUTC(dateDebut)
+    const dateFinUTC = normalizeDateToUTC(dateFin)
+    
+    return affectationsRessource.filter((aff) => {
+      const affDateDebut = normalizeDateToUTC(aff.date_debut)
+      const affDateFin = normalizeDateToUTC(aff.date_fin)
+      
+      // Chevauchement : (affDateDebut <= dateFinUTC) && (affDateFin >= dateDebutUTC)
+      return affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC
+    })
+  }, [toutesAffectationsRessources])
+
+  // ========================================
   // HANDLER AFFECTATION
   // ========================================
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
@@ -552,6 +647,26 @@ export default function GrilleChargeAffectation({
     
     try {
       if (checked) {
+        // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
+        if (precision === 'JOUR' && col.isWeekend) {
+          const confirme = window.confirm(
+            `⚠️ Attention : Vous souhaitez affecter cette ressource un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+          )
+          if (!confirme) {
+            return // Annuler l'affectation
+          }
+        }
+
+        // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
+        if (precision === 'JOUR' && col.isHoliday) {
+          const confirme = window.confirm(
+            `⚠️ Attention : Vous souhaitez affecter cette ressource un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+          )
+          if (!confirme) {
+            return // Annuler l'affectation
+          }
+        }
+
         // Vérifier si la ressource a une absence sur cette période
         const dateDebutStr = dateDebutAffectation.toISOString().split('T')[0]
         const dateFinStr = dateFinAffectation.toISOString().split('T')[0]
@@ -585,6 +700,42 @@ export default function GrilleChargeAffectation({
           return // Ne pas enregistrer l'affectation
         }
 
+        // *** NOUVEAU : Vérifier les sur-affectations (ressource déjà affectée sur cette période) ***
+        const affectationsExistantes = getAffectationsExistantess(ressourceId, dateDebutAffectation, dateFinAffectation)
+        
+        // Filtrer pour exclure l'affectation actuelle (si elle existe déjà dans l'affaire actuelle)
+        const affectationsConflit = affectationsExistantes.filter((aff) => {
+          // Exclure les affectations de la même affaire/compétence (c'est normal)
+          // Mais inclure les affectations d'autres affaires ou compétences (conflit)
+          const affaireActuelle = affaires.find(a => a.affaire_id === affaireId && a.site === site)
+          if (affaireActuelle && aff.affaire_id === affaireActuelle.id && aff.competence === competence) {
+            return false // Même affaire/compétence = pas un conflit
+          }
+          return true // Autre affaire ou compétence = conflit
+        })
+
+        if (affectationsConflit.length > 0) {
+          // Construire le message avec les détails des affectations en conflit
+          const detailsConflits: string[] = []
+          
+          for (const affConflit of affectationsConflit) {
+            // Récupérer les détails de l'affaire depuis le cache
+            const affaireDetails = affairesDetails.get(affConflit.affaire_id)
+            const affaireLabel = affaireDetails
+              ? `${affaireDetails.affaire_id}${affaireDetails.libelle ? ' - ' + affaireDetails.libelle : ''}`
+              : 'Affaire inconnue'
+            
+            detailsConflits.push(
+              `• ${affaireLabel} / ${affConflit.site} / ${affConflit.competence} (${new Date(affConflit.date_debut).toLocaleDateString('fr-FR')} - ${new Date(affConflit.date_fin).toLocaleDateString('fr-FR')})`
+            )
+          }
+          
+          alert(
+            `❌ Impossible d'affecter : la ressource est déjà affectée sur cette période :\n\n${detailsConflits.join('\n')}\n\nUne ressource ne peut pas être affectée à plusieurs affaires en même temps.`
+          )
+          return // Ne pas enregistrer l'affectation
+        }
+
         // Appel API réel saveAffectation() (le hook gère la mise à jour optimiste)
         await saveAffectation({
           ressource_id: ressourceId,
@@ -593,6 +744,56 @@ export default function GrilleChargeAffectation({
           date_fin: dateFinAffectation,
           charge: 1,
         })
+
+        // Recharger toutes les affectations après sauvegarde pour mettre à jour le cache
+        const supabase = createClient()
+        const { data: allAffectationsData } = await supabase
+          .from('affectations')
+          .select(`
+            *,
+            affaires!inner(affaire_id, site, libelle)
+          `)
+          .order('date_debut', { ascending: true })
+
+        if (allAffectationsData) {
+          const affectationsMap = new Map<string, Affectation[]>()
+          const affairesMap = new Map<string, { affaire_id: string; site: string; libelle: string }>()
+          
+          allAffectationsData.forEach((a: any) => {
+            const ressourceIdMap = a.ressource_id
+            if (!affectationsMap.has(ressourceIdMap)) {
+              affectationsMap.set(ressourceIdMap, [])
+            }
+            
+            // Stocker les détails de l'affaire
+            if (a.affaires && !affairesMap.has(a.affaire_id)) {
+              affairesMap.set(a.affaire_id, {
+                affaire_id: a.affaires.affaire_id || '',
+                site: a.affaires.site || '',
+                libelle: a.affaires.libelle || '',
+              })
+            }
+            
+            const affectation: Affectation = {
+              id: a.id,
+              affaire_id: a.affaire_id,
+              site: a.site,
+              ressource_id: a.ressource_id,
+              competence: a.competence,
+              date_debut: new Date(a.date_debut),
+              date_fin: new Date(a.date_fin),
+              charge: a.charge,
+              created_at: new Date(a.created_at),
+              updated_at: new Date(a.updated_at),
+              created_by: a.created_by,
+              updated_by: a.updated_by,
+            }
+            
+            affectationsMap.get(ressourceIdMap)!.push(affectation)
+          })
+          setToutesAffectationsRessources(affectationsMap)
+          setAffairesDetails(affairesMap)
+        }
       } else {
         // Trouver l'affectation à supprimer (chercher par chevauchement de période)
         const affectationASupprimer = affectations.find(a => {
@@ -608,11 +809,61 @@ export default function GrilleChargeAffectation({
         if (affectationASupprimer?.id) {
           await deleteAffectation(affectationASupprimer.id)
         }
+
+        // Recharger toutes les affectations après suppression pour mettre à jour le cache
+        const supabase = createClient()
+        const { data: allAffectationsData } = await supabase
+          .from('affectations')
+          .select(`
+            *,
+            affaires!inner(affaire_id, site, libelle)
+          `)
+          .order('date_debut', { ascending: true })
+
+        if (allAffectationsData) {
+          const affectationsMap = new Map<string, Affectation[]>()
+          const affairesMap = new Map<string, { affaire_id: string; site: string; libelle: string }>()
+          
+          allAffectationsData.forEach((a: any) => {
+            const ressourceIdMap = a.ressource_id
+            if (!affectationsMap.has(ressourceIdMap)) {
+              affectationsMap.set(ressourceIdMap, [])
+            }
+            
+            // Stocker les détails de l'affaire
+            if (a.affaires && !affairesMap.has(a.affaire_id)) {
+              affairesMap.set(a.affaire_id, {
+                affaire_id: a.affaires.affaire_id || '',
+                site: a.affaires.site || '',
+                libelle: a.affaires.libelle || '',
+              })
+            }
+            
+            const affectation: Affectation = {
+              id: a.id,
+              affaire_id: a.affaire_id,
+              site: a.site,
+              ressource_id: a.ressource_id,
+              competence: a.competence,
+              date_debut: new Date(a.date_debut),
+              date_fin: new Date(a.date_fin),
+              charge: a.charge,
+              created_at: new Date(a.created_at),
+              updated_at: new Date(a.updated_at),
+              created_by: a.created_by,
+              updated_by: a.updated_by,
+            }
+            
+            affectationsMap.get(ressourceIdMap)!.push(affectation)
+          })
+          setToutesAffectationsRessources(affectationsMap)
+          setAffairesDetails(affairesMap)
+        }
       }
     } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin])
+  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
@@ -1008,19 +1259,93 @@ export default function GrilleChargeAffectation({
                                   const affectees = grilleAffectations.get(cellKey) || new Set<string>()
                                   const isAffecte = affectees.has(ressource.id)
 
+                                  // Calculer les dates de la période pour vérifier les sur-affectations
+                                  let dateDebutPeriode: Date
+                                  let dateFinPeriode: Date
+                                  
+                                  if (precision === 'JOUR') {
+                                    dateDebutPeriode = normalizeDateToUTC(col.date)
+                                    dateFinPeriode = normalizeDateToUTC(col.date)
+                                  } else if (precision === 'SEMAINE') {
+                                    const dayOfWeek = col.date.getDay()
+                                    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+                                    dateDebutPeriode = new Date(col.date)
+                                    dateDebutPeriode.setDate(dateDebutPeriode.getDate() - daysToMonday)
+                                    dateFinPeriode = new Date(dateDebutPeriode)
+                                    dateFinPeriode.setDate(dateFinPeriode.getDate() + 6)
+                                    dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+                                    dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+                                  } else if (precision === 'MOIS') {
+                                    dateDebutPeriode = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+                                    dateFinPeriode = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+                                    if (dateFinPeriode > dateFin) {
+                                      dateFinPeriode = new Date(dateFin)
+                                    }
+                                    dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+                                    dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+                                  } else {
+                                    dateDebutPeriode = normalizeDateToUTC(col.date)
+                                    dateFinPeriode = normalizeDateToUTC(col.date)
+                                  }
+
+                                  // Vérifier si la ressource est déjà affectée sur cette période (sur-affectation)
+                                  const affectationsExistantes = getAffectationsExistantess(ressource.id, dateDebutPeriode, dateFinPeriode)
+                                  const affectationsConflit = affectationsExistantes.filter((aff) => {
+                                    // Exclure les affectations de la même affaire/compétence (c'est normal)
+                                    const affaireActuelle = affaires.find(a => a.affaire_id === affaireId && a.site === site)
+                                    if (affaireActuelle && aff.affaire_id === affaireActuelle.id && aff.competence === comp) {
+                                      return false // Même affaire/compétence = pas un conflit
+                                    }
+                                    return true // Autre affaire ou compétence = conflit
+                                  })
+                                  const isDejaAffectee = affectationsConflit.length > 0
+
+                                  // Construire le tooltip avec les détails des affectations en conflit
+                                  let tooltipText = ''
+                                  if (isDejaAffectee) {
+                                    const details: string[] = []
+                                    affectationsConflit.forEach((aff) => {
+                                      // Utiliser le cache des affaires
+                                      const affaireDetails = affairesDetails.get(aff.affaire_id)
+                                      const affaireLabel = affaireDetails
+                                        ? `${affaireDetails.affaire_id}${affaireDetails.libelle ? ' - ' + affaireDetails.libelle : ''}`
+                                        : 'Affaire inconnue'
+                                      details.push(
+                                        `${affaireLabel} / ${aff.site} / ${aff.competence}\n${new Date(aff.date_debut).toLocaleDateString('fr-FR')} - ${new Date(aff.date_fin).toLocaleDateString('fr-FR')}`
+                                      )
+                                    })
+                                    tooltipText = `Déjà affectée sur :\n${details.join('\n\n')}`
+                                  }
+
                                   return (
                                     <td
                                       key={idx}
-                                      className={`px-2 py-2 text-center ${
+                                      className={`px-2 py-2 text-center relative ${
                                         col.isWeekend ? 'bg-blue-50/50' : col.isHoliday ? 'bg-pink-50/50' : ''
-                                      }`}
+                                      } ${isDejaAffectee && !isAffecte ? 'bg-gray-200/50' : ''}`}
                                     >
-                                      <input
-                                        type="checkbox"
-                                        checked={isAffecte}
-                                        onChange={(e) => handleAffectationChange(comp, ressource.id, col, e.target.checked)}
-                                        className="w-5 h-5 cursor-pointer accent-green-500 rounded transition-all hover:scale-110"
-                                      />
+                                      <div className="relative inline-block group">
+                                        <input
+                                          type="checkbox"
+                                          checked={isAffecte}
+                                          onChange={(e) => handleAffectationChange(comp, ressource.id, col, e.target.checked)}
+                                          disabled={isDejaAffectee && !isAffecte}
+                                          className={`w-5 h-5 rounded transition-all ${
+                                            isDejaAffectee && !isAffecte
+                                              ? 'cursor-not-allowed opacity-50 bg-gray-300'
+                                              : 'cursor-pointer accent-green-500 hover:scale-110'
+                                          }`}
+                                        />
+                                        {/* Tooltip au survol */}
+                                        {isDejaAffectee && tooltipText && (
+                                          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 whitespace-pre-line max-w-xs pointer-events-none">
+                                            <div className="font-semibold mb-1 text-yellow-300">⚠️ Déjà affectée</div>
+                                            <div className="text-xs">{tooltipText}</div>
+                                            {/* Flèche pointant vers la gauche */}
+                                            <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-b-[6px] border-r-[6px] border-transparent border-r-gray-900"></div>
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
                                   )
                                 })}
