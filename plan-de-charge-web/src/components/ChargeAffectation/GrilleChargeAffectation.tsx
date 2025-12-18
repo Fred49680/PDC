@@ -42,12 +42,12 @@ const mockCompetencesMap = new Map([
 const COMPETENCES_LIST = ['BE_IES', 'IES', 'INSTRUM', 'ROB', 'AUTO', 'FIBRE OPTIQUE']
 
 // Utility functions simplifiées
-const isWeekend = (date) => [0, 6].includes(date.getDay())
-const isFrenchHoliday = (date) => false // Simplification
-const isBusinessDay = (date) => !isWeekend(date) && !isFrenchHoliday(date)
+const isWeekend = (date: Date): boolean => [0, 6].includes(date.getDay())
+const isFrenchHoliday = (date: Date): boolean => false // Simplification
+const isBusinessDay = (date: Date): boolean => !isWeekend(date) && !isFrenchHoliday(date)
 
-const getDatesBetween = (start, end) => {
-  const dates = []
+const getDatesBetween = (start: Date, end: Date): Date[] => {
+  const dates: Date[] = []
   const current = new Date(start)
   while (current <= end) {
     dates.push(new Date(current))
@@ -56,19 +56,19 @@ const getDatesBetween = (start, end) => {
   return dates
 }
 
-const formatSemaineISO = (date) => {
+const formatSemaineISO = (date: Date): string => {
   const year = date.getFullYear()
-  const week = Math.ceil((date - new Date(year, 0, 1)) / (7 * 24 * 60 * 60 * 1000))
+  const week = Math.ceil((date.getTime() - new Date(year, 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))
   return `S${week.toString().padStart(2, '0')}`
 }
 
-const addWeeks = (date, weeks) => {
+const addWeeks = (date: Date, weeks: number): Date => {
   const result = new Date(date)
   result.setDate(result.getDate() + weeks * 7)
   return result
 }
 
-const subWeeks = (date, weeks) => addWeeks(date, -weeks)
+const subWeeks = (date: Date, weeks: number): Date => addWeeks(date, -weeks)
 
 // ========================================
 // COMPOSANT PRINCIPAL OPTIMISÉ
