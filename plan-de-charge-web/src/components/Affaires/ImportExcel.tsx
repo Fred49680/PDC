@@ -48,7 +48,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
       'affaireid': 'affaire_id',
       'affaire_id': 'affaire_id',
       
-      // Compte (non stocké en base, juste pour référence)
+      // Compte (numéro de compte facultatif)
       'compte': 'compte',
       
       // Libellé (colonne "Affaire" dans Excel)
@@ -257,8 +257,8 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
                 break
             }
           } else if (dbField === 'compte') {
-            // Stocker le compte pour référence (non stocké en base)
-            mapped.compte = value ? String(value).trim() : undefined
+            // Stocker le compte (peut contenir des chiffres et des lettres)
+            mapped.compte = value && String(value).trim() !== '' ? String(value).trim() : undefined
           }
         }
 
@@ -359,6 +359,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
             raf_heures: row.raf_heures,
             date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
             responsable: row.responsable,
+            compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : null,
             actif: row.actif ?? true,
             date_creation: new Date().toISOString(),
             date_modification: new Date().toISOString(),
@@ -420,6 +421,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
               raf_heures: row.raf_heures,
               date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
               responsable: row.responsable,
+              compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : null,
               actif: row.actif ?? true,
               date_modification: new Date().toISOString(),
             }
@@ -457,6 +459,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
           raf_heures: row.raf_heures,
           date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
           responsable: row.responsable,
+          compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : null,
           actif: row.actif ?? true,
           date_creation: new Date().toISOString(),
           date_modification: new Date().toISOString(),
@@ -590,7 +593,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
                   <p className="font-semibold mt-3 mb-2">Colonnes optionnelles :</p>
                   <ul className="list-disc list-inside space-y-1 ml-2">
                     <li><strong>AffaireID</strong> : Identifiant (généré automatiquement si vide)</li>
-                    <li><strong>Compte</strong> : Code compte (non stocké, référence uniquement)</li>
+                    <li><strong>Compte</strong> : Numéro de compte (facultatif, chiffres et lettres)</li>
                     <li><strong>Tranche</strong> : Tranche/Segment</li>
                     <li><strong>Statut</strong> : Ouverte, Prévisionnelle, ou Fermée</li>
                     <li><strong>Responsable</strong> : Nom du responsable</li>
@@ -642,6 +645,9 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
                     Libellé
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">
+                    Compte
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">
                     Tranche
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">
@@ -666,6 +672,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{row.site}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{row.libelle}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{row.compte || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{row.tranche || '-'}</td>
                     <td className="px-4 py-3 text-sm">
                       <span
