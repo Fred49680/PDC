@@ -15,6 +15,7 @@ interface GrilleChargeAffectationProps {
   dateFin: Date
   precision: Precision
   onDateChange?: (newDateDebut: Date, newDateFin: Date) => void
+  onPrecisionChange?: (newPrecision: Precision) => void
 }
 
 interface ColonneDate {
@@ -68,6 +69,7 @@ export default function GrilleChargeAffectation({
   dateFin: propDateFin,
   precision: propPrecision,
   onDateChange,
+  onPrecisionChange,
 }: GrilleChargeAffectationProps) {
   const [precision, setPrecision] = useState<Precision>(propPrecision)
   const [dateDebut, setDateDebut] = useState(propDateDebut)
@@ -719,6 +721,10 @@ export default function GrilleChargeAffectation({
                 onClick={() => {
                   console.log(`[GrilleChargeAffectation] Changement précision: JOUR (précédent: ${precision})`)
                   setPrecision('JOUR')
+                  // Remonter le changement au parent si callback fourni
+                  if (onPrecisionChange) {
+                    onPrecisionChange('JOUR')
+                  }
                 }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-all
@@ -734,6 +740,10 @@ export default function GrilleChargeAffectation({
                 onClick={() => {
                   console.log(`[GrilleChargeAffectation] Changement précision: SEMAINE (précédent: ${precision})`)
                   setPrecision('SEMAINE')
+                  // Remonter le changement au parent si callback fourni
+                  if (onPrecisionChange) {
+                    onPrecisionChange('SEMAINE')
+                  }
                 }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-all
@@ -749,6 +759,10 @@ export default function GrilleChargeAffectation({
                 onClick={() => {
                   console.log(`[GrilleChargeAffectation] Changement précision: MOIS (précédent: ${precision})`)
                   setPrecision('MOIS')
+                  // Remonter le changement au parent si callback fourni
+                  if (onPrecisionChange) {
+                    onPrecisionChange('MOIS')
+                  }
                 }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-all

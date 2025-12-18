@@ -332,6 +332,9 @@ export default function PlanningPage() {
                          setDateDebut(newDateDebut)
                          setDateFin(newDateFin)
                        }}
+                       onPrecisionChange={(newPrecision) => {
+                         setPrecision(newPrecision)
+                       }}
                      />
                    </div>
                  ) : (
