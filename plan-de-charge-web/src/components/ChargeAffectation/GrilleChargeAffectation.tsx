@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { CheckCircle2, Info, Users, Target, ChevronLeft, ChevronRight, Filter, Loader2 } from 'lucide-react'
 import { normalizeDateToUTC } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
+import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import type { Precision } from '@/types/charge'
 import type { Affaire } from '@/types/charge'
 import { useCharge } from '@/hooks/useCharge'
@@ -210,6 +211,89 @@ export default function GrilleChargeAffectation({
   // États de filtres
   const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(new Set<string>())
   const [competencesInitialisees, setCompetencesInitialisees] = useState(false) // Flag pour éviter réinitialisation après interaction utilisateur
+  
+  // État pour la modal de confirmation personnalisée
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+    onCancel: () => void
+    confirmText?: string
+    cancelText?: string
+    type?: 'warning' | 'error' | 'info'
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    onCancel: () => {},
+    confirmText: 'OK',
+    cancelText: 'Annuler',
+    type: 'warning'
+  })
+  
+  // Référence pour stocker le resolver de la promesse en attente
+  const pendingConfirmResolver = useRef<((value: boolean) => void) | null>(null)
+  
+  // Fonction helper pour ouvrir une modal de confirmation (retourne une promesse)
+  const confirmAsync = useCallback((
+    title: string,
+    message: string,
+    options?: {
+      confirmText?: string
+      cancelText?: string
+      type?: 'warning' | 'error' | 'info'
+    }
+  ): Promise<boolean> => {
+    return new Promise((resolve) => {
+      pendingConfirmResolver.current = resolve
+      setConfirmDialog({
+        isOpen: true,
+        title,
+        message,
+        onConfirm: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+          if (pendingConfirmResolver.current) {
+            pendingConfirmResolver.current(true)
+            pendingConfirmResolver.current = null
+          }
+        },
+        onCancel: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+          if (pendingConfirmResolver.current) {
+            pendingConfirmResolver.current(false)
+            pendingConfirmResolver.current = null
+          }
+        },
+        confirmText: options?.confirmText || 'OK',
+        cancelText: options?.cancelText || 'Annuler',
+        type: options?.type || 'warning'
+      })
+    })
+  }, [])
+  
+  // Fonction helper pour afficher une alerte (modal d'erreur/info sans choix)
+  const showAlert = useCallback((
+    title: string,
+    message: string,
+    type: 'error' | 'info' = 'error'
+  ) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+      },
+      onCancel: () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+      },
+      confirmText: 'Compris',
+      cancelText: '',
+      type
+    })
+  }, [])
   
   // Extraire la liste des compétences depuis les périodes et les ressources
   const competencesList = useMemo(() => {
@@ -560,7 +644,7 @@ export default function GrilleChargeAffectation({
   // ========================================
   // HANDLER CHARGE AVEC DEBOUNCING
   // ========================================
-  const handleChargeChange = useCallback((competence: string, col: ColonneDate, value: number) => {
+  const handleChargeChange = useCallback(async (competence: string, col: ColonneDate, value: number) => {
     const cellKey = `${competence}|${col.date.getTime()}`
     const nbRessources = Math.max(0, Math.floor(value))
     
@@ -590,8 +674,10 @@ export default function GrilleChargeAffectation({
           
           // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
           if (nbRessources > 0 && col.isWeekend) {
-            const confirme = window.confirm(
-              `⚠️ Attention : Vous souhaitez enregistrer une charge un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+            const confirme = await confirmAsync(
+              'Attention',
+              `Vous souhaitez enregistrer une charge un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
+              { type: 'warning' }
             )
             if (!confirme) {
               // Annuler la sauvegarde et remettre la valeur à 0
@@ -607,8 +693,10 @@ export default function GrilleChargeAffectation({
 
           // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
           if (nbRessources > 0 && col.isHoliday) {
-            const confirme = window.confirm(
-              `⚠️ Attention : Vous souhaitez enregistrer une charge un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+            const confirme = await confirmAsync(
+              'Attention',
+              `Vous souhaitez enregistrer une charge un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
+              { type: 'warning' }
             )
             if (!confirme) {
               // Annuler la sauvegarde et remettre la valeur à 0
@@ -635,7 +723,11 @@ export default function GrilleChargeAffectation({
           
           // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
           if (periodeContientWeekendOuFerie(dateDebutPeriode, dateFinPeriode)) {
-            alert('❌ Impossible d\'enregistrer une charge en mode SEMAINE si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour saisir des charges sur les week-ends ou jours fériés.')
+            showAlert(
+              'Action impossible',
+              'Impossible d\'enregistrer une charge en mode SEMAINE si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour saisir des charges sur les week-ends ou jours fériés.',
+              'error'
+            )
             return // Annuler la sauvegarde
           }
         } else if (precision === 'MOIS') {
@@ -652,7 +744,11 @@ export default function GrilleChargeAffectation({
           
           // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
           if (periodeContientWeekendOuFerie(dateDebutPeriode, dateFinPeriode)) {
-            alert('❌ Impossible d\'enregistrer une charge en mode MOIS si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour saisir des charges sur les week-ends ou jours fériés.')
+            showAlert(
+              'Action impossible',
+              'Impossible d\'enregistrer une charge en mode MOIS si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour saisir des charges sur les week-ends ou jours fériés.',
+              'error'
+            )
             return // Annuler la sauvegarde
           }
         } else {
@@ -708,7 +804,7 @@ export default function GrilleChargeAffectation({
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, periodeContientWeekendOuFerie])
+  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, periodeContientWeekendOuFerie, confirmAsync, showAlert])
 
   // ========================================
   // FONCTION : Vérifier les affectations existantes d'une ressource
@@ -801,7 +897,11 @@ export default function GrilleChargeAffectation({
       
       // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
       if (periodeContientWeekendOuFerie(dateDebutAffectation, dateFinAffectation)) {
-        alert('❌ Impossible d\'affecter une ressource en mode SEMAINE si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour affecter des ressources sur les week-ends ou jours fériés.')
+        showAlert(
+          'Action impossible',
+          'Impossible d\'affecter une ressource en mode SEMAINE si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour affecter des ressources sur les week-ends ou jours fériés.',
+          'error'
+        )
         return // Annuler l'affectation
       }
     } else if (precision === 'MOIS') {
@@ -818,7 +918,11 @@ export default function GrilleChargeAffectation({
       
       // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
       if (periodeContientWeekendOuFerie(dateDebutAffectation, dateFinAffectation)) {
-        alert('❌ Impossible d\'affecter une ressource en mode MOIS si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour affecter des ressources sur les week-ends ou jours fériés.')
+        showAlert(
+          'Action impossible',
+          'Impossible d\'affecter une ressource en mode MOIS si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour affecter des ressources sur les week-ends ou jours fériés.',
+          'error'
+        )
         return // Annuler l'affectation
       }
     } else {
@@ -831,8 +935,10 @@ export default function GrilleChargeAffectation({
       if (checked) {
         // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
         if (precision === 'JOUR' && col.isWeekend) {
-          const confirme = window.confirm(
-            `⚠️ Attention : Vous souhaitez affecter cette ressource un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+          const confirme = await confirmAsync(
+            'Attention',
+            `Vous souhaitez affecter cette ressource un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
+            { type: 'warning' }
           )
           if (!confirme) {
             return // Annuler l'affectation
@@ -841,8 +947,10 @@ export default function GrilleChargeAffectation({
 
         // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
         if (precision === 'JOUR' && col.isHoliday) {
-          const confirme = window.confirm(
-            `⚠️ Attention : Vous souhaitez affecter cette ressource un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+          const confirme = await confirmAsync(
+            'Attention',
+            `Vous souhaitez affecter cette ressource un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
+            { type: 'warning' }
           )
           if (!confirme) {
             return // Annuler l'affectation
@@ -876,8 +984,10 @@ export default function GrilleChargeAffectation({
             ? absenceConflit.date_fin
             : new Date(absenceConflit.date_fin)
           
-          alert(
-            `❌ Impossible d'affecter : la ressource est absente (${absenceConflit.type}) du ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`
+          showAlert(
+            'Affectation impossible',
+            `Impossible d'affecter : la ressource est absente (${absenceConflit.type}) du ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`,
+            'error'
           )
           return // Ne pas enregistrer l'affectation
         }
@@ -912,8 +1022,10 @@ export default function GrilleChargeAffectation({
             )
           }
           
-          alert(
-            `❌ Impossible d'affecter : la ressource est déjà affectée sur cette période :\n\n${detailsConflits.join('\n')}\n\nUne ressource ne peut pas être affectée à plusieurs affaires en même temps.`
+          showAlert(
+            'Affectation impossible',
+            `Impossible d'affecter : la ressource est déjà affectée sur cette période :\n\n${detailsConflits.join('\n')}\n\nUne ressource ne peut pas être affectée à plusieurs affaires en même temps.`,
+            'error'
           )
           return // Ne pas enregistrer l'affectation
         }
@@ -1045,7 +1157,7 @@ export default function GrilleChargeAffectation({
     } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate, periodeContientWeekendOuFerie])
+  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate, periodeContientWeekendOuFerie, confirmAsync, showAlert])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
@@ -1682,8 +1794,20 @@ export default function GrilleChargeAffectation({
               </li>
             </ul>
           </div>
-        </div>
+        </div> 
       </div>
-    </div>
-  )
+      
+      {/* Modal de confirmation personnalisée */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={confirmDialog.onCancel}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+        type={confirmDialog.type}
+      />
+    </div> 
+  ) 
 }
