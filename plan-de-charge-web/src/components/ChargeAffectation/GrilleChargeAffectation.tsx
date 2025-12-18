@@ -1695,7 +1695,17 @@ export default function GrilleChargeAffectation({
                                         <input
                                           type="checkbox"
                                           checked={isAffecte}
-                                          onChange={(e) => handleAffectationChange(comp, ressource.id, col, e.target.checked)}
+                                          onChange={async (e) => {
+                                            console.log('[GrilleChargeAffectation] onChange checkbox déclenché, checked =', e.target.checked)
+                                            try {
+                                              await handleAffectationChange(comp, ressource.id, col, e.target.checked)
+                                              console.log('[GrilleChargeAffectation] handleAffectationChange terminé avec succès')
+                                            } catch (err) {
+                                              console.error('[GrilleChargeAffectation] Erreur dans handleAffectationChange:', err)
+                                              // Remettre la checkbox à son état précédent en cas d'erreur
+                                              e.target.checked = !e.target.checked
+                                            }
+                                          }}
                                           disabled={(isDejaAffectee && !isAffecte) || (absenceCell !== null)}
                                           className={`w-5 h-5 rounded transition-all ${
                                             (isDejaAffectee && !isAffecte) || (absenceCell !== null)
