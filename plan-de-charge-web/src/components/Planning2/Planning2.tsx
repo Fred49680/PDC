@@ -215,10 +215,12 @@ export default function Planning2({
       const dates = getDatesBetween(dateDebut, dateFin)
       dates.forEach((date) => {
         const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' })
+        const day = date.getDate().toString().padStart(2, '0')
+        const month = date.toLocaleDateString('fr-FR', { month: 'short' })
         cols.push({
           date,
           label: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-          shortLabel: `${dayName} ${date.getDate()}`,
+          shortLabel: `${day} ${month}`,
           isWeekend: isWeekend(date),
           isHoliday: isFrenchHoliday(date),
           semaineISO: formatSemaineISO(date),
@@ -1077,38 +1079,44 @@ export default function Planning2({
                                   )}
                                 </div>
 
-                                {/* Cellule Affecté et Besoin (combinée) */}
-                                <div className={`rounded-xl p-3 mb-2 border-2 relative ${
+                                {/* Cellule Affecté */}
+                                <div className={`rounded-xl p-3 mb-2 border-2 ${
                                   isOver ? 'bg-red-100 border-red-400' :
                                   isUnder ? 'bg-orange-100 border-orange-400' :
                                   'bg-green-100 border-green-400'
                                 }`}>
+                                  <div className="text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span className="text-lg font-bold text-gray-800">{totalAffecteCol}</span>
+                                      <span className="text-xs text-gray-600">Affecté</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Cellule Besoin */}
+                                <div className="relative">
                                   {isSaving && (
                                     <div className="absolute -top-1 -right-1 z-10">
                                       <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                                     </div>
                                   )}
-                                  <div className="text-center space-y-2">
-                                    {/* Ligne Affecté */}
-                                    <div className="flex items-center justify-center gap-1">
-                                      <span className="text-lg font-bold text-gray-800">{totalAffecteCol}</span>
-                                      <span className="text-xs text-gray-600">Affecté</span>
-                                    </div>
-                                    {/* Ligne Besoin avec input */}
-                                    <div className="flex items-center justify-center gap-1">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        value={besoin}
-                                        onChange={(e) => handleChargeChange(compData.competence, idx, parseInt(e.target.value) || 0)}
-                                        className={`w-12 px-2 py-1 border-2 rounded text-center text-sm font-semibold transition-all ${
-                                          col.isWeekend ? 'border-blue-300 bg-blue-50' :
-                                          col.isHoliday ? 'border-pink-300 bg-pink-50' :
-                                          'border-yellow-300 bg-white'
-                                        } focus:outline-none focus:ring-2 focus:ring-yellow-500`}
-                                      />
-                                      <span className="text-xs text-gray-600">Besoin</span>
+                                  <div className={`rounded-xl p-3 mb-2 border-2 ${
+                                    col.isWeekend ? 'bg-blue-50 border-blue-300' :
+                                    col.isHoliday ? 'bg-pink-50 border-pink-300' :
+                                    'bg-yellow-50 border-yellow-300'
+                                  }`}>
+                                    <div className="text-center">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          value={besoin}
+                                          onChange={(e) => handleChargeChange(compData.competence, idx, parseInt(e.target.value) || 0)}
+                                          className="w-12 px-2 py-1 border-2 border-yellow-400 rounded text-center text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                        />
+                                        <span className="text-xs text-gray-600">Besoin</span>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
