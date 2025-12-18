@@ -1565,18 +1565,19 @@ export default function GrilleChargeAffectation({
                       return (
                         <td
                           key={idx}
-                                className={`px-2 py-2 border-b-2 border-yellow-200 relative ${
+                                className={`px-2 py-2 border-b-2 border-yellow-200 relative text-center ${
                                   col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''
                           }`}
                         >
-                                <div className="relative">
+                                <div className="relative flex items-center justify-center">
                           <input
                             type="number"
                             min="0"
                             step="1"
                             value={value}
                                     onChange={(e) => handleChargeChange(comp, col, parseInt(e.target.value) || 0)}
-                                    className="w-full text-center border-2 border-yellow-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white font-semibold transition-all"
+                                    className="w-full border-2 border-yellow-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white font-semibold transition-all text-center"
+                                    style={{ textAlign: 'center' }}
                                   />
                                   {isSaving && (
                                     <div className="absolute -top-1 -right-1">
