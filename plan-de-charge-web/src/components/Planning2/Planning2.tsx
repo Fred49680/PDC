@@ -17,7 +17,7 @@ import {
   Loader2,
   Sparkles
 } from 'lucide-react'
-import { normalizeDateToUTC } from '@/utils/calendar'
+import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import type { Precision } from '@/types/charge'
@@ -121,7 +121,7 @@ export default function Planning2({
   }, [propPrecision, propDateDebut, propDateFin])
   
   // Chargement des données
-  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate } = useCharge({
+  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate, refresh: refreshCharge } = useCharge({
     affaireId,
     site,
     autoRefresh,
@@ -488,6 +488,85 @@ export default function Planning2({
 
   const pendingConfirmResolver = useRef<((value: boolean) => void) | null>(null)
 
+  // Modal de charge de masse
+  const [chargeMasseModal, setChargeMasseModal] = useState<{
+    isOpen: boolean
+    competence: string
+    dateDebut: Date | null
+    dateFinInput: string
+    nbRessourcesInput: string
+  }>({
+    isOpen: false,
+    competence: '',
+    dateDebut: null,
+    dateFinInput: '',
+    nbRessourcesInput: '1'
+  })
+
+  const pendingChargeMasseResolver = useRef<((value: { dateFin: Date; nbRessources: number } | null) => void) | null>(null)
+
+  const openChargeMasseModal = useCallback((
+    competence: string,
+    dateDebut: Date
+  ): Promise<{ dateFin: Date; nbRessources: number } | null> => {
+    return new Promise((resolve) => {
+      pendingChargeMasseResolver.current = resolve
+      setChargeMasseModal({
+        isOpen: true,
+        competence,
+        dateDebut,
+        dateFinInput: dateFin.toLocaleDateString('fr-FR'),
+        nbRessourcesInput: '1'
+      })
+    })
+  }, [dateFin])
+
+  const handleChargeMasseModalConfirm = useCallback(() => {
+    if (!chargeMasseModal.dateDebut) {
+      if (pendingChargeMasseResolver.current) {
+        pendingChargeMasseResolver.current(null)
+        pendingChargeMasseResolver.current = null
+      }
+      setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
+      return
+    }
+
+    // Parser la date de fin
+    const [jour, mois, annee] = chargeMasseModal.dateFinInput.split('/').map(Number)
+    if (!jour || !mois || !annee || isNaN(jour) || isNaN(mois) || isNaN(annee)) {
+      showAlert('Erreur', 'Format de date invalide. Utilisez JJ/MM/AAAA', 'error')
+      return
+    }
+
+    const dateFin = normalizeDateToUTC(new Date(annee, mois - 1, jour))
+    
+    if (dateFin < chargeMasseModal.dateDebut) {
+      showAlert('Erreur', 'La date de fin doit être postérieure à la date de début', 'error')
+      return
+    }
+
+    // Parser le nombre de ressources
+    const nbRessources = parseInt(chargeMasseModal.nbRessourcesInput, 10)
+    if (isNaN(nbRessources) || nbRessources < 0) {
+      showAlert('Erreur', 'Le nombre de ressources doit être un nombre positif', 'error')
+      return
+    }
+
+    if (pendingChargeMasseResolver.current) {
+      pendingChargeMasseResolver.current({ dateFin, nbRessources })
+      pendingChargeMasseResolver.current = null
+    }
+    setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
+  }, [chargeMasseModal, showAlert])
+
+  const handleChargeMasseModalCancel = useCallback(() => {
+    if (pendingChargeMasseResolver.current) {
+      pendingChargeMasseResolver.current(null)
+      pendingChargeMasseResolver.current = null
+    }
+    setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
+  }, [])
+
   const confirmAsync = useCallback((
     title: string,
     message: string,
@@ -785,7 +864,7 @@ export default function Planning2({
     }
   }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, showAlert, autoRefresh])
 
-  // Charge de masse : créer des périodes de charge entre dateDebut et dateFin
+  // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
     try {
       const col = colonnes[colIndex]
@@ -808,81 +887,41 @@ export default function Planning2({
         dateDebutMasse = normalizeDateToUTC(col.date)
       }
 
-      // Demander la date de fin
-      const dateFinStr = window.prompt(
-        `Créer une charge de masse pour "${competence}"\n\nDate de début : ${dateDebutMasse.toLocaleDateString('fr-FR')}\n\nEntrez la date de fin (JJ/MM/AAAA) :`,
-        dateFin.toLocaleDateString('fr-FR')
-      )
-      
-      if (!dateFinStr) return // Annulé
-      
-      // Parser la date de fin
-      const [jour, mois, annee] = dateFinStr.split('/').map(Number)
-      if (!jour || !mois || !annee || isNaN(jour) || isNaN(mois) || isNaN(annee)) {
-        showAlert('Erreur', 'Format de date invalide. Utilisez JJ/MM/AAAA', 'error')
-        return
-      }
-      
-      const dateFinMasse = normalizeDateToUTC(new Date(annee, mois - 1, jour))
-      
-      if (dateFinMasse < dateDebutMasse) {
-        showAlert('Erreur', 'La date de fin doit être postérieure à la date de début', 'error')
-        return
-      }
-      
-      // Demander le nombre de ressources
-      const nbRessourcesStr = window.prompt(
-        `Nombre de ressources nécessaires sur la période :`,
-        '1'
-      )
-      
-      if (!nbRessourcesStr) return // Annulé
-      
-      const nbRessources = parseInt(nbRessourcesStr, 10)
-      if (isNaN(nbRessources) || nbRessources < 0) {
-        showAlert('Erreur', 'Le nombre de ressources doit être un nombre positif', 'error')
-        return
-      }
-      
-      // Confirmation
-      const confirme = await confirmAsync(
-        'Charge de masse',
-        `Créer une charge de ${nbRessources} ressource(s) pour "${competence}"\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\nConfirmer ?`,
-        { type: 'info' }
-      )
-      
-      if (!confirme) return
+      // Ouvrir le modal pour demander date de fin et nombre de ressources
+      const modalResult = await openChargeMasseModal(competence, dateDebutMasse)
+      if (!modalResult) return // Annulé
 
-      // Créer les périodes selon la précision
-      let nbPeriodesCreees = 0
+      const { dateFin: dateFinMasse, nbRessources } = modalResult
+
+      // Préparer toutes les périodes à créer (uniquement jours ouvrés pour précision JOUR)
+      const periodesACreer: Array<{
+        competence: string
+        date_debut: Date
+        date_fin: Date
+        nb_ressources: number
+        force_weekend_ferie: boolean
+      }> = []
       
       if (precision === 'JOUR') {
-        // Créer une période par jour ouvré
+        // Créer une période uniquement pour les jours ouvrés (lundi-vendredi, pas fériés)
         let currentDate = new Date(dateDebutMasse)
         while (currentDate <= dateFinMasse) {
-          const dateNorm = normalizeDateToUTC(currentDate)
-          // Vérifier si c'est un jour ouvré ou si c'est un week-end/férié
-          const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6
-          const isHoliday = isFrenchHoliday(currentDate)
-          const forceWeekendFerie = (isWeekend || isHoliday) && nbRessources > 0
-          
-          try {
-            await savePeriode({
+          // Vérifier si c'est un jour ouvré (exclut week-ends et fériés)
+          if (isBusinessDay(currentDate)) {
+            const dateNorm = normalizeDateToUTC(currentDate)
+            periodesACreer.push({
               competence,
               date_debut: dateNorm,
               date_fin: dateNorm,
               nb_ressources: nbRessources,
-              force_weekend_ferie: forceWeekendFerie
+              force_weekend_ferie: false // Toujours false car on filtre les jours ouvrés
             })
-            nbPeriodesCreees++
-          } catch (err) {
-            console.error(`[Planning2] Erreur création période ${dateNorm.toLocaleDateString('fr-FR')}:`, err)
           }
-          
           currentDate.setDate(currentDate.getDate() + 1)
         }
       } else if (precision === 'SEMAINE') {
-        // Créer une période par semaine (du lundi au dimanche)
+        // Pour SEMAINE, créer des périodes mais seulement pour les semaines contenant au moins un jour ouvré
+        // On crée la période complète (lundi-dimanche) mais avec uniquement les jours ouvrés comptés
         let currentDate = new Date(dateDebutMasse)
         while (currentDate <= dateFinMasse) {
           const weekStart = new Date(currentDate)
@@ -894,27 +933,34 @@ export default function Planning2({
             weekEnd = new Date(dateFinMasse)
           }
           
-          const dateDebutNorm = normalizeDateToUTC(weekStart)
-          const dateFinNorm = normalizeDateToUTC(weekEnd)
+          // Vérifier qu'il y a au moins un jour ouvré dans cette semaine
+          let hasBusinessDay = false
+          let checkDate = new Date(weekStart)
+          while (checkDate <= weekEnd) {
+            if (isBusinessDay(checkDate)) {
+              hasBusinessDay = true
+              break
+            }
+            checkDate.setDate(checkDate.getDate() + 1)
+          }
           
-          try {
-            await savePeriode({
+          if (hasBusinessDay) {
+            const dateDebutNorm = normalizeDateToUTC(weekStart)
+            const dateFinNorm = normalizeDateToUTC(weekEnd)
+            periodesACreer.push({
               competence,
               date_debut: dateDebutNorm,
               date_fin: dateFinNorm,
               nb_ressources: nbRessources,
               force_weekend_ferie: false
             })
-            nbPeriodesCreees++
-          } catch (err) {
-            console.error(`[Planning2] Erreur création période semaine ${dateDebutNorm.toLocaleDateString('fr-FR')}:`, err)
           }
           
           // Passer à la semaine suivante
           currentDate.setDate(currentDate.getDate() + 7)
         }
       } else if (precision === 'MOIS') {
-        // Créer une période par mois
+        // Pour MOIS, créer des périodes pour chaque mois contenant au moins un jour ouvré
         let currentDate = new Date(dateDebutMasse)
         while (currentDate <= dateFinMasse) {
           const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
@@ -925,20 +971,27 @@ export default function Planning2({
             monthEnd = new Date(dateFinMasse)
           }
           
-          const dateDebutNorm = normalizeDateToUTC(monthStart)
-          const dateFinNorm = normalizeDateToUTC(monthEnd)
+          // Vérifier qu'il y a au moins un jour ouvré dans ce mois
+          let hasBusinessDay = false
+          let checkDate = new Date(monthStart)
+          while (checkDate <= monthEnd) {
+            if (isBusinessDay(checkDate)) {
+              hasBusinessDay = true
+              break
+            }
+            checkDate.setDate(checkDate.getDate() + 1)
+          }
           
-          try {
-            await savePeriode({
+          if (hasBusinessDay) {
+            const dateDebutNorm = normalizeDateToUTC(monthStart)
+            const dateFinNorm = normalizeDateToUTC(monthEnd)
+            periodesACreer.push({
               competence,
               date_debut: dateDebutNorm,
               date_fin: dateFinNorm,
               nb_ressources: nbRessources,
               force_weekend_ferie: false
             })
-            nbPeriodesCreees++
-          } catch (err) {
-            console.error(`[Planning2] Erreur création période mois ${dateDebutNorm.toLocaleDateString('fr-FR')}:`, err)
           }
           
           // Passer au mois suivant
@@ -946,17 +999,53 @@ export default function Planning2({
           currentDate.setDate(1)
         }
       }
+
+      if (periodesACreer.length === 0) {
+        showAlert(
+          'Information',
+          'Aucune période de jours ouvrés trouvée entre ces dates.',
+          'info'
+        )
+        return
+      }
+
+      // Confirmation finale
+      const confirme = await confirmAsync(
+        'Charge de masse',
+        `Créer ${periodesACreer.length} période(s) avec ${nbRessources} ressource(s) nécessaire(s) pour "${competence}"\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\n(Uniquement jours ouvrés : lundi-vendredi)\n\nConfirmer ?`,
+        { type: 'info' }
+      )
       
-      // Consolider les périodes créées
-      if (precision === 'JOUR' && autoRefresh && nbPeriodesCreees > 0) {
-        setTimeout(() => {
-          consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
-        }, 1000)
+      if (!confirme) return
+
+      // Enregistrer toutes les périodes d'un coup (batch)
+      // On désactive temporairement le refresh en utilisant une variable locale
+      // mais useCharge n'a pas de paramètre pour ça, donc on va simplement les créer séquentiellement
+      // puis recharger une seule fois à la fin
+      let nbPeriodesCreees = 0
+      for (const periode of periodesACreer) {
+        try {
+          await savePeriode(periode)
+          nbPeriodesCreees++
+        } catch (err) {
+          console.error(`[Planning2] Erreur création période ${periode.date_debut.toLocaleDateString('fr-FR')}:`, err)
+        }
+      }
+      
+      // Recharger les données après toutes les créations (refresh unique)
+      if (nbPeriodesCreees > 0) {
+        // Recharger les périodes
+        await refreshCharge()
+        
+        // Consolider si précision JOUR
+        if (precision === 'JOUR') {
+          await consolidate(competence)
+        }
       }
       
       showAlert(
         'Charge de masse terminée',
-        `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s).\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}`,
+        `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s).\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\n(Uniquement jours ouvrés)`,
         'info'
       )
     } catch (err) {
@@ -967,7 +1056,7 @@ export default function Planning2({
         'error'
       )
     }
-  }, [colonnes, precision, dateFin, savePeriode, consolidate, autoRefresh, confirmAsync, showAlert])
+  }, [colonnes, precision, dateFin, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, showAlert])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
@@ -1569,6 +1658,98 @@ export default function Planning2({
           </div>
         )}
       </div>
+
+      {/* Modal de charge de masse */}
+      {chargeMasseModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          {/* Overlay avec backdrop blur */}
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={handleChargeMasseModalCancel}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-blue-200 w-full max-w-md p-6 transform transition-all animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-400 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Target className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-800 mb-1">Charge de masse</h3>
+                <p className="text-gray-600 text-sm">
+                  Compétence : <span className="font-semibold">{chargeMasseModal.competence}</span>
+                </p>
+                {chargeMasseModal.dateDebut && (
+                  <p className="text-gray-600 text-sm mt-1">
+                    Date de début : <span className="font-semibold">{chargeMasseModal.dateDebut.toLocaleDateString('fr-FR')}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Champs de saisie */}
+            <div className="space-y-4 mb-6">
+              {/* Date de fin */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date de fin <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={chargeMasseModal.dateFinInput}
+                  onChange={(e) => setChargeMasseModal(prev => ({ ...prev, dateFinInput: e.target.value }))}
+                  placeholder="JJ/MM/AAAA"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleChargeMasseModalConfirm()
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-1">Format : JJ/MM/AAAA (ex: 15/03/2026)</p>
+              </div>
+
+              {/* Nombre de ressources */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre de ressources nécessaires <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={chargeMasseModal.nbRessourcesInput}
+                  onChange={(e) => setChargeMasseModal(prev => ({ ...prev, nbRessourcesInput: e.target.value }))}
+                  placeholder="1"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleChargeMasseModalConfirm()
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-1">Uniquement jours ouvrés (lundi-vendredi, hors fériés)</p>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={handleChargeMasseModalCancel}
+                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 hover:shadow-md"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleChargeMasseModalConfirm}
+                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm text-white bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-lg hover:shadow-xl"
+              >
+                Créer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de confirmation */}
       <ConfirmDialog
