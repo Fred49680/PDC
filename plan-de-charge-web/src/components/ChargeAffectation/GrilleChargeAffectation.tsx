@@ -208,7 +208,7 @@ export default function GrilleChargeAffectation({
   // ========================================
   // HANDLER CHARGE AVEC DEBOUNCING
   // ========================================
-  const handleChargeChange = useCallback((competence, col, value) => {
+  const handleChargeChange = useCallback((competence: string, col: ColonneDate, value: number) => {
     const cellKey = `${competence}|${col.date.getTime()}`
     const nbRessources = Math.max(0, Math.floor(value))
     
@@ -275,7 +275,7 @@ export default function GrilleChargeAffectation({
   // ========================================
   // HANDLER AFFECTATION
   // ========================================
-  const handleAffectationChange = useCallback((competence, ressourceId, col, checked) => {
+  const handleAffectationChange = useCallback((competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
     console.log(`✅ Affectation ${checked ? 'ajoutée' : 'retirée'}: ${ressourceId} - ${competence} - ${col.label}`)
     
     // *** CORRECTION : Normaliser les dates à minuit UTC ***
