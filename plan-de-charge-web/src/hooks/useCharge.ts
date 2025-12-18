@@ -255,10 +255,24 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
 
       // Pour chaque compétence, consolider les périodes
       for (const [comp, periodesComp] of periodesParCompetence.entries()) {
-        // Déplier jour par jour (jours ouvrés uniquement)
-        const joursParCharge = new Map<string, number>() // Clé: date ISO (YYYY-MM-DD), Valeur: nb_ressources
+        // *** NOUVEAU : Séparer les périodes avec force_weekend_ferie=true (ne pas les consolider) ***
+        const periodesForcees: typeof allPeriodes = []
+        const periodesNormales: typeof allPeriodes = []
 
         periodesComp.forEach((p: any) => {
+          if (p.force_weekend_ferie === true) {
+            // Période forcée : la garder telle quelle (ligne séparée)
+            periodesForcees.push(p)
+          } else {
+            // Période normale : à consolider
+            periodesNormales.push(p)
+          }
+        })
+
+        // *** NOUVEAU : Déplier jour par jour (jours ouvrés uniquement) SEULEMENT pour les périodes normales ***
+        const joursParCharge = new Map<string, number>() // Clé: date ISO (YYYY-MM-DD), Valeur: nb_ressources
+
+        periodesNormales.forEach((p: any) => {
           const dateDebut = new Date(p.date_debut)
           const dateFin = new Date(p.date_fin)
           const nbRessources = p.nb_ressources || 0
@@ -278,7 +292,11 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
           }
         })
 
-        if (joursParCharge.size === 0) {
+        // *** NOUVEAU : Vérifier s'il y a des périodes à traiter (normales OU forcées) ***
+        const hasPeriodesNormales = joursParCharge.size > 0
+        const hasPeriodesForcees = periodesForcees.length > 0
+
+        if (!hasPeriodesNormales && !hasPeriodesForcees) {
           // Aucune période avec charge > 0, supprimer toutes les périodes de cette compétence
           for (const p of periodesComp) {
             await supabase.from('periodes_charge').delete().eq('id', p.id)
@@ -286,71 +304,88 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
           continue
         }
 
-        // Trier les dates
-        const datesTriees = Array.from(joursParCharge.keys()).sort()
-
-        // Regrouper les périodes consécutives avec la même charge
-        const nouvellesPeriodes: Array<{
-          date_debut: Date
-          date_fin: Date
-          nb_ressources: number
-        }> = []
-
-        if (datesTriees.length > 0) {
-          let periodeDebut = new Date(datesTriees[0] + 'T00:00:00') // Ajouter l'heure pour éviter les problèmes de timezone
-          let periodeFin = new Date(datesTriees[0] + 'T00:00:00')
-          let chargeActuelle = joursParCharge.get(datesTriees[0])!
-
-          for (let i = 1; i < datesTriees.length; i++) {
-            const dateActuelle = new Date(datesTriees[i] + 'T00:00:00')
-            const datePrecedente = new Date(datesTriees[i - 1] + 'T00:00:00')
-            const chargeActuelleDate = joursParCharge.get(datesTriees[i])!
-
-            // Vérifier si la date actuelle est le jour suivant (consécutif)
-            const jourSuivant = addDays(datePrecedente, 1)
-            const isConsecutif = isSameDay(dateActuelle, jourSuivant)
-
-            // Si consécutif (jour suivant) ET même charge, étendre la période
-            if (isConsecutif && chargeActuelleDate === chargeActuelle) {
-              periodeFin = dateActuelle
-            } else {
-              // Nouvelle période : sauvegarder l'ancienne
-              nouvellesPeriodes.push({
-                date_debut: periodeDebut,
-                date_fin: periodeFin,
-                nb_ressources: chargeActuelle,
-              })
-
-              // Commencer une nouvelle période
-              periodeDebut = dateActuelle
-              periodeFin = dateActuelle
-              chargeActuelle = chargeActuelleDate
-            }
-          }
-
-          // Ajouter la dernière période
-          nouvellesPeriodes.push({
-            date_debut: periodeDebut,
-            date_fin: periodeFin,
-            nb_ressources: chargeActuelle,
-          })
-        }
-
         // Supprimer toutes les anciennes périodes de cette compétence
         for (const p of periodesComp) {
           await supabase.from('periodes_charge').delete().eq('id', p.id)
         }
 
-        // Créer les nouvelles périodes consolidées
-        for (const nouvellePeriode of nouvellesPeriodes) {
+        // *** NOUVEAU : Recréer les périodes forcées telles quelles (lignes séparées) ***
+        for (const periodeForcee of periodesForcees) {
           await supabase.from('periodes_charge').insert({
             affaire_id: affaireData.id,
             site,
             competence: comp,
-            date_debut: normalizeDateToUTC(nouvellePeriode.date_debut),
-            date_fin: normalizeDateToUTC(nouvellePeriode.date_fin),
-            nb_ressources: nouvellePeriode.nb_ressources,
+            date_debut: normalizeDateToUTC(new Date(periodeForcee.date_debut)),
+            date_fin: normalizeDateToUTC(new Date(periodeForcee.date_fin)),
+            nb_ressources: periodeForcee.nb_ressources || 0,
+            force_weekend_ferie: true, // Conserver le flag
           })
+        }
+
+        // *** NOUVEAU : Consolider SEULEMENT les périodes normales (sans force_weekend_ferie) ***
+        if (hasPeriodesNormales) {
+          // Trier les dates
+          const datesTriees = Array.from(joursParCharge.keys()).sort()
+
+          // Regrouper les périodes consécutives avec la même charge
+          const nouvellesPeriodes: Array<{
+            date_debut: Date
+            date_fin: Date
+            nb_ressources: number
+          }> = []
+
+          if (datesTriees.length > 0) {
+            let periodeDebut = new Date(datesTriees[0] + 'T00:00:00') // Ajouter l'heure pour éviter les problèmes de timezone
+            let periodeFin = new Date(datesTriees[0] + 'T00:00:00')
+            let chargeActuelle = joursParCharge.get(datesTriees[0])!
+
+            for (let i = 1; i < datesTriees.length; i++) {
+              const dateActuelle = new Date(datesTriees[i] + 'T00:00:00')
+              const datePrecedente = new Date(datesTriees[i - 1] + 'T00:00:00')
+              const chargeActuelleDate = joursParCharge.get(datesTriees[i])!
+
+              // Vérifier si la date actuelle est le jour suivant (consécutif)
+              const jourSuivant = addDays(datePrecedente, 1)
+              const isConsecutif = isSameDay(dateActuelle, jourSuivant)
+
+              // Si consécutif (jour suivant) ET même charge, étendre la période
+              if (isConsecutif && chargeActuelleDate === chargeActuelle) {
+                periodeFin = dateActuelle
+              } else {
+                // Nouvelle période : sauvegarder l'ancienne
+                nouvellesPeriodes.push({
+                  date_debut: periodeDebut,
+                  date_fin: periodeFin,
+                  nb_ressources: chargeActuelle,
+                })
+
+                // Commencer une nouvelle période
+                periodeDebut = dateActuelle
+                periodeFin = dateActuelle
+                chargeActuelle = chargeActuelleDate
+              }
+            }
+
+            // Ajouter la dernière période
+            nouvellesPeriodes.push({
+              date_debut: periodeDebut,
+              date_fin: periodeFin,
+              nb_ressources: chargeActuelle,
+            })
+          }
+
+          // Créer les nouvelles périodes consolidées (sans force_weekend_ferie)
+          for (const nouvellePeriode of nouvellesPeriodes) {
+            await supabase.from('periodes_charge').insert({
+              affaire_id: affaireData.id,
+              site,
+              competence: comp,
+              date_debut: normalizeDateToUTC(nouvellePeriode.date_debut),
+              date_fin: normalizeDateToUTC(nouvellePeriode.date_fin),
+              nb_ressources: nouvellePeriode.nb_ressources,
+              force_weekend_ferie: false, // Périodes normales
+            })
+          }
         }
       }
 
