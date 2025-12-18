@@ -835,23 +835,30 @@ export default function Planning2({
     const [tooltipPos, setTooltipPos] = React.useState<{ top: number; left: number } | null>(null)
     const [showTooltip, setShowTooltip] = React.useState(false)
     const cellRef = React.useRef<HTMLDivElement>(null)
+    const shouldShowTooltip = React.useRef(false)
     
-    const handleMouseMove = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-      if (absence || isAffecte) {
-        // Positionner le tooltip au niveau du curseur avec un petit offset
+    // Event listener global pour suivre le curseur
+    React.useEffect(() => {
+      if (!shouldShowTooltip.current) return
+      
+      const handleGlobalMouseMove = (e: MouseEvent) => {
         setTooltipPos({
-          top: e.clientY + 10,
+          top: e.clientY - 10,
           left: e.clientX
         })
-        setShowTooltip(true)
       }
-    }, [absence, isAffecte])
+      
+      window.addEventListener('mousemove', handleGlobalMouseMove)
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMouseMove)
+      }
+    }, [])
     
     const handleMouseEnter = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
       if (absence || isAffecte) {
-        // Initialiser la position au niveau du curseur
+        shouldShowTooltip.current = true
         setTooltipPos({
-          top: e.clientY + 10,
+          top: e.clientY - 10,
           left: e.clientX
         })
         setShowTooltip(true)
@@ -859,6 +866,7 @@ export default function Planning2({
     }, [absence, isAffecte])
     
     const handleMouseLeave = React.useCallback(() => {
+      shouldShowTooltip.current = false
       setShowTooltip(false)
       setTooltipPos(null)
     }, [])
@@ -868,7 +876,6 @@ export default function Planning2({
         <div
           ref={cellRef}
           onMouseEnter={handleMouseEnter}
-          onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           className={`relative isolate z-10 group p-2 rounded-lg border-2 transition-all ${
             isAffecte
@@ -904,7 +911,8 @@ export default function Planning2({
             style={{
               top: `${tooltipPos.top}px`,
               left: `${tooltipPos.left}px`,
-              transform: 'translateY(-100%) translateX(-50%)'
+              transform: 'translateY(-100%) translateX(-50%)',
+              pointerEvents: 'none'
             }}
           >
             {absence ? (
