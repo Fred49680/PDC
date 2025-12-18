@@ -1155,11 +1155,32 @@ export default function Planning2({
                                             </span>
                                           </div>
                                           
-                                          {/* Tooltip absence */}
-                                          {absence && (
+                                          {/* Tooltips conditionnels */}
+                                          {(absence || isAffecte) && (
                                             <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
-                                              <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
-                                              <div>{absence.type}</div>
+                                              {absence ? (
+                                                <>
+                                                  <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
+                                                  <div>{absence.type}</div>
+                                                </>
+                                              ) : isAffecte ? (
+                                                <>
+                                                  {isOver ? (
+                                                    <>
+                                                      <div className="font-semibold mb-1 text-red-300">⚠️ Sur-affectation</div>
+                                                      <div>
+                                                        {totalAffecteCol} personne(s) affectée(s)<br />
+                                                        pour {besoin} besoin(s)
+                                                      </div>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <div className="font-semibold mb-1 text-green-300">✓ Affectation</div>
+                                                      <div>{ressource.nom} est affecté(e)</div>
+                                                    </>
+                                                  )}
+                                                </>
+                                              ) : null}
                                             </div>
                                           )}
                                         </div>
