@@ -785,6 +785,190 @@ export default function Planning2({
     }
   }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, showAlert, autoRefresh])
 
+  // Charge de masse : créer des périodes de charge entre dateDebut et dateFin
+  const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
+    try {
+      const col = colonnes[colIndex]
+      if (!col) return
+
+      // Date de début = date de la colonne cliquée
+      let dateDebutMasse: Date
+      if (precision === 'JOUR') {
+        dateDebutMasse = normalizeDateToUTC(col.date)
+      } else if (precision === 'SEMAINE') {
+        const dayOfWeek = col.date.getDay()
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+        dateDebutMasse = new Date(col.date)
+        dateDebutMasse.setDate(dateDebutMasse.getDate() - daysToMonday)
+        dateDebutMasse = normalizeDateToUTC(dateDebutMasse)
+      } else if (precision === 'MOIS') {
+        dateDebutMasse = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+        dateDebutMasse = normalizeDateToUTC(dateDebutMasse)
+      } else {
+        dateDebutMasse = normalizeDateToUTC(col.date)
+      }
+
+      // Demander la date de fin
+      const dateFinStr = window.prompt(
+        `Créer une charge de masse pour "${competence}"\n\nDate de début : ${dateDebutMasse.toLocaleDateString('fr-FR')}\n\nEntrez la date de fin (JJ/MM/AAAA) :`,
+        dateFin.toLocaleDateString('fr-FR')
+      )
+      
+      if (!dateFinStr) return // Annulé
+      
+      // Parser la date de fin
+      const [jour, mois, annee] = dateFinStr.split('/').map(Number)
+      if (!jour || !mois || !annee || isNaN(jour) || isNaN(mois) || isNaN(annee)) {
+        showAlert('Erreur', 'Format de date invalide. Utilisez JJ/MM/AAAA', 'error')
+        return
+      }
+      
+      const dateFinMasse = normalizeDateToUTC(new Date(annee, mois - 1, jour))
+      
+      if (dateFinMasse < dateDebutMasse) {
+        showAlert('Erreur', 'La date de fin doit être postérieure à la date de début', 'error')
+        return
+      }
+      
+      // Demander le nombre de ressources
+      const nbRessourcesStr = window.prompt(
+        `Nombre de ressources nécessaires sur la période :`,
+        '1'
+      )
+      
+      if (!nbRessourcesStr) return // Annulé
+      
+      const nbRessources = parseInt(nbRessourcesStr, 10)
+      if (isNaN(nbRessources) || nbRessources < 0) {
+        showAlert('Erreur', 'Le nombre de ressources doit être un nombre positif', 'error')
+        return
+      }
+      
+      // Confirmation
+      const confirme = await confirmAsync(
+        'Charge de masse',
+        `Créer une charge de ${nbRessources} ressource(s) pour "${competence}"\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\nConfirmer ?`,
+        { type: 'info' }
+      )
+      
+      if (!confirme) return
+
+      // Créer les périodes selon la précision
+      let nbPeriodesCreees = 0
+      
+      if (precision === 'JOUR') {
+        // Créer une période par jour ouvré
+        let currentDate = new Date(dateDebutMasse)
+        while (currentDate <= dateFinMasse) {
+          const dateNorm = normalizeDateToUTC(currentDate)
+          // Vérifier si c'est un jour ouvré ou si c'est un week-end/férié
+          const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6
+          const isHoliday = isFrenchHoliday(currentDate)
+          const forceWeekendFerie = (isWeekend || isHoliday) && nbRessources > 0
+          
+          try {
+            await savePeriode({
+              competence,
+              date_debut: dateNorm,
+              date_fin: dateNorm,
+              nb_ressources: nbRessources,
+              force_weekend_ferie: forceWeekendFerie
+            })
+            nbPeriodesCreees++
+          } catch (err) {
+            console.error(`[Planning2] Erreur création période ${dateNorm.toLocaleDateString('fr-FR')}:`, err)
+          }
+          
+          currentDate.setDate(currentDate.getDate() + 1)
+        }
+      } else if (precision === 'SEMAINE') {
+        // Créer une période par semaine (du lundi au dimanche)
+        let currentDate = new Date(dateDebutMasse)
+        while (currentDate <= dateFinMasse) {
+          const weekStart = new Date(currentDate)
+          let weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekEnd.getDate() + 6)
+          
+          // Limiter à dateFinMasse
+          if (weekEnd > dateFinMasse) {
+            weekEnd = new Date(dateFinMasse)
+          }
+          
+          const dateDebutNorm = normalizeDateToUTC(weekStart)
+          const dateFinNorm = normalizeDateToUTC(weekEnd)
+          
+          try {
+            await savePeriode({
+              competence,
+              date_debut: dateDebutNorm,
+              date_fin: dateFinNorm,
+              nb_ressources: nbRessources,
+              force_weekend_ferie: false
+            })
+            nbPeriodesCreees++
+          } catch (err) {
+            console.error(`[Planning2] Erreur création période semaine ${dateDebutNorm.toLocaleDateString('fr-FR')}:`, err)
+          }
+          
+          // Passer à la semaine suivante
+          currentDate.setDate(currentDate.getDate() + 7)
+        }
+      } else if (precision === 'MOIS') {
+        // Créer une période par mois
+        let currentDate = new Date(dateDebutMasse)
+        while (currentDate <= dateFinMasse) {
+          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+          let monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+          
+          // Limiter à dateFinMasse
+          if (monthEnd > dateFinMasse) {
+            monthEnd = new Date(dateFinMasse)
+          }
+          
+          const dateDebutNorm = normalizeDateToUTC(monthStart)
+          const dateFinNorm = normalizeDateToUTC(monthEnd)
+          
+          try {
+            await savePeriode({
+              competence,
+              date_debut: dateDebutNorm,
+              date_fin: dateFinNorm,
+              nb_ressources: nbRessources,
+              force_weekend_ferie: false
+            })
+            nbPeriodesCreees++
+          } catch (err) {
+            console.error(`[Planning2] Erreur création période mois ${dateDebutNorm.toLocaleDateString('fr-FR')}:`, err)
+          }
+          
+          // Passer au mois suivant
+          currentDate.setMonth(currentDate.getMonth() + 1)
+          currentDate.setDate(1)
+        }
+      }
+      
+      // Consolider les périodes créées
+      if (precision === 'JOUR' && autoRefresh && nbPeriodesCreees > 0) {
+        setTimeout(() => {
+          consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
+        }, 1000)
+      }
+      
+      showAlert(
+        'Charge de masse terminée',
+        `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s).\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}`,
+        'info'
+      )
+    } catch (err) {
+      console.error('[Planning2] Erreur charge de masse:', err)
+      showAlert(
+        'Erreur',
+        `Erreur lors de la création de la charge de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+        'error'
+      )
+    }
+  }, [colonnes, precision, dateFin, savePeriode, consolidate, autoRefresh, confirmAsync, showAlert])
+
   // Affectation de masse : affecter sur toutes les colonnes avec besoin
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
     try {
@@ -1318,7 +1502,11 @@ export default function Planning2({
                                       <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                                     </div>
                                   )}
-                                  <div className="rounded-xl p-3 mb-2 border-2 bg-yellow-50 border-yellow-300">
+                                  <div 
+                                    onDoubleClick={() => handleChargeMasse(compData.competence, idx)}
+                                    title="Double-clic pour créer une charge de masse jusqu'à une date de fin"
+                                    className="rounded-xl p-3 mb-2 border-2 bg-yellow-50 border-yellow-300 cursor-pointer hover:bg-yellow-100 transition-colors"
+                                  >
                                     <div className="text-center">
                                       <div className="flex items-center justify-center gap-1">
                                         <input
@@ -1327,6 +1515,8 @@ export default function Planning2({
                                           step="1"
                                           value={besoin}
                                           onChange={(e) => handleChargeChange(compData.competence, idx, parseInt(e.target.value) || 0)}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
                                           className="w-12 px-2 py-1 border-2 border-yellow-400 rounded text-center text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
                                         />
                                         <span className="text-xs text-gray-600">Besoin</span>
