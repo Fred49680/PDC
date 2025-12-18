@@ -1324,7 +1324,7 @@ export default function GrilleChargeAffectation({
                                         col.isWeekend ? 'bg-blue-50/50' : col.isHoliday ? 'bg-pink-50/50' : ''
                                       } ${isDejaAffectee && !isAffecte ? 'bg-gray-200/50' : ''}`}
                                     >
-                                      <div className="relative inline-block group">
+                                      <div className="relative inline-block group/tooltip">
                                         <input
                                           type="checkbox"
                                           checked={isAffecte}
@@ -1338,7 +1338,7 @@ export default function GrilleChargeAffectation({
                                         />
                                         {/* Tooltip au survol */}
                                         {isDejaAffectee && tooltipText && (
-                                          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 whitespace-pre-line max-w-xs pointer-events-none">
+                                          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-[100] invisible group-hover/tooltip:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 whitespace-pre-line max-w-xs pointer-events-none">
                                             <div className="font-semibold mb-1 text-yellow-300">⚠️ Déjà affectée</div>
                                             <div className="text-xs">{tooltipText}</div>
                                             {/* Flèche pointant vers la gauche */}
