@@ -1157,7 +1157,7 @@ export default function Planning2({
                                           
                                           {/* Tooltips conditionnels */}
                                           {(absence || isAffecte) && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[100] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[9999] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
                                               {absence ? (
                                                 <>
                                                   <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
