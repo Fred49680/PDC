@@ -121,7 +121,7 @@ export default function PlanningPage() {
       const affaireTrouvee = affairesFiltreesFinales.find((a) => 
         a.affaire_id && a.affaire_id.toLowerCase() === numeroCompte.toLowerCase().trim()
       )
-      if (affaireTrouvee && affaireTrouvee.affaire_id !== affaireId) {
+      if (affaireTrouvee && affaireTrouvee.affaire_id && affaireTrouvee.affaire_id !== affaireId) {
         setAffaireId(affaireTrouvee.affaire_id)
         setSite(affaireTrouvee.site)
       }
