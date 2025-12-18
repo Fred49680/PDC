@@ -1293,7 +1293,8 @@ export default function GrilleChargeAffectation({
                     >
                       <div className="text-sm">{col.label}</div>
                       <div className="text-xs opacity-80 mt-1">{col.semaineISO}</div>
-                      {col.isWeekend && <div className="text-xs mt-0.5">WE</div>}
+                      {col.isWeekend && <div className="text-xs mt-0.5 font-bold">WE</div>}
+                      {col.isHoliday && <div className="text-xs mt-0.5 font-bold">JF</div>}
                     </th>
                   ))}
                   <th className="px-4 py-3 text-center font-semibold bg-gradient-to-r from-blue-600 to-indigo-600">
@@ -1342,7 +1343,7 @@ export default function GrilleChargeAffectation({
                               <td
                                 key={idx}
                                 className={`px-2 py-2 border-b-2 border-yellow-200 relative ${
-                                  col.isWeekend ? 'bg-blue-50/50' : col.isHoliday ? 'bg-pink-50/50' : ''
+                                  col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''
                                 }`}
                               >
                                 <div className="relative">
@@ -1387,10 +1388,10 @@ export default function GrilleChargeAffectation({
                                 key={idx}
                                 className={`
                                   px-3 py-3 text-center font-bold border-b-2 border-green-200 transition-all
-                                  ${col.isWeekend ? 'bg-blue-50/50' : col.isHoliday ? 'bg-pink-50/50' : ''}
+                                  ${col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''}
                                   ${isOver ? 'bg-red-200 text-red-900 ring-2 ring-red-400' : ''}
-                                  ${isUnder ? 'bg-orange-100 text-orange-900' : ''}
-                                  ${!isOver && !isUnder ? 'text-green-900' : ''}
+                                  ${isUnder && !col.isWeekend && !col.isHoliday ? 'bg-orange-100 text-orange-900' : ''}
+                                  ${!isOver && !isUnder && !col.isWeekend && !col.isHoliday ? 'text-green-900' : ''}
                                 `}
                               >
                                 {totalAffecte}
@@ -1557,8 +1558,8 @@ export default function GrilleChargeAffectation({
                                     <td
                                       key={idx}
                                       className={`px-2 py-2 text-center relative ${
-                                        col.isWeekend ? 'bg-blue-50/50' : col.isHoliday ? 'bg-pink-50/50' : ''
-                                      } ${isDejaAffectee && !isAffecte ? 'bg-gray-200/50' : ''} ${absenceCell ? absenceColorClass : ''}`}
+                                        col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''
+                                      } ${isDejaAffectee && !isAffecte && !col.isWeekend && !col.isHoliday ? 'bg-gray-200/50' : ''} ${absenceCell ? absenceColorClass : ''}`}
                                     >
                                       <div className="relative inline-block group/tooltip">
                                         <input
