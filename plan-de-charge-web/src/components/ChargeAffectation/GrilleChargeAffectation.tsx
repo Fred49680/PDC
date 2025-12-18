@@ -84,7 +84,7 @@ export default function GrilleChargeAffectation({
   // ========================================
   // CHARGEMENT DES DONNÉES RÉELLES
   // ========================================
-  const { periodes, loading: loadingCharge, savePeriode, consolidate } = useCharge({
+  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate } = useCharge({
     affaireId,
     site,
     autoRefresh,
@@ -263,10 +263,8 @@ export default function GrilleChargeAffectation({
         )
         
         if (nbRessources === 0 && periodeExistante) {
-          // Supprimer la période si elle existe
-          // Note: Le hook useCharge gère la suppression via deletePeriode
-          // Pour l'instant, on laisse la période avec nb_ressources = 0
-          // La consolidation la supprimera automatiquement
+          // Supprimer la période si elle existe et que la charge passe à 0
+          await deletePeriode(periodeExistante.id)
         } else if (nbRessources > 0) {
           // Appel API réel savePeriode() (le hook gère la mise à jour optimiste)
           await savePeriode({
@@ -299,7 +297,7 @@ export default function GrilleChargeAffectation({
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, consolidate, precision, autoRefresh])
+  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh])
 
   // ========================================
   // HANDLER AFFECTATION
