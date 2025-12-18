@@ -74,11 +74,19 @@ export default function GrilleChargeAffectation({
   const [dateFin, setDateFin] = useState(propDateFin)
   const [autoRefresh, setAutoRefresh] = useState(true)
   
-  // Synchroniser avec les props si elles changent
+  // Synchroniser avec les props si elles changent (mais ne pas écraser si l'utilisateur a changé localement)
   useEffect(() => {
-    setPrecision(propPrecision)
-    setDateDebut(propDateDebut)
-    setDateFin(propDateFin)
+    // Ne synchroniser que si la prop a vraiment changé (évite d'écraser les changements locaux)
+    if (propPrecision !== precision) {
+      console.log(`[GrilleChargeAffectation] Synchronisation précision depuis props: ${propPrecision}`)
+      setPrecision(propPrecision)
+    }
+    if (propDateDebut.getTime() !== dateDebut.getTime()) {
+      setDateDebut(propDateDebut)
+    }
+    if (propDateFin.getTime() !== dateFin.getTime()) {
+      setDateFin(propDateFin)
+    }
   }, [propPrecision, propDateDebut, propDateFin])
   
   // ========================================
@@ -226,6 +234,7 @@ export default function GrilleChargeAffectation({
       }
     }
     
+    console.log(`[GrilleChargeAffectation] Colonnes générées: ${cols.length} colonne(s) pour précision ${precision}`)
     return cols
   }, [dateDebut, dateFin, precision])
 
@@ -707,7 +716,10 @@ export default function GrilleChargeAffectation({
             {/* SÉLECTEUR DE PRÉCISION */}
             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
               <button
-                onClick={() => setPrecision('JOUR')}
+                onClick={() => {
+                  console.log(`[GrilleChargeAffectation] Changement précision: JOUR (précédent: ${precision})`)
+                  setPrecision('JOUR')
+                }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-all
                   ${precision === 'JOUR'
@@ -719,7 +731,10 @@ export default function GrilleChargeAffectation({
                 Jour
               </button>
               <button
-                onClick={() => setPrecision('SEMAINE')}
+                onClick={() => {
+                  console.log(`[GrilleChargeAffectation] Changement précision: SEMAINE (précédent: ${precision})`)
+                  setPrecision('SEMAINE')
+                }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-all
                   ${precision === 'SEMAINE'
@@ -731,7 +746,10 @@ export default function GrilleChargeAffectation({
                 Semaine
               </button>
               <button
-                onClick={() => setPrecision('MOIS')}
+                onClick={() => {
+                  console.log(`[GrilleChargeAffectation] Changement précision: MOIS (précédent: ${precision})`)
+                  setPrecision('MOIS')
+                }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-all
                   ${precision === 'MOIS'
