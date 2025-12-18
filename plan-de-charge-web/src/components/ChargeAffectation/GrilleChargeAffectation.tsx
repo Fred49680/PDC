@@ -684,12 +684,15 @@ export default function GrilleChargeAffectation({
           // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
           let forceWeekendFerieCharge = false
           if (nbRessources > 0 && col.isWeekend) {
+            console.log('[handleChargeChange] 🔔 Demande confirmation week-end pour CHARGE -', competence, '-', col.date.toLocaleDateString('fr-FR'))
             const confirme = await confirmAsync(
               'Attention',
               `Vous souhaitez enregistrer une charge un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
               { type: 'warning' }
             )
+            console.log('[handleChargeChange] ✅✅✅ RÉPONSE CONFIRMATION WEEK-END CHARGE REÇUE:', confirme, '(type:', typeof confirme, ')')
             if (!confirme) {
+              console.log('[handleChargeChange] ❌ Confirmation refusée pour CHARGE week-end, annulation')
               // Annuler la sauvegarde et remettre la valeur à 0
               setSavingCells(prev => {
                 const newSet = new Set(prev)
@@ -700,16 +703,20 @@ export default function GrilleChargeAffectation({
               return
             }
             forceWeekendFerieCharge = true // Marquer comme forcé
+            console.log('[handleChargeChange] ✅✅✅ CONFIRMATION ACCEPTÉE pour CHARGE - forceWeekendFerieCharge =', forceWeekendFerieCharge)
           }
 
           // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
           if (nbRessources > 0 && col.isHoliday) {
+            console.log('[handleChargeChange] 🔔 Demande confirmation jour férié pour CHARGE -', competence, '-', col.date.toLocaleDateString('fr-FR'))
             const confirme = await confirmAsync(
               'Attention',
               `Vous souhaitez enregistrer une charge un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
               { type: 'warning' }
             )
+            console.log('[handleChargeChange] ✅✅✅ RÉPONSE CONFIRMATION JOUR FÉRIÉ CHARGE REÇUE:', confirme, '(type:', typeof confirme, ')')
             if (!confirme) {
+              console.log('[handleChargeChange] ❌ Confirmation refusée pour CHARGE jour férié, annulation')
               // Annuler la sauvegarde et remettre la valeur à 0
               setSavingCells(prev => {
                 const newSet = new Set(prev)
@@ -720,7 +727,10 @@ export default function GrilleChargeAffectation({
               return
             }
             forceWeekendFerieCharge = true // Marquer comme forcé
+            console.log('[handleChargeChange] ✅✅✅ CONFIRMATION ACCEPTÉE pour CHARGE - forceWeekendFerieCharge =', forceWeekendFerieCharge)
           }
+          
+          console.log('[handleChargeChange] 📍 POINT DE CONTRÔLE CHARGE : Après confirmations, forceWeekendFerieCharge =', forceWeekendFerieCharge)
         } else if (precision === 'SEMAINE') {
           // Mode SEMAINE : lundi à dimanche de la semaine
           const dayOfWeek = col.date.getDay()
@@ -885,6 +895,7 @@ export default function GrilleChargeAffectation({
   // HANDLER AFFECTATION
   // ========================================
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
+    console.log('[handleAffectationChange] 🎬🎬🎬 DÉBUT FONCTION - competence:', competence, 'ressourceId:', ressourceId, 'date:', col.date.toLocaleDateString('fr-FR'), 'checked:', checked, 'isWeekend:', col.isWeekend, 'isHoliday:', col.isHoliday)
     console.log(`✅ Affectation ${checked ? 'ajoutée' : 'retirée'}: ${ressourceId} - ${competence} - ${col.label} (précision: ${precision})`)
     
     // Calculer les dates de début et fin selon la précision
