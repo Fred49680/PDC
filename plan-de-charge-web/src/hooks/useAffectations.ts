@@ -171,7 +171,8 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       const dateFinStr = dateFin.toISOString().split('T')[0]
 
       // Trouver toutes les affectations qui chevauchent avec la période d'absence
-      const { data: affectationsConflit, error: queryError } = await supabase
+      // *** MODIFIÉ : Exclure les affectations avec force_weekend_ferie=true (forçage explicite) ***
+      const { data: affectationsConflitRaw, error: queryError } = await supabase
         .from('affectations')
         .select('*')
         .eq('affaire_id', affaireData.id)
@@ -179,6 +180,16 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         .eq('ressource_id', ressourceId)
         .lte('date_debut', dateFinStr) // affectation.date_debut <= absence.dateFin
         .gte('date_fin', dateDebutStr) // affectation.date_fin >= absence.dateDebut
+      
+      if (queryError) {
+        console.error('[useAffectations] Erreur recherche affectations conflit:', queryError)
+        return
+      }
+      
+      // Filtrer en JavaScript pour exclure les affectations avec force_weekend_ferie=true
+      const affectationsConflit = (affectationsConflitRaw || []).filter((a: any) => 
+        !a.force_weekend_ferie || a.force_weekend_ferie === false
+      )
 
       if (queryError) {
         console.error('[useAffectations] Erreur recherche affectations conflit:', queryError)
@@ -223,7 +234,8 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       const supabase = getSupabaseClient()
 
       // Vérifier si la ressource a une absence sur cette période
-      if (affectation.ressource_id && affectation.date_debut && affectation.date_fin) {
+      // *** MODIFIÉ : Autoriser l'affectation si force_weekend_ferie=true (forçage explicite) ***
+      if (affectation.ressource_id && affectation.date_debut && affectation.date_fin && !affectation.force_weekend_ferie) {
         const absence = await checkAbsence(
           affectation.ressource_id,
           affectation.date_debut instanceof Date ? affectation.date_debut : new Date(affectation.date_debut),

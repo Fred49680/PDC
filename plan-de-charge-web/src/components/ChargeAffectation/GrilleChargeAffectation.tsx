@@ -1042,7 +1042,8 @@ export default function GrilleChargeAffectation({
           return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
         })
 
-        if (absenceConflit) {
+        // *** MODIFIÉ : Autoriser l'affectation si force_weekend_ferie=true (forçage explicite) ***
+        if (absenceConflit && !forceWeekendFerie) {
           // Bloquer l'affectation et afficher un message
           const absDateDebut = absenceConflit.date_debut instanceof Date 
             ? absenceConflit.date_debut
@@ -1057,6 +1058,21 @@ export default function GrilleChargeAffectation({
             'error'
           )
           return // Ne pas enregistrer l'affectation
+        }
+        
+        // Si forceWeekendFerie=true et absenceConflit existe, demander confirmation supplémentaire
+        if (absenceConflit && forceWeekendFerie) {
+          console.log('[handleAffectationChange] 🔔 Demande confirmation supplémentaire pour affectation sur absence')
+          const confirmeAbsence = await confirmAsync(
+            'Attention',
+            `La ressource est absente (${absenceConflit.type}) du ${new Date(absenceConflit.date_debut).toLocaleDateString('fr-FR')} au ${new Date(absenceConflit.date_fin).toLocaleDateString('fr-FR')}.\n\nVoulez-vous quand même forcer cette affectation ?`,
+            { type: 'warning' }
+          )
+          if (!confirmeAbsence) {
+            console.log('[handleAffectationChange] ❌ Confirmation absence refusée, annulation affectation')
+            return // Annuler l'affectation
+          }
+          console.log('[handleAffectationChange] ✅✅✅ CONFIRMATION ABSENCE ACCEPTÉE - forceWeekendFerie =', forceWeekendFerie, '- CONTINUATION DU FLUX')
         }
 
         // *** NOUVEAU : Vérifier les sur-affectations (ressource déjà affectée sur cette période) ***

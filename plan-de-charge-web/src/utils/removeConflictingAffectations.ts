@@ -20,7 +20,8 @@ export async function removeConflictingAffectationsForAbsence(
 
     // Trouver toutes les affectations qui chevauchent avec la période d'absence
     // Chevauchement : (affectation.date_debut <= absence.dateFin) AND (affectation.date_fin >= absence.dateDebut)
-    const { data: affectationsConflit, error: queryError } = await supabase
+    // *** MODIFIÉ : Exclure les affectations avec force_weekend_ferie=true (forçage explicite) ***
+    const { data: affectationsConflitRaw, error: queryError } = await supabase
       .from('affectations')
       .select(`
         *,
@@ -34,6 +35,11 @@ export async function removeConflictingAffectationsForAbsence(
       console.error('[removeConflictingAffectationsForAbsence] Erreur recherche affectations conflit:', queryError)
       return { removedCount: 0, alertes: [] }
     }
+
+    // Filtrer en JavaScript pour exclure les affectations avec force_weekend_ferie=true
+    const affectationsConflit = (affectationsConflitRaw || []).filter((a: any) => 
+      !a.force_weekend_ferie || a.force_weekend_ferie === false
+    )
 
     if (!affectationsConflit || affectationsConflit.length === 0) {
       return { removedCount: 0, alertes: [] }
