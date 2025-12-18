@@ -110,8 +110,9 @@ export default function GrilleChargeAffectation({
     : affairesActives
 
   // Extraire les sites uniques depuis les affaires filtrées par responsable
+  // Si aucun responsable sélectionné, utiliser toutes les affaires actives
   const sitesDisponibles = Array.from(
-    new Set(affairesFiltreesParResponsable.map((a) => a.site).filter(Boolean))
+    new Set((responsable ? affairesFiltreesParResponsable : affairesActives).map((a) => a.site).filter(Boolean))
   ).sort()
 
   // Filtrer les affaires selon le responsable et le site sélectionnés
