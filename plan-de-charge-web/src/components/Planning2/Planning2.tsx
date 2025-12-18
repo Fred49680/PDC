@@ -1074,9 +1074,6 @@ export default function Planning2({
                                   <div className="text-xs font-semibold text-gray-600">
                                     {col.shortLabel}
                                   </div>
-                                  {col.isHoliday && (
-                                    <div className="text-xs font-bold text-pink-700 mt-1">JF</div>
-                                  )}
                                 </div>
 
                                 {/* Cellule Affecté */}
@@ -1100,11 +1097,7 @@ export default function Planning2({
                                       <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                                     </div>
                                   )}
-                                  <div className={`rounded-xl p-3 mb-2 border-2 ${
-                                    col.isWeekend ? 'bg-blue-50 border-blue-300' :
-                                    col.isHoliday ? 'bg-pink-50 border-pink-300' :
-                                    'bg-yellow-50 border-yellow-300'
-                                  }`}>
+                                  <div className="rounded-xl p-3 mb-2 border-2 bg-yellow-50 border-yellow-300">
                                     <div className="text-center">
                                       <div className="flex items-center justify-center gap-1">
                                         <input
@@ -1121,53 +1114,59 @@ export default function Planning2({
                                   </div>
                                 </div>
 
-                                {/* Ressources */}
-                                <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
-                                  {compData.ressources.map((ressource) => {
-                                    const isAffecte = ressource.affectations.get(idx) || false
-                                    const absence = precision === 'JOUR' ? getAbsenceForDate(ressource.id, col.date) : null
-                                    const absenceColorClass = absence ? getAbsenceColor(absence.type) : ''
-                                    
-                                    return (
-                                      <div
-                                        key={ressource.id}
-                                        className={`relative group p-2 rounded-lg border-2 transition-all ${
-                                          isAffecte
-                                            ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-green-600 shadow-md'
-                                            : absence
-                                            ? `${absenceColorClass} border-opacity-50 cursor-not-allowed opacity-70`
-                                            : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="checkbox"
-                                            checked={isAffecte}
-                                            onChange={(e) => handleAffectationChange(compData.competence, ressource.id, idx, e.target.checked)}
-                                            disabled={!!absence}
-                                            className={`w-4 h-4 rounded accent-green-600 cursor-pointer ${
-                                              absence ? 'cursor-not-allowed opacity-50' : ''
-                                            }`}
-                                          />
-                                          <span className={`text-xs font-medium truncate flex-1 ${
-                                            isAffecte ? 'text-white' : 'text-gray-700'
-                                          }`}>
-                                            {ressource.isPrincipale && <span className="text-indigo-600">★ </span>}
-                                            {ressource.nom}
-                                          </span>
-                                        </div>
-                                        
-                                        {/* Tooltip absence */}
-                                        {absence && (
-                                          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
-                                            <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
-                                            <div>{absence.type}</div>
+                                {/* Ressources - Affichées uniquement si besoin > 0 */}
+                                {besoin > 0 && (
+                                  <div className={`space-y-1.5 max-h-[400px] overflow-y-auto rounded-xl p-2 ${
+                                    col.isWeekend ? 'bg-blue-50' :
+                                    col.isHoliday ? 'bg-pink-50' :
+                                    ''
+                                  }`}>
+                                    {compData.ressources.map((ressource) => {
+                                      const isAffecte = ressource.affectations.get(idx) || false
+                                      const absence = precision === 'JOUR' ? getAbsenceForDate(ressource.id, col.date) : null
+                                      const absenceColorClass = absence ? getAbsenceColor(absence.type) : ''
+                                      
+                                      return (
+                                        <div
+                                          key={ressource.id}
+                                          className={`relative group p-2 rounded-lg border-2 transition-all ${
+                                            isAffecte
+                                              ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-green-600 shadow-md'
+                                              : absence
+                                              ? `${absenceColorClass} border-opacity-50 cursor-not-allowed opacity-70`
+                                              : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="checkbox"
+                                              checked={isAffecte}
+                                              onChange={(e) => handleAffectationChange(compData.competence, ressource.id, idx, e.target.checked)}
+                                              disabled={!!absence}
+                                              className={`w-4 h-4 rounded accent-green-600 cursor-pointer ${
+                                                absence ? 'cursor-not-allowed opacity-50' : ''
+                                              }`}
+                                            />
+                                            <span className={`text-xs font-medium truncate flex-1 ${
+                                              isAffecte ? 'text-white' : 'text-gray-700'
+                                            }`}>
+                                              {ressource.isPrincipale && <span className="text-indigo-600">★ </span>}
+                                              {ressource.nom}
+                                            </span>
                                           </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
+                                          
+                                          {/* Tooltip absence */}
+                                          {absence && (
+                                            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
+                                              <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
+                                              <div>{absence.type}</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             )
                           })}
