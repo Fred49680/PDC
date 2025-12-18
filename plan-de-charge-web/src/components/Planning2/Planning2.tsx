@@ -1025,36 +1025,42 @@ export default function Planning2({
       
       if (!confirme) return
 
-      // Enregistrer toutes les périodes d'un coup (batch)
-      // On désactive temporairement le refresh en utilisant une variable locale
-      // mais useCharge n'a pas de paramètre pour ça, donc on va simplement les créer séquentiellement
-      // puis recharger une seule fois à la fin
-      let nbPeriodesCreees = 0
-      for (const periode of periodesACreer) {
-        try {
-          await savePeriode(periode)
-          nbPeriodesCreees++
-        } catch (err) {
-          console.error(`[Planning2] Erreur création période ${periode.date_debut.toLocaleDateString('fr-FR')}:`, err)
+      // Désactiver temporairement l'auto-refresh pour éviter les scintillements pendant le batch
+      const autoRefreshAvant = autoRefresh
+      setAutoRefresh(false)
+
+      try {
+        // Enregistrer toutes les périodes d'un coup (batch)
+        let nbPeriodesCreees = 0
+        for (const periode of periodesACreer) {
+          try {
+            await savePeriode(periode)
+            nbPeriodesCreees++
+          } catch (err) {
+            console.error(`[Planning2] Erreur création période ${periode.date_debut.toLocaleDateString('fr-FR')}:`, err)
+          }
         }
-      }
-      
-      // Recharger les données après toutes les créations (refresh unique)
-      if (nbPeriodesCreees > 0) {
-        // Recharger les périodes
-        await refreshCharge()
         
-        // Consolider si précision JOUR
-        if (precision === 'JOUR') {
-          await consolidate(competence)
+        // Recharger les données après toutes les créations (refresh unique)
+        if (nbPeriodesCreees > 0) {
+          // Recharger les périodes
+          await refreshCharge()
+          
+          // Consolider si précision JOUR
+          if (precision === 'JOUR') {
+            await consolidate(competence)
+          }
         }
+
+        showAlert(
+          'Charge de masse terminée',
+          `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s).\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\n(Uniquement jours ouvrés)`,
+          'info'
+        )
+      } finally {
+        // Réactiver l'auto-refresh à son état précédent
+        setAutoRefresh(autoRefreshAvant)
       }
-      
-      showAlert(
-        'Charge de masse terminée',
-        `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s).\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\n(Uniquement jours ouvrés)`,
-        'info'
-      )
     } catch (err) {
       console.error('[Planning2] Erreur charge de masse:', err)
       showAlert(
@@ -1063,7 +1069,7 @@ export default function Planning2({
         'error'
       )
     }
-  }, [colonnes, precision, dateFin, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, showAlert])
+  }, [colonnes, precision, dateFin, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, showAlert, autoRefresh, setAutoRefresh])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
@@ -1168,106 +1174,115 @@ export default function Planning2({
       
       if (!confirme) return
 
-      // Vérifier absences et conflits pour chaque affectation, puis créer celles qui sont valides
-      const affectationsValides: Array<{
-        ressource_id: string
-        competence: string
-        date_debut: Date
-        date_fin: Date
-        charge: number
-        force_weekend_ferie: boolean
-      }> = []
-      
-      for (const affectation of affectationsACreer) {
-        // Vérifier absences
-        const dateDebutStr = affectation.dateDebut.toISOString().split('T')[0]
-        const dateFinStr = affectation.dateFin.toISOString().split('T')[0]
+      // Désactiver temporairement l'auto-refresh pour éviter les scintillements pendant le batch
+      const autoRefreshAvant = autoRefresh
+      setAutoRefresh(false)
 
-        const absenceConflit = absences.find((abs) => {
-          if (abs.ressource_id !== ressourceId) return false
-          const absDateDebut = abs.date_debut instanceof Date 
-            ? abs.date_debut.toISOString().split('T')[0]
-            : new Date(abs.date_debut).toISOString().split('T')[0]
-          const absDateFin = abs.date_fin instanceof Date 
-            ? abs.date_fin.toISOString().split('T')[0]
-            : new Date(abs.date_fin).toISOString().split('T')[0]
-          return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
-        })
-
-        if (absenceConflit) {
-          // Ignorer cette affectation (ressource absente)
-          continue
-        }
-
-        // Vérifier conflits avec autres affectations
-        const affectationsRessource = toutesAffectationsRessources.get(ressourceId) || []
-        const dateDebutUTC = normalizeDateToUTC(affectation.dateDebut)
-        const dateFinUTC = normalizeDateToUTC(affectation.dateFin)
+      try {
+        // Vérifier absences et conflits pour chaque affectation, puis créer celles qui sont valides
+        const affectationsValides: Array<{
+          ressource_id: string
+          competence: string
+          date_debut: Date
+          date_fin: Date
+          charge: number
+          force_weekend_ferie: boolean
+        }> = []
         
-        const affectationsConflit = affectationsRessource.filter((aff) => {
-          const affDateDebut = normalizeDateToUTC(aff.date_debut)
-          const affDateFin = normalizeDateToUTC(aff.date_fin)
-          const chevauche = affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC
-          const autreAffaire = aff.affaire_id !== affaireId || aff.competence !== competence
-          return chevauche && autreAffaire
-        })
+        for (const affectation of affectationsACreer) {
+          // Vérifier absences
+          const dateDebutStr = affectation.dateDebut.toISOString().split('T')[0]
+          const dateFinStr = affectation.dateFin.toISOString().split('T')[0]
 
-        if (affectationsConflit.length > 0) {
-          // Ignorer cette affectation (conflit avec autre affectation)
-          continue
+          const absenceConflit = absences.find((abs) => {
+            if (abs.ressource_id !== ressourceId) return false
+            const absDateDebut = abs.date_debut instanceof Date 
+              ? abs.date_debut.toISOString().split('T')[0]
+              : new Date(abs.date_debut).toISOString().split('T')[0]
+            const absDateFin = abs.date_fin instanceof Date 
+              ? abs.date_fin.toISOString().split('T')[0]
+              : new Date(abs.date_fin).toISOString().split('T')[0]
+            return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
+          })
+
+          if (absenceConflit) {
+            // Ignorer cette affectation (ressource absente)
+            continue
+          }
+
+          // Vérifier conflits avec autres affectations
+          const affectationsRessource = toutesAffectationsRessources.get(ressourceId) || []
+          const dateDebutUTC = normalizeDateToUTC(affectation.dateDebut)
+          const dateFinUTC = normalizeDateToUTC(affectation.dateFin)
+          
+          const affectationsConflit = affectationsRessource.filter((aff) => {
+            const affDateDebut = normalizeDateToUTC(aff.date_debut)
+            const affDateFin = normalizeDateToUTC(aff.date_fin)
+            const chevauche = affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC
+            const autreAffaire = aff.affaire_id !== affaireId || aff.competence !== competence
+            return chevauche && autreAffaire
+          })
+
+          if (affectationsConflit.length > 0) {
+            // Ignorer cette affectation (conflit avec autre affectation)
+            continue
+          }
+
+          // Affectation valide, l'ajouter à la liste
+          affectationsValides.push({
+            ressource_id: ressourceId,
+            competence,
+            date_debut: affectation.dateDebut,
+            date_fin: affectation.dateFin,
+            charge: 1,
+            force_weekend_ferie: false // Toujours false car on filtre les jours ouvrés
+          })
         }
 
-        // Affectation valide, l'ajouter à la liste
-        affectationsValides.push({
-          ressource_id: ressourceId,
-          competence,
-          date_debut: affectation.dateDebut,
-          date_fin: affectation.dateFin,
-          charge: 1,
-          force_weekend_ferie: false // Toujours false car on filtre les jours ouvrés
-        })
-      }
+        if (affectationsValides.length === 0) {
+          showAlert(
+            'Information',
+            'Aucune affectation valide (toutes bloquées par absences ou conflits).',
+            'info'
+          )
+          return
+        }
 
-      if (affectationsValides.length === 0) {
+        // Créer toutes les affectations valides en batch (sans refresh intermédiaire)
+        let nbAffectationsCreees = 0
+        for (const affectation of affectationsValides) {
+          try {
+            await saveAffectation(affectation)
+            nbAffectationsCreees++
+          } catch (err) {
+            console.error(`[Planning2] Erreur création affectation ${affectation.date_debut.toLocaleDateString('fr-FR')}:`, err)
+          }
+        }
+
+        // Recharger les données après toutes les créations (refresh unique)
+        if (nbAffectationsCreees > 0) {
+          await refreshAffectations()
+          
+          // Consolider si précision JOUR
+          if (precision === 'JOUR') {
+            await consolidateAffectations(competence)
+          }
+        }
+
+        const nbBloquees = affectationsACreer.length - affectationsValides.length
+        const messageFinal = nbBloquees > 0
+          ? `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n${nbBloquees} période(s) ont été bloquées (absences ou conflits).`
+          : `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n(Uniquement jours ouvrés : lundi-vendredi, hors fériés)`
+
         showAlert(
-          'Information',
-          'Aucune affectation valide (toutes bloquées par absences ou conflits).',
+          'Affectation de masse terminée',
+          messageFinal,
           'info'
         )
-        return
+      } finally {
+        // Réactiver l'auto-refresh à son état précédent
+        setAutoRefresh(autoRefreshAvant)
       }
-
-      // Créer toutes les affectations valides en batch (sans refresh intermédiaire)
-      let nbAffectationsCreees = 0
-      for (const affectation of affectationsValides) {
-        try {
-          await saveAffectation(affectation)
-          nbAffectationsCreees++
-        } catch (err) {
-          console.error(`[Planning2] Erreur création affectation ${affectation.date_debut.toLocaleDateString('fr-FR')}:`, err)
-        }
-      }
-
-      // Recharger les données après toutes les créations (refresh unique)
-      if (nbAffectationsCreees > 0) {
-        await refreshAffectations()
-        
-        // Consolider si précision JOUR
-        if (precision === 'JOUR') {
-          await consolidateAffectations(competence)
-        }
-      }
-
-      const nbBloquees = affectationsACreer.length - affectationsValides.length
-      const messageFinal = nbBloquees > 0
-        ? `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n${nbBloquees} période(s) ont été bloquées (absences ou conflits).`
-        : `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n(Uniquement jours ouvrés : lundi-vendredi, hors fériés)`
-
-      showAlert(
-        'Affectation de masse terminée',
-        messageFinal,
-        'info'
-      )
     } catch (err) {
       console.error('[Planning2] Erreur affectation de masse:', err)
       showAlert(
@@ -1276,7 +1291,7 @@ export default function Planning2({
         'error'
       )
     }
-  }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, showAlert])
+  }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, showAlert, autoRefresh, setAutoRefresh])
 
   // Navigation
   const handlePreviousPeriod = () => {
