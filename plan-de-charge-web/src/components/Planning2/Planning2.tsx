@@ -836,12 +836,23 @@ export default function Planning2({
     const [showTooltip, setShowTooltip] = React.useState(false)
     const cellRef = React.useRef<HTMLDivElement>(null)
     
+    const handleMouseMove = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+      if (absence || isAffecte) {
+        // Positionner le tooltip au niveau du curseur avec un petit offset
+        setTooltipPos({
+          top: e.clientY + 10,
+          left: e.clientX
+        })
+        setShowTooltip(true)
+      }
+    }, [absence, isAffecte])
+    
     const handleMouseEnter = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
       if (absence || isAffecte) {
-        const rect = e.currentTarget.getBoundingClientRect()
+        // Initialiser la position au niveau du curseur
         setTooltipPos({
-          top: rect.bottom + 8,
-          left: rect.left + rect.width / 2
+          top: e.clientY + 10,
+          left: e.clientX
         })
         setShowTooltip(true)
       }
@@ -849,6 +860,7 @@ export default function Planning2({
     
     const handleMouseLeave = React.useCallback(() => {
       setShowTooltip(false)
+      setTooltipPos(null)
     }, [])
     
     return (
@@ -856,6 +868,7 @@ export default function Planning2({
         <div
           ref={cellRef}
           onMouseEnter={handleMouseEnter}
+          onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           className={`relative isolate z-10 group p-2 rounded-lg border-2 transition-all ${
             isAffecte
@@ -891,7 +904,7 @@ export default function Planning2({
             style={{
               top: `${tooltipPos.top}px`,
               left: `${tooltipPos.left}px`,
-              transform: 'translateX(-50%)'
+              transform: 'translateY(-100%) translateX(-50%)'
             }}
           >
             {absence ? (
