@@ -1047,45 +1047,6 @@ export default function Planning2({
                   <div className="p-6">
                     <div className="overflow-x-auto pb-4">
                       <div className="inline-flex gap-2 min-w-full">
-                        {/* Colonne fixe : Besoin */}
-                        <div className="flex-shrink-0 w-48">
-                          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 border-2 border-yellow-300 rounded-xl p-4 mb-2">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Users className="w-5 h-5 text-yellow-700" />
-                              <span className="font-bold text-yellow-900">Besoin</span>
-                            </div>
-                            <div className="space-y-2">
-                              {colonnes.map((col, idx) => {
-                                const cellKey = `${compData.competence}|${idx}`
-                                const value = compData.colonnes.get(idx) || 0
-                                const isSaving = savingCells.has(cellKey)
-                                
-                                return (
-                                  <div key={idx} className="relative">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="1"
-                                      value={value}
-                                      onChange={(e) => handleChargeChange(compData.competence, idx, parseInt(e.target.value) || 0)}
-                                      className={`w-full px-3 py-2 border-2 rounded-lg text-center font-semibold transition-all ${
-                                        col.isWeekend ? 'border-blue-300 bg-blue-50' :
-                                        col.isHoliday ? 'border-pink-300 bg-pink-50' :
-                                        'border-yellow-300 bg-white'
-                                      } focus:outline-none focus:ring-2 focus:ring-yellow-500`}
-                                    />
-                                    {isSaving && (
-                                      <div className="absolute -top-1 -right-1">
-                                        <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        </div>
-
                         {/* Colonnes de dates */}
                         <div className="flex gap-2 flex-1">
                           {colonnes.map((col, idx) => {
@@ -1094,6 +1055,8 @@ export default function Planning2({
                             const totalAffecteCol = affectees.size
                             const isOver = totalAffecteCol > besoin
                             const isUnder = totalAffecteCol < besoin && besoin > 0
+                            const cellKey = `${compData.competence}|${idx}`
+                            const isSaving = savingCells.has(cellKey)
 
                             return (
                               <div
@@ -1106,28 +1069,47 @@ export default function Planning2({
                                   col.isHoliday ? 'bg-pink-100 border-pink-400' :
                                   'bg-gray-100 border-gray-300'
                                 }`}>
-                                  <div className="text-xs font-semibold text-gray-600 mb-1">
+                                  <div className="text-xs font-semibold text-gray-600">
                                     {col.shortLabel}
                                   </div>
-                                  {col.isWeekend && (
-                                    <div className="text-xs font-bold text-blue-700">WE</div>
-                                  )}
                                   {col.isHoliday && (
-                                    <div className="text-xs font-bold text-pink-700">JF</div>
+                                    <div className="text-xs font-bold text-pink-700 mt-1">JF</div>
                                   )}
                                 </div>
 
-                                {/* Cellule Affecté */}
-                                <div className={`rounded-xl p-3 mb-2 border-2 ${
+                                {/* Cellule Affecté et Besoin (combinée) */}
+                                <div className={`rounded-xl p-3 mb-2 border-2 relative ${
                                   isOver ? 'bg-red-100 border-red-400' :
                                   isUnder ? 'bg-orange-100 border-orange-400' :
                                   'bg-green-100 border-green-400'
                                 }`}>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-gray-800">
-                                      {totalAffecteCol}
+                                  {isSaving && (
+                                    <div className="absolute -top-1 -right-1 z-10">
+                                      <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                                     </div>
-                                    <div className="text-xs text-gray-600 mt-1">Affecté</div>
+                                  )}
+                                  <div className="text-center space-y-2">
+                                    {/* Ligne Affecté */}
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span className="text-lg font-bold text-gray-800">{totalAffecteCol}</span>
+                                      <span className="text-xs text-gray-600">Affecté</span>
+                                    </div>
+                                    {/* Ligne Besoin avec input */}
+                                    <div className="flex items-center justify-center gap-1">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={besoin}
+                                        onChange={(e) => handleChargeChange(compData.competence, idx, parseInt(e.target.value) || 0)}
+                                        className={`w-12 px-2 py-1 border-2 rounded text-center text-sm font-semibold transition-all ${
+                                          col.isWeekend ? 'border-blue-300 bg-blue-50' :
+                                          col.isHoliday ? 'border-pink-300 bg-pink-50' :
+                                          'border-yellow-300 bg-white'
+                                        } focus:outline-none focus:ring-2 focus:ring-yellow-500`}
+                                      />
+                                      <span className="text-xs text-gray-600">Besoin</span>
+                                    </div>
                                   </div>
                                 </div>
 
