@@ -23,6 +23,7 @@ export default function PlanningPage() {
   const [precision, setPrecision] = useState<Precision>('JOUR')
   const [responsable, setResponsable] = useState('')
   const [tranche, setTranche] = useState('')
+  const [numeroCompte, setNumeroCompte] = useState('')
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
   const affairesActives = affaires.filter(
@@ -55,9 +56,16 @@ export default function PlanningPage() {
   ).sort()
 
   // Filtrer les affaires selon responsable, site et tranche
-  const affairesFiltreesFinales = tranche
+  const affairesFiltreesParTranche = tranche
     ? affairesFiltreesParResponsableEtSite.filter((a) => a.tranche === tranche)
     : affairesFiltreesParResponsableEtSite
+
+  // Filtrer par numéro de compte si renseigné
+  const affairesFiltreesFinales = numeroCompte
+    ? affairesFiltreesParTranche.filter((a) => 
+        a.affaire_id && a.affaire_id.toLowerCase().includes(numeroCompte.toLowerCase())
+      )
+    : affairesFiltreesParTranche
 
   // Ajuster automatiquement la date de fin selon la précision
   useEffect(() => {
@@ -107,6 +115,19 @@ export default function PlanningPage() {
     }
   }, [affaireId, affairesFiltreesFinales, site])
 
+  // Sélection automatique de l'affaire si un numéro de compte correspond exactement
+  useEffect(() => {
+    if (numeroCompte && numeroCompte.trim() !== '') {
+      const affaireTrouvee = affairesFiltreesFinales.find((a) => 
+        a.affaire_id && a.affaire_id.toLowerCase() === numeroCompte.toLowerCase().trim()
+      )
+      if (affaireTrouvee && affaireTrouvee.affaire_id !== affaireId) {
+        setAffaireId(affaireTrouvee.affaire_id)
+        setSite(affaireTrouvee.site)
+      }
+    }
+  }, [numeroCompte, affairesFiltreesFinales, affaireId])
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -138,7 +159,23 @@ export default function PlanningPage() {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {/* Numéro de compte (filtre intelligent) */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Numéro de compte
+              </label>
+              <input
+                type="text"
+                value={numeroCompte}
+                onChange={(e) => {
+                  setNumeroCompte(e.target.value)
+                }}
+                placeholder="Rechercher par numéro..."
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
+              />
+            </div>
+
             {/* Responsable */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">
@@ -219,6 +256,8 @@ export default function PlanningPage() {
                     if (affaire) {
                       setAffaireId(selectedAffaireId)
                       setSite(affaire.site)
+                      // Réinitialiser le numéro de compte après sélection manuelle
+                      setNumeroCompte('')
                     }
                   } else {
                     setAffaireId('')
@@ -230,7 +269,7 @@ export default function PlanningPage() {
                 <option value="">Sélectionner une affaire...</option>
                 {affairesFiltreesFinales.map((affaire) => (
                   <option key={affaire.id} value={affaire.affaire_id || ''}>
-                    {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                    {affaire.affaire_id || 'Sans ID'}
                   </option>
                 ))}
               </select>
