@@ -156,24 +156,78 @@ export default function GrilleChargeAffectation({
   const saveTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map<string, NodeJS.Timeout>())
 
   // ========================================
-  // COLONNES - Mémoïsées
+  // COLONNES - Mémoïsées selon la précision
   // ========================================
   const colonnes = useMemo(() => {
     const cols: ColonneDate[] = []
-    const dates = getDatesBetween(dateDebut, dateFin)
     
-    dates.forEach((date) => {
-      cols.push({
-        date,
-        label: date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-        isWeekend: isWeekend(date),
-        isHoliday: isFrenchHoliday(date),
-        semaineISO: formatSemaineISO(date),
+    if (precision === 'JOUR') {
+      // Mode JOUR : une colonne par jour
+      const dates = getDatesBetween(dateDebut, dateFin)
+      dates.forEach((date) => {
+        cols.push({
+          date,
+          label: date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+          isWeekend: isWeekend(date),
+          isHoliday: isFrenchHoliday(date),
+          semaineISO: formatSemaineISO(date),
+        })
       })
-    })
+    } else if (precision === 'SEMAINE') {
+      // Mode SEMAINE : une colonne par semaine (lundi à dimanche)
+      let currentDate = new Date(dateDebut)
+      // Trouver le lundi de la semaine de début
+      const dayOfWeek = currentDate.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      currentDate.setDate(currentDate.getDate() - daysToMonday)
+      
+      while (currentDate <= dateFin) {
+        const weekStart = new Date(currentDate)
+        const weekEnd = new Date(currentDate)
+        weekEnd.setDate(weekEnd.getDate() + 6)
+        
+        // Utiliser le lundi comme date de référence pour la colonne
+        cols.push({
+          date: weekStart,
+          label: `${weekStart.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} - ${weekEnd.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`,
+          isWeekend: false, // Une semaine contient des week-ends, mais la colonne représente la semaine entière
+          isHoliday: false,
+          semaineISO: formatSemaineISO(weekStart),
+        })
+        
+        // Passer à la semaine suivante
+        currentDate.setDate(currentDate.getDate() + 7)
+      }
+    } else if (precision === 'MOIS') {
+      // Mode MOIS : une colonne par mois
+      let currentDate = new Date(dateDebut)
+      currentDate.setDate(1) // Premier jour du mois
+      
+      while (currentDate <= dateFin) {
+        const monthStart = new Date(currentDate)
+        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0) // Dernier jour du mois
+        
+        // Limiter monthEnd à dateFin si nécessaire
+        if (monthEnd > dateFin) {
+          monthEnd.setTime(dateFin.getTime())
+        }
+        
+        cols.push({
+          date: monthStart,
+          label: monthStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+          isWeekend: false,
+          isHoliday: false,
+          semaineISO: formatSemaineISO(monthStart),
+        })
+        
+        // Passer au mois suivant
+        currentDate.setMonth(currentDate.getMonth() + 1)
+        currentDate.setDate(1)
+      }
+    }
     
     return cols
-  }, [dateDebut, dateFin])
+  }, [dateDebut, dateFin, precision])
 
   // ========================================
   // GRILLE DE CHARGE - Mémoïsée avec optimisation
@@ -353,16 +407,49 @@ export default function GrilleChargeAffectation({
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh])
+  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin])
 
   // ========================================
   // HANDLER AFFECTATION
   // ========================================
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
-    console.log(`✅ Affectation ${checked ? 'ajoutée' : 'retirée'}: ${ressourceId} - ${competence} - ${col.label}`)
+    console.log(`✅ Affectation ${checked ? 'ajoutée' : 'retirée'}: ${ressourceId} - ${competence} - ${col.label} (précision: ${precision})`)
     
-    // *** CORRECTION : Normaliser les dates à minuit UTC ***
-    const colDateNormalisee = normalizeDateToUTC(col.date)
+    // Calculer les dates de début et fin selon la précision
+    let dateDebutAffectation: Date
+    let dateFinAffectation: Date
+    
+    if (precision === 'JOUR') {
+      // Mode JOUR : une seule date
+      dateDebutAffectation = normalizeDateToUTC(col.date)
+      dateFinAffectation = normalizeDateToUTC(col.date)
+    } else if (precision === 'SEMAINE') {
+      // Mode SEMAINE : lundi à dimanche de la semaine
+      const dayOfWeek = col.date.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      dateDebutAffectation = new Date(col.date)
+      dateDebutAffectation.setDate(dateDebutAffectation.getDate() - daysToMonday)
+      dateFinAffectation = new Date(dateDebutAffectation)
+      dateFinAffectation.setDate(dateFinAffectation.getDate() + 6)
+      // Normaliser à UTC
+      dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
+      dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
+    } else if (precision === 'MOIS') {
+      // Mode MOIS : premier au dernier jour du mois
+      dateDebutAffectation = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+      dateFinAffectation = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+      // Limiter à dateFin si nécessaire
+      if (dateFinAffectation > dateFin) {
+        dateFinAffectation = new Date(dateFin)
+      }
+      // Normaliser à UTC
+      dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
+      dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
+    } else {
+      // Par défaut : mode JOUR
+      dateDebutAffectation = normalizeDateToUTC(col.date)
+      dateFinAffectation = normalizeDateToUTC(col.date)
+    }
     
     try {
       if (checked) {
@@ -370,19 +457,20 @@ export default function GrilleChargeAffectation({
         await saveAffectation({
           ressource_id: ressourceId,
           competence,
-          date_debut: colDateNormalisee,
-          date_fin: colDateNormalisee,
+          date_debut: dateDebutAffectation,
+          date_fin: dateFinAffectation,
           charge: 1,
         })
       } else {
-        // Trouver l'affectation à supprimer
+        // Trouver l'affectation à supprimer (chercher par chevauchement de période)
         const affectationASupprimer = affectations.find(a => {
           const aDateDebut = normalizeDateToUTC(new Date(a.date_debut))
           const aDateFin = normalizeDateToUTC(new Date(a.date_fin))
           return a.ressource_id === ressourceId && 
                  a.competence === competence &&
-                 aDateDebut <= colDateNormalisee &&
-                 aDateFin >= colDateNormalisee
+                 // Chevauchement : (aDateDebut <= dateFinAffectation) && (aDateFin >= dateDebutAffectation)
+                 aDateDebut <= dateFinAffectation &&
+                 aDateFin >= dateDebutAffectation
         })
         
         if (affectationASupprimer?.id) {
@@ -515,7 +603,7 @@ export default function GrilleChargeAffectation({
 
         {/* NAVIGATION TEMPORELLE */}
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <button
               onClick={handlePreviousPeriod}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:shadow-lg hover:scale-105 transition-all"
@@ -524,13 +612,53 @@ export default function GrilleChargeAffectation({
               <span>Précédent</span>
             </button>
             
-            <div className="text-center">
+            <div className="text-center flex-1">
               <div className="font-bold text-gray-800 text-lg">
                 {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
               </div>
               <div className="text-sm text-gray-500">
                 Semaine {formatSemaineISO(dateDebut)}
               </div>
+            </div>
+
+            {/* SÉLECTEUR DE PRÉCISION */}
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setPrecision('JOUR')}
+                className={`
+                  px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                  ${precision === 'JOUR'
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-200'
+                  }
+                `}
+              >
+                Jour
+              </button>
+              <button
+                onClick={() => setPrecision('SEMAINE')}
+                className={`
+                  px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                  ${precision === 'SEMAINE'
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-200'
+                  }
+                `}
+              >
+                Semaine
+              </button>
+              <button
+                onClick={() => setPrecision('MOIS')}
+                className={`
+                  px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                  ${precision === 'MOIS'
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-200'
+                  }
+                `}
+              >
+                Mois
+              </button>
             </div>
 
             <div className="flex items-center gap-3">
