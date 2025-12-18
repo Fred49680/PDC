@@ -107,7 +107,7 @@ export default function GrilleChargeAffectation({
     autoRefresh,
   })
 
-  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
+  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, consolidate: consolidateAffectations } = useAffectations({
     affaireId,
     site,
     autoRefresh,
@@ -1119,6 +1119,15 @@ export default function GrilleChargeAffectation({
             force_weekend_ferie: forceWeekendFerie, // Passer le flag de forçage
           })
           console.log('[handleAffectationChange] ✅✅✅ saveAffectation() TERMINÉ AVEC SUCCÈS')
+          
+          // Si mode JOUR et autoRefresh activé, consolider après sauvegarde
+          if (precision === 'JOUR' && autoRefresh) {
+            setTimeout(() => {
+              consolidateAffectations(competence).catch(err => {
+                console.error('[GrilleChargeAffectation] Erreur consolidation affectations:', err)
+              })
+            }, 1000)
+          }
         } catch (err) {
           console.error('[handleAffectationChange] ❌❌❌ ERREUR dans saveAffectation():', err)
           throw err // Re-lancer l'erreur pour qu'elle soit gérée par le try/catch parent
@@ -1242,7 +1251,7 @@ export default function GrilleChargeAffectation({
       } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate, periodeContientWeekendOuFerie, confirmAsync, showAlert])
+  }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate, periodeContientWeekendOuFerie, confirmAsync, showAlert, autoRefresh])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé

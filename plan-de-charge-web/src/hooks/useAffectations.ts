@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
+import { addDays, isSameDay } from 'date-fns'
 import type { Affectation, Ressource } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
 
@@ -372,6 +374,209 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
     }
   }, [loadAffectations])
 
+  // Fonction de consolidation des affectations (similaire à celle des périodes de charge)
+  const consolidate = useCallback(async (competence?: string) => {
+    try {
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', site)
+        .single()
+
+      if (affaireError || !affaireData) {
+        throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
+      }
+
+      // Charger toutes les affectations pour cette affaire/site (et compétence si spécifiée)
+      let query = supabase
+        .from('affectations')
+        .select('*')
+        .eq('affaire_id', affaireData.id)
+        .eq('site', site)
+        .order('ressource_id', { ascending: true })
+        .order('competence', { ascending: true })
+        .order('date_debut', { ascending: true })
+
+      if (competence) {
+        query = query.eq('competence', competence)
+      }
+
+      const { data: allAffectations, error: queryError } = await query
+
+      if (queryError) throw queryError
+
+      if (!allAffectations || allAffectations.length === 0) {
+        await loadAffectations()
+        return
+      }
+
+      // Grouper par ressource et compétence
+      const affectationsParRessourceComp = new Map<string, typeof allAffectations>()
+      allAffectations.forEach((a: any) => {
+        const key = `${a.ressource_id}|${a.competence}`
+        if (!affectationsParRessourceComp.has(key)) {
+          affectationsParRessourceComp.set(key, [])
+        }
+        affectationsParRessourceComp.get(key)!.push(a)
+      })
+
+      // Pour chaque ressource/compétence, consolider les affectations
+      for (const [key, affectationsResComp] of affectationsParRessourceComp.entries()) {
+        // *** NOUVEAU : Séparer les affectations avec force_weekend_ferie=true (ne pas les consolider) ***
+        const affectationsForcees: typeof allAffectations = []
+        const affectationsNormales: typeof allAffectations = []
+
+        affectationsResComp.forEach((a: any) => {
+          if (a.force_weekend_ferie === true) {
+            // Affectation forcée : la garder telle quelle (ligne séparée)
+            affectationsForcees.push(a)
+          } else {
+            // Affectation normale : à consolider
+            affectationsNormales.push(a)
+          }
+        })
+
+        // *** NOUVEAU : Déplier jour par jour (jours ouvrés uniquement) SEULEMENT pour les affectations normales ***
+        const joursParAffectation = new Map<string, number>() // Clé: date ISO (YYYY-MM-DD), Valeur: charge
+
+        affectationsNormales.forEach((a: any) => {
+          const dateDebut = new Date(a.date_debut)
+          const dateFin = new Date(a.date_fin)
+          const charge = a.charge || 0
+
+          if (charge <= 0) return
+
+          // Parcourir tous les jours de la période
+          const currentDate = new Date(dateDebut)
+          while (currentDate <= dateFin) {
+            // Vérifier si c'est un jour ouvré (utiliser isBusinessDay qui gère week-ends et fériés)
+            if (isBusinessDay(currentDate)) {
+              const dateKey = currentDate.toISOString().split('T')[0] // Format YYYY-MM-DD
+              // Si plusieurs affectations pour le même jour, prendre la charge maximale (pas d'addition)
+              const chargeExistante = joursParAffectation.get(dateKey) || 0
+              joursParAffectation.set(dateKey, Math.max(chargeExistante, charge))
+            }
+
+            currentDate.setDate(currentDate.getDate() + 1)
+          }
+        })
+
+        // *** NOUVEAU : Vérifier s'il y a des affectations à traiter (normales OU forcées) ***
+        const hasAffectationsNormales = joursParAffectation.size > 0
+        const hasAffectationsForcees = affectationsForcees.length > 0
+
+        if (!hasAffectationsNormales && !hasAffectationsForcees) {
+          // Aucune affectation avec charge > 0, supprimer toutes les affectations de cette ressource/compétence
+          for (const a of affectationsResComp) {
+            await supabase.from('affectations').delete().eq('id', a.id)
+          }
+          continue
+        }
+
+        // Supprimer toutes les anciennes affectations de cette ressource/compétence
+        for (const a of affectationsResComp) {
+          await supabase.from('affectations').delete().eq('id', a.id)
+        }
+
+        // *** NOUVEAU : Recréer les affectations forcées telles quelles (lignes séparées) ***
+        for (const affectationForcee of affectationsForcees) {
+          const [ressourceId, comp] = key.split('|')
+          await supabase.from('affectations').insert({
+            affaire_id: affaireData.id,
+            site,
+            ressource_id: ressourceId,
+            competence: comp,
+            date_debut: normalizeDateToUTC(new Date(affectationForcee.date_debut)),
+            date_fin: normalizeDateToUTC(new Date(affectationForcee.date_fin)),
+            charge: affectationForcee.charge || 0,
+            force_weekend_ferie: true, // Conserver le flag
+          })
+        }
+
+        // *** NOUVEAU : Consolider SEULEMENT les affectations normales (sans force_weekend_ferie) ***
+        if (hasAffectationsNormales) {
+          // Trier les dates
+          const datesTriees = Array.from(joursParAffectation.keys()).sort()
+
+          // Regrouper les affectations consécutives avec la même charge
+          const nouvellesAffectations: Array<{
+            date_debut: Date
+            date_fin: Date
+            charge: number
+          }> = []
+
+          if (datesTriees.length > 0) {
+            const [ressourceId, comp] = key.split('|')
+
+            let affectationDebut = new Date(datesTriees[0] + 'T00:00:00')
+            let affectationFin = new Date(datesTriees[0] + 'T00:00:00')
+            let chargeActuelle = joursParAffectation.get(datesTriees[0])!
+
+            for (let i = 1; i < datesTriees.length; i++) {
+              const dateActuelle = new Date(datesTriees[i] + 'T00:00:00')
+              const datePrecedente = new Date(datesTriees[i - 1] + 'T00:00:00')
+              const chargeActuelleDate = joursParAffectation.get(datesTriees[i])!
+
+              // Vérifier si la date actuelle est le jour suivant (consécutif)
+              const jourSuivant = addDays(datePrecedente, 1)
+              const isConsecutif = isSameDay(dateActuelle, jourSuivant)
+
+              // Si consécutif (jour suivant) ET même charge, étendre la période
+              if (isConsecutif && chargeActuelleDate === chargeActuelle) {
+                affectationFin = dateActuelle
+              } else {
+                // Nouvelle affectation : sauvegarder l'ancienne
+                nouvellesAffectations.push({
+                  date_debut: affectationDebut,
+                  date_fin: affectationFin,
+                  charge: chargeActuelle,
+                })
+
+                // Commencer une nouvelle affectation
+                affectationDebut = dateActuelle
+                affectationFin = dateActuelle
+                chargeActuelle = chargeActuelleDate
+              }
+            }
+
+            // Ajouter la dernière affectation
+            nouvellesAffectations.push({
+              date_debut: affectationDebut,
+              date_fin: affectationFin,
+              charge: chargeActuelle,
+            })
+
+            // Créer les nouvelles affectations consolidées (sans force_weekend_ferie)
+            for (const nouvelleAffectation of nouvellesAffectations) {
+              await supabase.from('affectations').insert({
+                affaire_id: affaireData.id,
+                site,
+                ressource_id: ressourceId,
+                competence: comp,
+                date_debut: normalizeDateToUTC(nouvelleAffectation.date_debut),
+                date_fin: normalizeDateToUTC(nouvelleAffectation.date_fin),
+                charge: nouvelleAffectation.charge,
+                force_weekend_ferie: false, // Affectations normales
+              })
+            }
+          }
+        }
+      }
+
+      // Recharger les affectations après consolidation
+      await loadAffectations()
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useAffectations] Erreur consolidate:', err)
+      throw err
+    }
+  }, [affaireId, site, loadAffectations])
+
   return {
     affectations,
     ressources,
@@ -381,5 +586,6 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
     deleteAffectation,
     removeConflictingAffectations, // Exporter pour utilisation dans useAbsences
     refresh: loadAffectations,
+    consolidate, // Exporter la fonction de consolidation
   }
 }
