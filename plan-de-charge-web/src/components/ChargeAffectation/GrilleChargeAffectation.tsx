@@ -419,6 +419,13 @@ export default function GrilleChargeAffectation({
         }
         
         if (correspond) {
+          // *** NOUVEAU : En mode JOUR, ne pas charger les données sur les week-ends/fériés ***
+          if (precision === 'JOUR' && (col.isWeekend || col.isHoliday)) {
+            // Ne pas charger les données sur les week-ends/fériés en mode JOUR
+            // (sauf si validation - mais pour l'instant on ne charge rien)
+            return // Skip cette colonne
+          }
+          
           const cellKey = `${periode.competence}|${col.date.getTime()}`
           grille.set(cellKey, periode.nb_ressources)
           nbCellulesRemplies++
@@ -484,6 +491,13 @@ export default function GrilleChargeAffectation({
         }
         
         if (correspond) {
+          // *** NOUVEAU : En mode JOUR, ne pas charger les données sur les week-ends/fériés ***
+          if (precision === 'JOUR' && (col.isWeekend || col.isHoliday)) {
+            // Ne pas charger les données sur les week-ends/fériés en mode JOUR
+            // (sauf si validation - mais pour l'instant on ne charge rien)
+            return // Skip cette colonne
+          }
+          
           const cellKey = `${affectation.competence}|${col.date.getTime()}`
           if (!grille.has(cellKey)) {
             grille.set(cellKey, new Set<string>())
@@ -566,6 +580,12 @@ export default function GrilleChargeAffectation({
           // Normaliser à UTC
           dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
           dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+          
+          // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
+          if (periodeContientWeekendOuFerie(dateDebutPeriode, dateFinPeriode)) {
+            alert('❌ Impossible d\'enregistrer une charge en mode SEMAINE si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour saisir des charges sur les week-ends ou jours fériés.')
+            return // Annuler la sauvegarde
+          }
         } else if (precision === 'MOIS') {
           // Mode MOIS : premier au dernier jour du mois
           dateDebutPeriode = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
@@ -577,6 +597,12 @@ export default function GrilleChargeAffectation({
           // Normaliser à UTC
           dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
           dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+          
+          // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
+          if (periodeContientWeekendOuFerie(dateDebutPeriode, dateFinPeriode)) {
+            alert('❌ Impossible d\'enregistrer une charge en mode MOIS si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour saisir des charges sur les week-ends ou jours fériés.')
+            return // Annuler la sauvegarde
+          }
         } else {
           // Par défaut : mode JOUR
           dateDebutPeriode = colDateNormalisee
@@ -630,7 +656,7 @@ export default function GrilleChargeAffectation({
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin])
+  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, periodeContientWeekendOuFerie])
 
   // ========================================
   // FONCTION : Vérifier les affectations existantes d'une ressource
@@ -696,6 +722,23 @@ export default function GrilleChargeAffectation({
   }, [absences])
 
   // ========================================
+  // FONCTION : Vérifier si une période contient des week-ends ou jours fériés
+  // ========================================
+  const periodeContientWeekendOuFerie = useCallback((dateDebut: Date, dateFin: Date): boolean => {
+    let currentDate = new Date(dateDebut)
+    const dateFinCopy = new Date(dateFin)
+    
+    while (currentDate <= dateFinCopy) {
+      if (isWeekend(currentDate) || isFrenchHoliday(currentDate)) {
+        return true
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    return false
+  }, [])
+
+  // ========================================
   // HANDLER AFFECTATION
   // ========================================
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
@@ -720,6 +763,12 @@ export default function GrilleChargeAffectation({
       // Normaliser à UTC
       dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
       dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
+      
+      // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
+      if (periodeContientWeekendOuFerie(dateDebutAffectation, dateFinAffectation)) {
+        alert('❌ Impossible d\'affecter une ressource en mode SEMAINE si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour affecter des ressources sur les week-ends ou jours fériés.')
+        return // Annuler l'affectation
+      }
     } else if (precision === 'MOIS') {
       // Mode MOIS : premier au dernier jour du mois
       dateDebutAffectation = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
@@ -731,6 +780,12 @@ export default function GrilleChargeAffectation({
       // Normaliser à UTC
       dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
       dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
+      
+      // *** NOUVEAU : Bloquer si la période contient des week-ends ou jours fériés ***
+      if (periodeContientWeekendOuFerie(dateDebutAffectation, dateFinAffectation)) {
+        alert('❌ Impossible d\'affecter une ressource en mode MOIS si la période contient des week-ends ou jours fériés.\n\nVeuillez utiliser le mode JOUR pour affecter des ressources sur les week-ends ou jours fériés.')
+        return // Annuler l'affectation
+      }
     } else {
       // Par défaut : mode JOUR
       dateDebutAffectation = normalizeDateToUTC(col.date)
@@ -955,7 +1010,7 @@ export default function GrilleChargeAffectation({
     } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate])
+  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate, periodeContientWeekendOuFerie])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
