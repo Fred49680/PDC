@@ -785,6 +785,72 @@ export default function Planning2({
     }
   }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, showAlert, autoRefresh])
 
+  // Affectation de masse : affecter sur toutes les colonnes avec besoin
+  const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
+    try {
+      // Trouver toutes les colonnes avec un besoin > 0 pour cette compétence
+      const colonnesAvecBesoin: number[] = []
+      
+      competencesData.forEach(compData => {
+        if (compData.competence === competence) {
+          compData.colonnes.forEach((besoin, colIndex) => {
+            if (besoin > 0) {
+              // Vérifier si la ressource n'est pas déjà affectée sur cette colonne
+              const ressource = compData.ressources.find(r => r.id === ressourceId)
+              if (ressource && !ressource.affectations.get(colIndex)) {
+                colonnesAvecBesoin.push(colIndex)
+              }
+            }
+          })
+        }
+      })
+
+      if (colonnesAvecBesoin.length === 0) {
+        showAlert(
+          'Information',
+          'Aucune période avec besoin disponible pour cette ressource.',
+          'info'
+        )
+        return
+      }
+
+      // Demander confirmation
+      const confirme = await confirmAsync(
+        'Affectation de masse',
+        `Voulez-vous affecter cette ressource sur ${colonnesAvecBesoin.length} période(s) avec besoin ?\n\nCela va créer ${colonnesAvecBesoin.length} affectation(s).`,
+        { type: 'info' }
+      )
+      
+      if (!confirme) return
+
+      // Affecter sur toutes les colonnes avec besoin
+      // Note: handleAffectationChange gère les vérifications (absences/conflits) et peut retourner silencieusement
+      // On va l'appeler pour toutes les colonnes et laisser la logique existante gérer les vérifications
+      const nbTentatives = colonnesAvecBesoin.length
+      
+      // Appeler handleAffectationChange pour toutes les colonnes
+      // Les appels sont séquentiels pour éviter les conflits et permettre un meilleur feedback
+      for (const colIndex of colonnesAvecBesoin) {
+        await handleAffectationChange(competence, ressourceId, colIndex, true)
+        // Petit délai pour éviter de surcharger
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+
+      showAlert(
+        'Affectation de masse terminée',
+        `Tentative d'affectation sur ${nbTentatives} période(s) avec besoin.\n\nLes affectations ont été créées pour les périodes disponibles. Certaines périodes peuvent avoir été bloquées (absences ou conflits) - vérifiez les alertes éventuelles.`,
+        'success'
+      )
+    } catch (err) {
+      console.error('[Planning2] Erreur affectation de masse:', err)
+      showAlert(
+        'Erreur',
+        `Erreur lors de l'affectation de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+        'error'
+      )
+    }
+  }, [competencesData, handleAffectationChange, confirmAsync, showAlert])
+
   // Navigation
   const handlePreviousPeriod = () => {
     setDateDebut(prev => subWeeks(prev, 1))
@@ -819,7 +885,8 @@ export default function Planning2({
     besoin,
     competence,
     colIndex,
-    onAffectationChange
+    onAffectationChange,
+    onAffectationMasse
   }: {
     ressource: { id: string; nom: string; isPrincipale: boolean }
     isAffecte: boolean
@@ -831,6 +898,7 @@ export default function Planning2({
     competence: string
     colIndex: number
     onAffectationChange: (competence: string, ressourceId: string, colIndex: number, checked: boolean) => void
+    onAffectationMasse?: (competence: string, ressourceId: string) => void
   }) => {
     const [tooltipPos, setTooltipPos] = React.useState<{ top: number; left: number } | null>(null)
     const [showTooltip, setShowTooltip] = React.useState(false)
@@ -871,6 +939,18 @@ export default function Planning2({
       setShowTooltip(false)
       setTooltipPos(null)
     }, [])
+
+    // Gestion du double-clic pour affectation de masse
+    const handleDoubleClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+      // Empêcher la propagation pour éviter les conflits
+      e.preventDefault()
+      e.stopPropagation()
+      
+      // Ne fonctionne que si pas d'absence et si onAffectationMasse est fourni
+      if (!absence && onAffectationMasse && besoin > 0) {
+        onAffectationMasse(competence, ressource.id)
+      }
+    }, [absence, onAffectationMasse, competence, ressource.id, besoin])
     
     return (
       <>
@@ -878,6 +958,8 @@ export default function Planning2({
           ref={cellRef}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
+          onDoubleClick={handleDoubleClick}
+          title={!absence && besoin > 0 ? "Double-clic pour affecter sur toute la période avec besoin" : undefined}
           className={`relative isolate z-10 group p-2 rounded-lg border-2 transition-all ${
             isAffecte
               ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-green-600 shadow-md'
@@ -1278,6 +1360,7 @@ export default function Planning2({
                                           competence={compData.competence}
                                           colIndex={idx}
                                           onAffectationChange={handleAffectationChange}
+                                          onAffectationMasse={handleAffectationMasse}
                                         />
                                       )
                                     })}
