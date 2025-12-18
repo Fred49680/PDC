@@ -543,7 +543,7 @@ export default function AffairesPage() {
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <Edit2 className="w-4 h-4" />
-              <span>Double-cliquez sur une cellule pour modifier</span>
+              <span>Cliquez sur une cellule pour modifier</span>
             </div>
           </div>
 
@@ -609,8 +609,8 @@ export default function AffairesPage() {
                         {/* Site - Select */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'site')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'site')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'site' ? (
                             <select
@@ -636,8 +636,8 @@ export default function AffairesPage() {
                         {/* Responsable - Input text */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'responsable')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'responsable')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'responsable' ? (
                             <input
@@ -661,8 +661,8 @@ export default function AffairesPage() {
                         {/* Libellé - Input text */}
                         <td 
                           className="px-6 py-4 text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'libelle')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'libelle')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'libelle' ? (
                             <input
@@ -686,8 +686,8 @@ export default function AffairesPage() {
                         {/* Tranche - Select */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'tranche')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'tranche')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'tranche' ? (
                             <select
@@ -713,8 +713,8 @@ export default function AffairesPage() {
                         {/* Compte - Input text */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'compte')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'compte')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'compte' ? (
                             <input
@@ -738,8 +738,8 @@ export default function AffairesPage() {
                         {/* Statut - Select */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'statut')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'statut')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'statut' ? (
                             <select
@@ -783,8 +783,8 @@ export default function AffairesPage() {
                         {/* Budget - Input number */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'budget_heures')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'budget_heures')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'budget_heures' ? (
                             <input
@@ -812,8 +812,8 @@ export default function AffairesPage() {
                         {/* RAF - Input number */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'raf_heures')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'raf_heures')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'raf_heures' ? (
                             <input
@@ -841,8 +841,8 @@ export default function AffairesPage() {
                         {/* Date maj RAF - Input date */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'date_maj_raf')}
-                          title="Double-cliquez pour modifier"
+                          onClick={() => handleCellEdit(affaire, 'date_maj_raf')}
+                          title="Cliquez pour modifier"
                         >
                           {editingCell?.rowId === affaire.id && editingCell?.field === 'date_maj_raf' ? (
                             <input
