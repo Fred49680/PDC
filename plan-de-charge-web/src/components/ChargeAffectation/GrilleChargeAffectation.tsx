@@ -229,21 +229,66 @@ export default function GrilleChargeAffectation({
     return Array.from(compSet).sort()
   }, [periodes, competencesMap])
   
-  // Initialiser les compétences filtrées avec toutes les compétences disponibles au démarrage
-  // (seulement une fois, au premier chargement terminé, si l'utilisateur n'a pas encore interagi)
+  // Réinitialiser le flag quand l'affaire change
+  useEffect(() => {
+    setCompetencesInitialisees(false)
+    setCompetencesFiltrees(new Set<string>()) // Réinitialiser à vide quand l'affaire change
+  }, [affaireId, site])
+
+  // Initialiser les compétences filtrées : toutes désélectionnées par défaut
+  // Sélectionner automatiquement celles qui ont déjà des données (charge ou affectations) sur la période
   useEffect(() => {
     if (
       !competencesInitialisees &&
       !loadingCharge && 
+      !loadingAffectations &&
       !loadingRessources && 
-      competencesList.length > 0 && 
-      competencesFiltrees.size === 0
+      competencesList.length > 0
     ) {
-      console.log(`[GrilleChargeAffectation] Initialisation compétences: ${competencesList.length} compétence(s) sélectionnée(s)`)
-      setCompetencesFiltrees(new Set(competencesList))
+      // Détecter les compétences qui ont déjà des données sur la période
+      const competencesAvecDonnees = new Set<string>()
+      
+      // Vérifier les périodes de charge
+      periodes.forEach((periode) => {
+        if (periode.competence) {
+          // Vérifier si la période chevauche avec la période affichée
+          const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
+          const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
+          const dateDebutUTC = normalizeDateToUTC(dateDebut)
+          const dateFinUTC = normalizeDateToUTC(dateFin)
+          
+          // Chevauchement : (periodeDateDebut <= dateFinUTC) && (periodeDateFin >= dateDebutUTC)
+          if (periodeDateDebut <= dateFinUTC && periodeDateFin >= dateDebutUTC) {
+            competencesAvecDonnees.add(periode.competence)
+          }
+        }
+      })
+      
+      // Vérifier les affectations
+      affectations.forEach((aff) => {
+        if (aff.competence) {
+          // Vérifier si l'affectation chevauche avec la période affichée
+          const affDateDebut = normalizeDateToUTC(new Date(aff.date_debut))
+          const affDateFin = normalizeDateToUTC(new Date(aff.date_fin))
+          const dateDebutUTC = normalizeDateToUTC(dateDebut)
+          const dateFinUTC = normalizeDateToUTC(dateFin)
+          
+          // Chevauchement : (affDateDebut <= dateFinUTC) && (affDateFin >= dateDebutUTC)
+          if (affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC) {
+            competencesAvecDonnees.add(aff.competence)
+          }
+        }
+      })
+      
+      console.log(`[GrilleChargeAffectation] Initialisation compétences: ${competencesList.length} compétence(s) disponible(s), ${competencesAvecDonnees.size} compétence(s) avec données sélectionnée(s) automatiquement`)
+      if (competencesAvecDonnees.size > 0) {
+        console.log(`[GrilleChargeAffectation] Compétences sélectionnées automatiquement:`, Array.from(competencesAvecDonnees).join(', '))
+      }
+      
+      setCompetencesFiltrees(competencesAvecDonnees) // Sélectionner uniquement celles avec données
       setCompetencesInitialisees(true) // Marquer comme initialisé pour éviter réinitialisation future
     }
-  }, [competencesList, loadingCharge, loadingRessources, competencesFiltrees.size, competencesInitialisees])
+  }, [competencesList, loadingCharge, loadingAffectations, loadingRessources, competencesInitialisees, periodes, affectations, dateDebut, dateFin])
   
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set<string>())
