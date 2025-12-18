@@ -22,6 +22,12 @@ interface ColonneDate {
   semaineISO: string
 }
 
+interface Ressource {
+  id: string
+  nom: string
+  date_fin_contrat: Date | null
+}
+
 // ========================================
 // MOCK DATA & UTILITIES (à remplacer par vos vrais hooks)
 // ========================================
@@ -112,8 +118,8 @@ export default function GrilleChargeAffectation({
   const [competencesFiltrees, setCompetencesFiltrees] = useState(new Set(['BE_IES', 'IES']))
   
   // États de sauvegarde
-  const [savingCells, setSavingCells] = useState(new Set())
-  const saveTimeoutRef = useRef(new Map())
+  const [savingCells, setSavingCells] = useState<Set<string>>(new Set<string>())
+  const saveTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map<string, NodeJS.Timeout>())
 
   // ========================================
   // COLONNES - Mémoïsées
@@ -192,7 +198,7 @@ export default function GrilleChargeAffectation({
   // RESSOURCES PAR COMPÉTENCE - Mémoïsées
   // ========================================
   const ressourcesParCompetence = useMemo(() => {
-    const map = new Map()
+    const map = new Map<string, Ressource[]>()
     
     COMPETENCES_LIST.forEach((comp) => {
       const ressourcesComp = ressources.filter((r) => {
@@ -331,7 +337,7 @@ export default function GrilleChargeAffectation({
   // ========================================
   // TOGGLE COMPÉTENCE
   // ========================================
-  const toggleCompetence = (competence) => {
+  const toggleCompetence = (competence: string): void => {
     setCompetencesFiltrees(prev => {
       const newSet = new Set(prev)
       if (newSet.has(competence)) {
@@ -613,7 +619,7 @@ export default function GrilleChargeAffectation({
                                 </td>
                                 {colonnes.map((col, idx) => {
                                   const cellKey = `${comp}|${col.date.getTime()}`
-                                  const affectees = grilleAffectations.get(cellKey) || new Set()
+                                  const affectees = grilleAffectations.get(cellKey) || new Set<string>()
                                   const isAffecte = affectees.has(ressource.id)
 
                                   return (
@@ -635,7 +641,7 @@ export default function GrilleChargeAffectation({
                                 <td className="px-4 py-2 text-center font-medium bg-gray-50">
                                   {colonnes.reduce((sum, col) => {
                                     const cellKey = `${comp}|${col.date.getTime()}`
-                                    const affectees = grilleAffectations.get(cellKey) || new Set()
+                                    const affectees = grilleAffectations.get(cellKey) || new Set<string>()
                                     return sum + (affectees.has(ressource.id) ? 1 : 0)
                                   }, 0)}
                                 </td>
