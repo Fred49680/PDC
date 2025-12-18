@@ -249,13 +249,36 @@ export default function GrilleChargeAffectation({
       
       let trouvee = false
       colonnes.forEach((col) => {
-        // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
         const colDate = normalizeDateToUTC(col.date)
         
-        if (
-          periodeDateDebut <= colDate &&
-          periodeDateFin >= colDate
-        ) {
+        // Vérifier correspondance selon la précision
+        let correspond = false
+        if (precision === 'JOUR') {
+          // Mode JOUR : la date de la colonne doit être dans la période
+          correspond = periodeDateDebut <= colDate && periodeDateFin >= colDate
+        } else if (precision === 'SEMAINE') {
+          // Mode SEMAINE : la période doit chevaucher la semaine (lundi à dimanche)
+          const dayOfWeek = col.date.getDay()
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+          const weekStart = new Date(col.date)
+          weekStart.setDate(weekStart.getDate() - daysToMonday)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekEnd.getDate() + 6)
+          const weekStartUTC = normalizeDateToUTC(weekStart)
+          const weekEndUTC = normalizeDateToUTC(weekEnd)
+          // Chevauchement : (periodeDateDebut <= weekEndUTC) && (periodeDateFin >= weekStartUTC)
+          correspond = periodeDateDebut <= weekEndUTC && periodeDateFin >= weekStartUTC
+        } else if (precision === 'MOIS') {
+          // Mode MOIS : la période doit chevaucher le mois
+          const monthStart = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+          const monthEnd = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+          const monthStartUTC = normalizeDateToUTC(monthStart)
+          const monthEndUTC = normalizeDateToUTC(monthEnd)
+          // Chevauchement : (periodeDateDebut <= monthEndUTC) && (periodeDateFin >= monthStartUTC)
+          correspond = periodeDateDebut <= monthEndUTC && periodeDateFin >= monthStartUTC
+        }
+        
+        if (correspond) {
           const cellKey = `${periode.competence}|${col.date.getTime()}`
           grille.set(cellKey, periode.nb_ressources)
           nbCellulesRemplies++
@@ -272,7 +295,7 @@ export default function GrilleChargeAffectation({
     console.log(`[GrilleChargeAffectation] ${periodes.length} période(s) chargée(s) -> ${nbCellulesRemplies} cellule(s) dans la grille${nbPeriodesSansCorrespondance > 0 ? ` (${nbPeriodesSansCorrespondance} période(s) sans correspondance)` : ''}`)
     
     return grille
-  }, [periodes, colonnes])
+  }, [periodes, colonnes, precision])
 
   // ========================================
   // GRILLE D'AFFECTATIONS - Mémoïsée
@@ -291,13 +314,36 @@ export default function GrilleChargeAffectation({
       
       let trouvee = false
       colonnes.forEach((col) => {
-        // *** CORRECTION : Normaliser les dates à minuit UTC pour la comparaison ***
         const colDate = normalizeDateToUTC(col.date)
         
-        if (
-          affectationDateDebut <= colDate &&
-          affectationDateFin >= colDate
-        ) {
+        // Vérifier correspondance selon la précision
+        let correspond = false
+        if (precision === 'JOUR') {
+          // Mode JOUR : la date de la colonne doit être dans la période d'affectation
+          correspond = affectationDateDebut <= colDate && affectationDateFin >= colDate
+        } else if (precision === 'SEMAINE') {
+          // Mode SEMAINE : l'affectation doit chevaucher la semaine (lundi à dimanche)
+          const dayOfWeek = col.date.getDay()
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+          const weekStart = new Date(col.date)
+          weekStart.setDate(weekStart.getDate() - daysToMonday)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekEnd.getDate() + 6)
+          const weekStartUTC = normalizeDateToUTC(weekStart)
+          const weekEndUTC = normalizeDateToUTC(weekEnd)
+          // Chevauchement : (affectationDateDebut <= weekEndUTC) && (affectationDateFin >= weekStartUTC)
+          correspond = affectationDateDebut <= weekEndUTC && affectationDateFin >= weekStartUTC
+        } else if (precision === 'MOIS') {
+          // Mode MOIS : l'affectation doit chevaucher le mois
+          const monthStart = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+          const monthEnd = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+          const monthStartUTC = normalizeDateToUTC(monthStart)
+          const monthEndUTC = normalizeDateToUTC(monthEnd)
+          // Chevauchement : (affectationDateDebut <= monthEndUTC) && (affectationDateFin >= monthStartUTC)
+          correspond = affectationDateDebut <= monthEndUTC && affectationDateFin >= monthStartUTC
+        }
+        
+        if (correspond) {
           const cellKey = `${affectation.competence}|${col.date.getTime()}`
           if (!grille.has(cellKey)) {
             grille.set(cellKey, new Set<string>())
@@ -320,7 +366,7 @@ export default function GrilleChargeAffectation({
     console.log(`[GrilleChargeAffectation] ${affectations.length} affectation(s) chargée(s) -> ${nbCellulesRemplies} cellule(s) dans la grille${nbAffectationsSansCorrespondance > 0 ? ` (${nbAffectationsSansCorrespondance} affectation(s) sans correspondance)` : ''}`)
     
     return grille
-  }, [affectations, colonnes])
+  }, [affectations, colonnes, precision])
 
   // ========================================
   // RESSOURCES PAR COMPÉTENCE - Mémoïsées
@@ -359,16 +405,53 @@ export default function GrilleChargeAffectation({
     
     const timeout = setTimeout(async () => {
       try {
-        console.log(`💾 Sauvegarde ${competence} - ${col.label}: ${nbRessources}`)
+        console.log(`💾 Sauvegarde ${competence} - ${col.label}: ${nbRessources} (précision: ${precision})`)
         
-        // Trouver la période existante pour cette compétence/date
+        // Calculer les dates de début et fin selon la précision
+        let dateDebutPeriode: Date
+        let dateFinPeriode: Date
+        
+        if (precision === 'JOUR') {
+          // Mode JOUR : une seule date
+          dateDebutPeriode = colDateNormalisee
+          dateFinPeriode = colDateNormalisee
+        } else if (precision === 'SEMAINE') {
+          // Mode SEMAINE : lundi à dimanche de la semaine
+          const dayOfWeek = col.date.getDay()
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+          dateDebutPeriode = new Date(col.date)
+          dateDebutPeriode.setDate(dateDebutPeriode.getDate() - daysToMonday)
+          dateFinPeriode = new Date(dateDebutPeriode)
+          dateFinPeriode.setDate(dateFinPeriode.getDate() + 6)
+          // Normaliser à UTC
+          dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+          dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+        } else if (precision === 'MOIS') {
+          // Mode MOIS : premier au dernier jour du mois
+          dateDebutPeriode = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+          dateFinPeriode = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+          // Limiter à dateFin si nécessaire
+          if (dateFinPeriode > dateFin) {
+            dateFinPeriode = new Date(dateFin)
+          }
+          // Normaliser à UTC
+          dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+          dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+        } else {
+          // Par défaut : mode JOUR
+          dateDebutPeriode = colDateNormalisee
+          dateFinPeriode = colDateNormalisee
+        }
+        
+        // Trouver la période existante pour cette compétence/période
         const periodeExistante = periodes.find(
           (p) => {
             const pDateDebut = normalizeDateToUTC(new Date(p.date_debut))
             const pDateFin = normalizeDateToUTC(new Date(p.date_fin))
             return p.competence === competence && 
-                   pDateDebut <= colDateNormalisee && 
-                   pDateFin >= colDateNormalisee
+                   // Vérifier chevauchement : (dateDebutPeriode <= pDateFin) && (dateFinPeriode >= pDateDebut)
+                   dateDebutPeriode <= pDateFin && 
+                   dateFinPeriode >= pDateDebut
           }
         )
         
@@ -380,8 +463,8 @@ export default function GrilleChargeAffectation({
           await savePeriode({
             id: periodeExistante?.id,
             competence,
-            date_debut: colDateNormalisee,
-            date_fin: colDateNormalisee,
+            date_debut: dateDebutPeriode,
+            date_fin: dateFinPeriode,
             nb_ressources: nbRessources,
           })
           
@@ -480,7 +563,7 @@ export default function GrilleChargeAffectation({
     } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation])
+  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
