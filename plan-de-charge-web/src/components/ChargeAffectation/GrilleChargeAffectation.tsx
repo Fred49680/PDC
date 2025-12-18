@@ -135,12 +135,18 @@ export default function GrilleChargeAffectation({
   }, [periodes, competencesMap])
   
   // Initialiser les compétences filtrées avec toutes les compétences disponibles au démarrage
+  // (seulement quand le chargement est terminé et qu'aucune compétence n'est encore sélectionnée)
   useEffect(() => {
-    if (competencesList.length > 0 && competencesFiltrees.size === 0) {
+    if (
+      !loadingCharge && 
+      !loadingRessources && 
+      competencesList.length > 0 && 
+      competencesFiltrees.size === 0
+    ) {
       console.log(`[GrilleChargeAffectation] Initialisation compétences: ${competencesList.length} compétence(s) sélectionnée(s)`)
       setCompetencesFiltrees(new Set(competencesList))
     }
-  }, [competencesList])
+  }, [competencesList, loadingCharge, loadingRessources, competencesFiltrees.size])
   
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set<string>())
