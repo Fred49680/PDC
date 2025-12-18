@@ -6,7 +6,7 @@ import { useAffaires } from '@/hooks/useAffaires'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Building2, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, Eye, EyeOff, FileSpreadsheet } from 'lucide-react'
+import { Building2, Plus, Edit2, Search, AlertCircle, CheckCircle2, Eye, EyeOff, FileSpreadsheet } from 'lucide-react'
 import { generateAffaireId, SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
 import { ImportExcel } from '@/components/Affaires/ImportExcel'
 
@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
   const [showImport, setShowImport] = useState(false)
-  const { affaires: allAffaires, loading, error, saveAffaire, deleteAffaire, loadAffaires } = useAffaires()
+  const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires } = useAffaires()
   
   // Filtres en cascade (comme la page Planning)
   const [responsable, setResponsable] = useState('')
@@ -606,33 +606,6 @@ export default function AffairesPage() {
                         key={affaire.id} 
                         className="hover:bg-gray-50 transition-colors duration-150"
                       >
-                        {/* Site - Select */}
-                        <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
-                          onDoubleClick={() => handleCellEdit(affaire, 'site')}
-                          title="Double-cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'site' ? (
-                            <select
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'site')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'site')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            >
-                              {SITES_LIST.map((s) => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="cursor-text">{affaire.site}</span>
-                          )}
-                        </td>
-                        
                         {/* Site - Select */}
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
