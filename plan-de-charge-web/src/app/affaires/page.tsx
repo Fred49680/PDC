@@ -354,16 +354,6 @@ export default function AffairesPage() {
     setEditingValue('')
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
-      try {
-        await deleteAffaire(id)
-      } catch (err) {
-        console.error('[AffairesPage] Erreur suppression:', err)
-        alert('Erreur lors de la suppression :\n\n' + (err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'))
-      }
-    }
-  }
 
   const handleNew = () => {
     setFormData({
@@ -598,15 +588,12 @@ export default function AffairesPage() {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Date maj RAF
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center">
+                      <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -902,23 +889,6 @@ export default function AffairesPage() {
                               {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
                             </span>
                           )}
-                        </td>
-                        
-                        {/* Actions */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
-                                handleDelete(affaire.id)
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 flex items-center gap-1.5 font-medium text-xs"
-                            title="Supprimer l'affaire"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Supprimer
-                          </button>
                         </td>
                       </tr>
                     ))
