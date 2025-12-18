@@ -14,7 +14,7 @@ export interface Affaire {
   updated_by?: string
   // Colonnes pour génération automatique de l'affaire_id
   tranche?: string // Tranche/Segment (ex: "TOUTE", "1", "2", etc.)
-  statut?: string // Statut (ex: "Ouverte", "Prévisionnelle", "Fermée")
+  statut?: string // Statut (ex: "Ouverte", "Prévisionnelle", "Clôturé")
   // Colonnes budgétaires
   budget_heures?: number // Budget en heures
   raf_heures?: number // Reste À Faire en heures

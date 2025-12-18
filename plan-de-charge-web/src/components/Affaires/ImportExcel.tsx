@@ -207,8 +207,8 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
                   mapped.statut = 'Ouverte'
                 } else if (statutValue.toLowerCase() === 'prévisionnelle' || statutValue.toLowerCase() === 'previsionnelle') {
                   mapped.statut = 'Prévisionnelle'
-                } else if (statutValue.toLowerCase() === 'fermée' || statutValue.toLowerCase() === 'fermee' || statutValue.toLowerCase() === 'ferme') {
-                  mapped.statut = 'Fermée'
+                } else if (statutValue.toLowerCase() === 'clôturé' || statutValue.toLowerCase() === 'cloture' || statutValue.toLowerCase() === 'cloturé' || statutValue.toLowerCase() === 'fermée' || statutValue.toLowerCase() === 'fermee' || statutValue.toLowerCase() === 'ferme') {
+                  mapped.statut = 'Clôturé'
                 } else {
                   mapped.statut = statutValue || 'Ouverte'
                 }
@@ -595,7 +595,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
                     <li><strong>AffaireID</strong> : Identifiant (généré automatiquement si vide)</li>
                     <li><strong>Compte</strong> : Numéro de compte (facultatif, chiffres et lettres)</li>
                     <li><strong>Tranche</strong> : Tranche/Segment</li>
-                    <li><strong>Statut</strong> : Ouverte, Prévisionnelle, ou Fermée</li>
+                    <li><strong>Statut</strong> : Ouverte, Prévisionnelle, ou Clôturé</li>
                     <li><strong>Responsable</strong> : Nom du responsable</li>
                     <li><strong>BudgetHeures</strong> : Budget en heures (format : "3402 H" ou "3402")</li>
                     <li><strong>RAF</strong> : Reste À Faire en heures (format : "700 H" ou "700")</li>
