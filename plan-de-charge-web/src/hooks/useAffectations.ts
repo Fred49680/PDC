@@ -343,12 +343,9 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         return newAffectations
       })
 
-      // Recharger les affectations seulement si autoRefresh est activé (en arrière-plan)
+      // Recharger les affectations seulement si autoRefresh est activé
       if (autoRefresh) {
-        // Ne pas attendre le rechargement pour que la mise à jour optimiste soit visible immédiatement
-        loadAffectations().catch((err) => {
-          console.error('[useAffectations] Erreur lors du rechargement:', err)
-        })
+        await loadAffectations()
       }
 
       return data as Affectation

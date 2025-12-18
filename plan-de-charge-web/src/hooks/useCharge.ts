@@ -152,15 +152,9 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
         return newPeriodes
       })
 
-      // Recharger les périodes en arrière-plan (avec un petit délai pour éviter les conflits)
-      // Cela permet de synchroniser avec la BDD sans bloquer l'UI
-      // Seulement si autoRefresh est activé
+      // Recharger les périodes seulement si autoRefresh est activé
       if (autoRefresh) {
-        setTimeout(() => {
-          loadPeriodes().catch((err) => {
-            console.error('[useCharge] Erreur lors du rechargement différé:', err)
-          })
-        }, 500)
+        await loadPeriodes()
       }
 
       return periodeAvecDates
@@ -169,7 +163,7 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
       console.error('[useCharge] Erreur savePeriode:', err)
       throw err
     }
-  }, [affaireId, site, loadPeriodes])
+  }, [affaireId, site, loadPeriodes, autoRefresh])
 
   const deletePeriode = useCallback(async (periodeId: string) => {
     try {
@@ -188,21 +182,16 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
       // Supprimer la période de l'état local immédiatement
       setPeriodes((prev) => prev.filter((p) => p.id !== periodeId))
 
-      // Recharger les périodes en arrière-plan (avec un petit délai pour éviter les conflits)
-      // Seulement si autoRefresh est activé
+      // Recharger les périodes seulement si autoRefresh est activé
       if (autoRefresh) {
-        setTimeout(() => {
-          loadPeriodes().catch((err) => {
-            console.error('[useCharge] Erreur lors du rechargement différé:', err)
-          })
-        }, 500)
+        await loadPeriodes()
       }
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur deletePeriode:', err)
       throw err
     }
-  }, [loadPeriodes])
+  }, [loadPeriodes, autoRefresh])
 
   const consolidate = useCallback(async (competence?: string) => {
     try {

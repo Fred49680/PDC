@@ -1344,60 +1344,55 @@ export default function Planning2({
   }) => {
     const [tooltipPos, setTooltipPos] = React.useState<{ top: number; left: number } | null>(null)
     const [showTooltip, setShowTooltip] = React.useState(false)
-    const cellRef = React.useRef<HTMLDivElement>(null)
     const shouldShowTooltip = React.useRef(false)
-    
+
     // Event listener global pour suivre le curseur
     React.useEffect(() => {
       if (!shouldShowTooltip.current) return
-      
+
       const handleGlobalMouseMove = (e: MouseEvent) => {
-        // Centrer le tooltip sur le curseur (le transform translateX(-50%) centrera depuis ce point)
+        // léger décalage sous le curseur
         setTooltipPos({
-          top: e.clientY - 10,
-          left: e.clientX
+          top: e.clientY + 12,
+          left: e.clientX,
         })
       }
-      
+
       window.addEventListener('mousemove', handleGlobalMouseMove)
       return () => {
         window.removeEventListener('mousemove', handleGlobalMouseMove)
       }
-    }, [])
-    
+    })
+
     const handleMouseEnter = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
       if (absence || isAffecte) {
         shouldShowTooltip.current = true
         setTooltipPos({
-          top: e.clientY - 10,
-          left: e.clientX
+          top: e.clientY + 12,
+          left: e.clientX,
         })
         setShowTooltip(true)
       }
     }, [absence, isAffecte])
-    
+
     const handleMouseLeave = React.useCallback(() => {
       shouldShowTooltip.current = false
       setShowTooltip(false)
       setTooltipPos(null)
     }, [])
 
-    // Gestion du double-clic pour affectation de masse
+    // Double-clic pour affectation de masse
     const handleDoubleClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-      // Empêcher la propagation pour éviter les conflits
       e.preventDefault()
       e.stopPropagation()
-      
-      // Ne fonctionne que si pas d'absence et si onAffectationMasse est fourni
       if (!absence && onAffectationMasse && besoin > 0) {
         onAffectationMasse(competence, ressource.id)
       }
     }, [absence, onAffectationMasse, competence, ressource.id, besoin])
-    
+
     return (
       <>
         <div
-          ref={cellRef}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onDoubleClick={handleDoubleClick}
@@ -1428,15 +1423,13 @@ export default function Planning2({
             </span>
           </div>
         </div>
-        
-        {/* Tooltip avec position fixed */}
+
         {(absence || isAffecte) && showTooltip && tooltipPos && (
           <div
-            className="fixed z-[99999] opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none"
+            className="fixed z-[99999] opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none -translate-x-1/2"
             style={{
               top: `${tooltipPos.top}px`,
               left: `${tooltipPos.left}px`,
-              transform: 'translateY(-100%) translateX(-50%)'
             }}
           >
             {absence ? (
@@ -1462,8 +1455,8 @@ export default function Planning2({
                 )}
               </>
             ) : null}
-            {/* Flèche du tooltip */}
-            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
           </div>
         )}
       </>
