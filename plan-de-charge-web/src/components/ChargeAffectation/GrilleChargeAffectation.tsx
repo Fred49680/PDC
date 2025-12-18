@@ -585,11 +585,16 @@ export default function GrilleChargeAffectation({
         }
         
         if (correspond) {
-          // *** NOUVEAU : En mode JOUR, ne pas charger les données sur les week-ends/fériés ***
+          // *** CORRECTION : En mode JOUR, charger les données sur les week-ends/fériés SEULEMENT si force_weekend_ferie = true ***
           if (precision === 'JOUR' && (col.isWeekend || col.isHoliday)) {
-            // Ne pas charger les données sur les week-ends/fériés en mode JOUR
-            // (sauf si validation - mais pour l'instant on ne charge rien)
-            return // Skip cette colonne
+            // Vérifier si l'affectation a été forcée (confirmée) pour week-end/férié
+            const isForced = affectation.force_weekend_ferie === true
+            if (!isForced) {
+              // Ne pas charger les affectations non forcées sur week-ends/fériés
+              return // Skip cette colonne
+            }
+            // Si force_weekend_ferie = true, continuer et charger l'affectation
+            console.log(`[GrilleChargeAffectation] ✅ Chargement affectation forcée week-end/férié: ${affectation.ressource_id} / ${affectation.competence} le ${col.date.toLocaleDateString('fr-FR')}`)
           }
           
           const cellKey = `${affectation.competence}|${col.date.getTime()}`
