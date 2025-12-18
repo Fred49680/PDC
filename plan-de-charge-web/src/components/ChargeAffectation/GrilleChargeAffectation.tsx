@@ -253,23 +253,32 @@ export default function GrilleChargeAffectation({
         title,
         message,
         onConfirm: () => {
+          console.log('[confirmAsync] ✅ Bouton OK cliqué - Résolution Promise avec true')
           setConfirmDialog(prev => ({ ...prev, isOpen: false }))
           if (pendingConfirmResolver.current) {
             pendingConfirmResolver.current(true)
             pendingConfirmResolver.current = null
+            console.log('[confirmAsync] ✅ Promise résolue avec true, resolver nettoyé')
+          } else {
+            console.warn('[confirmAsync] ⚠️ Aucun resolver trouvé lors du clic OK')
           }
         },
         onCancel: () => {
+          console.log('[confirmAsync] ❌ Bouton Annuler cliqué - Résolution Promise avec false')
           setConfirmDialog(prev => ({ ...prev, isOpen: false }))
           if (pendingConfirmResolver.current) {
             pendingConfirmResolver.current(false)
             pendingConfirmResolver.current = null
+            console.log('[confirmAsync] ❌ Promise résolue avec false, resolver nettoyé')
+          } else {
+            console.warn('[confirmAsync] ⚠️ Aucun resolver trouvé lors du clic Annuler')
           }
         },
         confirmText: options?.confirmText || 'OK',
         cancelText: options?.cancelText || 'Annuler',
         type: options?.type || 'warning'
       })
+      console.log('[confirmAsync] 📋 Dialog créé, en attente de réponse utilisateur...')
     })
   }, [])
   
@@ -939,37 +948,39 @@ export default function GrilleChargeAffectation({
         // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
         let forceWeekendFerie = false
         if (precision === 'JOUR' && col.isWeekend) {
-          console.log('[handleAffectationChange] Demande confirmation week-end...')
+          console.log('[handleAffectationChange] 🔔 Demande confirmation week-end pour', ressourceId, '-', competence, '-', col.date.toLocaleDateString('fr-FR'))
           const confirme = await confirmAsync(
             'Attention',
             `Vous souhaitez affecter cette ressource un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
             { type: 'warning' }
           )
-          console.log('[handleAffectationChange] Réponse confirmation week-end:', confirme)
+          console.log('[handleAffectationChange] ✅✅✅ RÉPONSE CONFIRMATION WEEK-END REÇUE:', confirme, '(type:', typeof confirme, ')')
           if (!confirme) {
-            console.log('[handleAffectationChange] Confirmation refusée, annulation affectation')
+            console.log('[handleAffectationChange] ❌ Confirmation refusée, annulation affectation')
             return // Annuler l'affectation
           }
           forceWeekendFerie = true // Marquer comme forcé
-          console.log('[handleAffectationChange] Confirmation acceptée, forceWeekendFerie = true')
+          console.log('[handleAffectationChange] ✅✅✅ CONFIRMATION ACCEPTÉE - forceWeekendFerie =', forceWeekendFerie, '- CONTINUATION DU FLUX')
         }
 
         // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
         if (precision === 'JOUR' && col.isHoliday) {
-          console.log('[handleAffectationChange] Demande confirmation jour férié...')
+          console.log('[handleAffectationChange] 🔔 Demande confirmation jour férié pour', ressourceId, '-', competence, '-', col.date.toLocaleDateString('fr-FR'))
           const confirme = await confirmAsync(
             'Attention',
             `Vous souhaitez affecter cette ressource un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
             { type: 'warning' }
           )
-          console.log('[handleAffectationChange] Réponse confirmation jour férié:', confirme)
+          console.log('[handleAffectationChange] ✅✅✅ RÉPONSE CONFIRMATION JOUR FÉRIÉ REÇUE:', confirme, '(type:', typeof confirme, ')')
           if (!confirme) {
-            console.log('[handleAffectationChange] Confirmation refusée, annulation affectation')
+            console.log('[handleAffectationChange] ❌ Confirmation refusée, annulation affectation')
             return // Annuler l'affectation
           }
           forceWeekendFerie = true // Marquer comme forcé
-          console.log('[handleAffectationChange] Confirmation acceptée, forceWeekendFerie = true')
+          console.log('[handleAffectationChange] ✅✅✅ CONFIRMATION ACCEPTÉE - forceWeekendFerie =', forceWeekendFerie, '- CONTINUATION DU FLUX')
         }
+        
+        console.log('[handleAffectationChange] 📍 POINT DE CONTRÔLE 1 : Après confirmations, forceWeekendFerie =', forceWeekendFerie)
 
         // Vérifier si la ressource a une absence sur cette période
         const dateDebutStr = dateDebutAffectation.toISOString().split('T')[0]
@@ -1045,16 +1056,31 @@ export default function GrilleChargeAffectation({
         }
 
         // Appel API réel saveAffectation() (le hook gère la mise à jour optimiste)
-        console.log('[handleAffectationChange] Enregistrement affectation avec force_weekend_ferie =', forceWeekendFerie)
-        await saveAffectation({
+        console.log('[handleAffectationChange] 📍 POINT DE CONTRÔLE 2 : Avant saveAffectation')
+        console.log('[handleAffectationChange] 📦 Données à enregistrer:', {
           ressource_id: ressourceId,
           competence,
-          date_debut: dateDebutAffectation,
-          date_fin: dateFinAffectation,
+          date_debut: dateDebutAffectation.toISOString(),
+          date_fin: dateFinAffectation.toISOString(),
           charge: 1,
-          force_weekend_ferie: forceWeekendFerie, // Passer le flag de forçage
+          force_weekend_ferie: forceWeekendFerie
         })
-        console.log('[handleAffectationChange] Affectation enregistrée avec succès')
+        
+        try {
+          console.log('[handleAffectationChange] 🚀 Appel saveAffectation()...')
+          await saveAffectation({
+            ressource_id: ressourceId,
+            competence,
+            date_debut: dateDebutAffectation,
+            date_fin: dateFinAffectation,
+            charge: 1,
+            force_weekend_ferie: forceWeekendFerie, // Passer le flag de forçage
+          })
+          console.log('[handleAffectationChange] ✅✅✅ saveAffectation() TERMINÉ AVEC SUCCÈS')
+        } catch (err) {
+          console.error('[handleAffectationChange] ❌❌❌ ERREUR dans saveAffectation():', err)
+          throw err // Re-lancer l'erreur pour qu'elle soit gérée par le try/catch parent
+        }
 
         // Recharger toutes les affectations après sauvegarde pour mettre à jour le cache
         const supabase = createClient()
@@ -1696,14 +1722,21 @@ export default function GrilleChargeAffectation({
                                           type="checkbox"
                                           checked={isAffecte}
                                           onChange={async (e) => {
-                                            console.log('[GrilleChargeAffectation] onChange checkbox déclenché, checked =', e.target.checked)
+                                            const wasChecked = e.target.checked
+                                            console.log('[GrilleChargeAffectation] 🔘 onChange checkbox déclenché, checked =', wasChecked, 'pour', ressource.nom, '-', comp, '-', col.date.toLocaleDateString('fr-FR'))
                                             try {
-                                              await handleAffectationChange(comp, ressource.id, col, e.target.checked)
-                                              console.log('[GrilleChargeAffectation] handleAffectationChange terminé avec succès')
+                                              console.log('[GrilleChargeAffectation] 🚀 Appel handleAffectationChange()...')
+                                              await handleAffectationChange(comp, ressource.id, col, wasChecked)
+                                              console.log('[GrilleChargeAffectation] ✅✅✅ handleAffectationChange() TERMINÉ AVEC SUCCÈS')
                                             } catch (err) {
-                                              console.error('[GrilleChargeAffectation] Erreur dans handleAffectationChange:', err)
+                                              console.error('[GrilleChargeAffectation] ❌❌❌ ERREUR dans handleAffectationChange():', err)
                                               // Remettre la checkbox à son état précédent en cas d'erreur
-                                              e.target.checked = !e.target.checked
+                                              e.target.checked = !wasChecked
+                                              showAlert(
+                                                'Erreur',
+                                                `Impossible d'enregistrer l'affectation : ${err instanceof Error ? err.message : String(err)}`,
+                                                'error'
+                                              )
                                             }
                                           }}
                                           disabled={(isDejaAffectee && !isAffecte) || (absenceCell !== null)}
