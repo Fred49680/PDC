@@ -14,6 +14,14 @@ interface GrilleChargeAffectationProps {
   onDateChange?: (newDateDebut: Date, newDateFin: Date) => void
 }
 
+interface ColonneDate {
+  date: Date
+  label: string
+  isWeekend: boolean
+  isHoliday: boolean
+  semaineISO: string
+}
+
 // ========================================
 // MOCK DATA & UTILITIES (à remplacer par vos vrais hooks)
 // ========================================
@@ -111,7 +119,7 @@ export default function GrilleChargeAffectation({
   // COLONNES - Mémoïsées
   // ========================================
   const colonnes = useMemo(() => {
-    const cols = []
+    const cols: ColonneDate[] = []
     const dates = getDatesBetween(dateDebut, dateFin)
     
     dates.forEach((date) => {
@@ -131,7 +139,7 @@ export default function GrilleChargeAffectation({
   // GRILLE DE CHARGE - Mémoïsée avec optimisation
   // ========================================
   const grilleCharge = useMemo(() => {
-    const grille = new Map()
+    const grille = new Map<string, number>()
     
     periodes.forEach((periode) => {
       colonnes.forEach((col) => {
@@ -157,7 +165,7 @@ export default function GrilleChargeAffectation({
   // GRILLE D'AFFECTATIONS - Mémoïsée
   // ========================================
   const grilleAffectations = useMemo(() => {
-    const grille = new Map()
+    const grille = new Map<string, Set<string>>()
     
     affectations.forEach((affectation) => {
       colonnes.forEach((col) => {
