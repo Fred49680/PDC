@@ -8,6 +8,7 @@ import type { Affaire } from '@/types/charge'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
+import { useAbsences } from '@/hooks/useAbsences'
 
 interface GrilleChargeAffectationProps {
   affaireId: string
@@ -106,6 +107,9 @@ export default function GrilleChargeAffectation({
     site,
     autoRefresh,
   })
+
+  // Charger les absences pour vérification (charger toutes les absences pour vérifier les conflits)
+  const { absences } = useAbsences({})
   
   const { ressources, competences: competencesMap, loading: loadingRessources } = useRessources({
     site,
@@ -548,6 +552,39 @@ export default function GrilleChargeAffectation({
     
     try {
       if (checked) {
+        // Vérifier si la ressource a une absence sur cette période
+        const dateDebutStr = dateDebutAffectation.toISOString().split('T')[0]
+        const dateFinStr = dateFinAffectation.toISOString().split('T')[0]
+
+        const absenceConflit = absences.find((abs) => {
+          if (abs.ressource_id !== ressourceId) return false
+          
+          const absDateDebut = abs.date_debut instanceof Date 
+            ? abs.date_debut.toISOString().split('T')[0]
+            : new Date(abs.date_debut).toISOString().split('T')[0]
+          const absDateFin = abs.date_fin instanceof Date 
+            ? abs.date_fin.toISOString().split('T')[0]
+            : new Date(abs.date_fin).toISOString().split('T')[0]
+          
+          // Chevauchement : (absDateDebut <= dateFinStr) && (absDateFin >= dateDebutStr)
+          return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
+        })
+
+        if (absenceConflit) {
+          // Bloquer l'affectation et afficher un message
+          const absDateDebut = absenceConflit.date_debut instanceof Date 
+            ? absenceConflit.date_debut
+            : new Date(absenceConflit.date_debut)
+          const absDateFin = absenceConflit.date_fin instanceof Date 
+            ? absenceConflit.date_fin
+            : new Date(absenceConflit.date_fin)
+          
+          alert(
+            `❌ Impossible d'affecter : la ressource est absente (${absenceConflit.type}) du ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`
+          )
+          return // Ne pas enregistrer l'affectation
+        }
+
         // Appel API réel saveAffectation() (le hook gère la mise à jour optimiste)
         await saveAffectation({
           ressource_id: ressourceId,

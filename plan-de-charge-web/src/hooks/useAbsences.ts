@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Absence } from '@/types/absences'
+import { removeConflictingAffectationsForAbsence } from '@/utils/removeConflictingAffectations'
 
 interface UseAbsencesOptions {
   ressourceId?: string
@@ -212,6 +213,33 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
 
       // Recharger les absences
       await loadAbsences()
+
+      // Retirer automatiquement les affectations en conflit avec cette absence
+      if (!absenceData.id) {
+        // Seulement pour les nouvelles absences (pas les modifications)
+        const dateDebutAbsence = absence.date_debut instanceof Date 
+          ? absence.date_debut 
+          : new Date(absence.date_debut)
+        const dateFinAbsence = absence.date_fin instanceof Date 
+          ? absence.date_fin 
+          : new Date(absence.date_fin)
+
+        try {
+          const { removedCount, alertes } = await removeConflictingAffectationsForAbsence(
+            absence.ressource_id.trim(),
+            dateDebutAbsence,
+            dateFinAbsence
+          )
+
+          if (removedCount > 0) {
+            console.log(`[useAbsences] ${removedCount} affectation(s) retirée(s) automatiquement pour conflit avec absence`)
+            console.log(`[useAbsences] ${alertes.length} alerte(s) créée(s)`)
+          }
+        } catch (err) {
+          console.error('[useAbsences] Erreur lors du retrait automatique des affectations:', err)
+          // Ne pas bloquer l'enregistrement de l'absence si le retrait échoue
+        }
+      }
 
       return data as Absence
     } catch (err: any) {
