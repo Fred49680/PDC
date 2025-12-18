@@ -1000,7 +1000,7 @@ export default function GrilleChargeAffectation({
                                 <td className={`px-4 py-2 sticky left-0 bg-white z-10 ${isPrincipale ? 'font-semibold' : ''}`}>
                                   <div className="flex items-center gap-2">
                                     {isPrincipale && <span className="text-blue-600 text-lg">★</span>}
-                                    <span>{ressource.nom}</span>
+                                    <span className="text-gray-900 font-medium">{ressource.nom}</span>
                                   </div>
                                 </td>
                                 {colonnes.map((col, idx) => {
