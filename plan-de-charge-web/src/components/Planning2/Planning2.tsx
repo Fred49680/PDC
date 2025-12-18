@@ -127,7 +127,7 @@ export default function Planning2({
     autoRefresh,
   })
 
-  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, consolidate: consolidateAffectations } = useAffectations({
+  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, consolidate: consolidateAffectations, refresh: refreshAffectations } = useAffectations({
     affaireId,
     site,
     autoRefresh,
@@ -1058,11 +1058,15 @@ export default function Planning2({
     }
   }, [colonnes, precision, dateFin, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, showAlert])
 
-  // Affectation de masse : affecter sur toutes les colonnes avec besoin
+  // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
     try {
-      // Trouver toutes les colonnes avec un besoin > 0 pour cette compétence
-      const colonnesAvecBesoin: number[] = []
+      // Préparer toutes les affectations à créer (uniquement jours ouvrés)
+      const affectationsACreer: Array<{
+        dateDebut: Date
+        dateFin: Date
+        colIndex: number
+      }> = []
       
       competencesData.forEach(compData => {
         if (compData.competence === competence) {
@@ -1071,17 +1075,78 @@ export default function Planning2({
               // Vérifier si la ressource n'est pas déjà affectée sur cette colonne
               const ressource = compData.ressources.find(r => r.id === ressourceId)
               if (ressource && !ressource.affectations.get(colIndex)) {
-                colonnesAvecBesoin.push(colIndex)
+                const col = colonnes[colIndex]
+                if (!col) return
+                
+                // Filtrer uniquement les jours ouvrés (uniquement pour précision JOUR)
+                if (precision === 'JOUR') {
+                  // Vérifier si c'est un jour ouvré
+                  if (isBusinessDay(col.date)) {
+                    affectationsACreer.push({
+                      dateDebut: normalizeDateToUTC(col.date),
+                      dateFin: normalizeDateToUTC(col.date),
+                      colIndex
+                    })
+                  }
+                } else if (precision === 'SEMAINE') {
+                  // Pour SEMAINE, vérifier qu'il y a au moins un jour ouvré dans la semaine
+                  const dayOfWeek = col.date.getDay()
+                  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+                  const weekStart = new Date(col.date)
+                  weekStart.setDate(weekStart.getDate() - daysToMonday)
+                  const weekEnd = new Date(weekStart)
+                  weekEnd.setDate(weekEnd.getDate() + 6)
+                  
+                  let hasBusinessDay = false
+                  let checkDate = new Date(weekStart)
+                  while (checkDate <= weekEnd) {
+                    if (isBusinessDay(checkDate)) {
+                      hasBusinessDay = true
+                      break
+                    }
+                    checkDate.setDate(checkDate.getDate() + 1)
+                  }
+                  
+                  if (hasBusinessDay) {
+                    affectationsACreer.push({
+                      dateDebut: normalizeDateToUTC(weekStart),
+                      dateFin: normalizeDateToUTC(weekEnd),
+                      colIndex
+                    })
+                  }
+                } else if (precision === 'MOIS') {
+                  // Pour MOIS, vérifier qu'il y a au moins un jour ouvré dans le mois
+                  const monthStart = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+                  const monthEnd = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+                  
+                  let hasBusinessDay = false
+                  let checkDate = new Date(monthStart)
+                  while (checkDate <= monthEnd) {
+                    if (isBusinessDay(checkDate)) {
+                      hasBusinessDay = true
+                      break
+                    }
+                    checkDate.setDate(checkDate.getDate() + 1)
+                  }
+                  
+                  if (hasBusinessDay) {
+                    affectationsACreer.push({
+                      dateDebut: normalizeDateToUTC(monthStart),
+                      dateFin: normalizeDateToUTC(monthEnd),
+                      colIndex
+                    })
+                  }
+                }
               }
             }
           })
         }
       })
 
-      if (colonnesAvecBesoin.length === 0) {
+      if (affectationsACreer.length === 0) {
         showAlert(
           'Information',
-          'Aucune période avec besoin disponible pour cette ressource.',
+          'Aucune période de jours ouvrés avec besoin disponible pour cette ressource.',
           'info'
         )
         return
@@ -1090,28 +1155,110 @@ export default function Planning2({
       // Demander confirmation
       const confirme = await confirmAsync(
         'Affectation de masse',
-        `Voulez-vous affecter cette ressource sur ${colonnesAvecBesoin.length} période(s) avec besoin ?\n\nCela va créer ${colonnesAvecBesoin.length} affectation(s).`,
+        `Voulez-vous affecter cette ressource sur ${affectationsACreer.length} période(s) de jours ouvrés avec besoin ?\n\nCela va créer ${affectationsACreer.length} affectation(s).\n\n(Uniquement jours ouvrés : lundi-vendredi, hors fériés)`,
         { type: 'info' }
       )
       
       if (!confirme) return
 
-      // Affecter sur toutes les colonnes avec besoin
-      // Note: handleAffectationChange gère les vérifications (absences/conflits) et peut retourner silencieusement
-      // On va l'appeler pour toutes les colonnes et laisser la logique existante gérer les vérifications
-      const nbTentatives = colonnesAvecBesoin.length
+      // Vérifier absences et conflits pour chaque affectation, puis créer celles qui sont valides
+      const affectationsValides: Array<{
+        ressource_id: string
+        competence: string
+        date_debut: Date
+        date_fin: Date
+        charge: number
+        force_weekend_ferie: boolean
+      }> = []
       
-      // Appeler handleAffectationChange pour toutes les colonnes
-      // Les appels sont séquentiels pour éviter les conflits et permettre un meilleur feedback
-      for (const colIndex of colonnesAvecBesoin) {
-        await handleAffectationChange(competence, ressourceId, colIndex, true)
-        // Petit délai pour éviter de surcharger
-        await new Promise(resolve => setTimeout(resolve, 50))
+      for (const affectation of affectationsACreer) {
+        // Vérifier absences
+        const dateDebutStr = affectation.dateDebut.toISOString().split('T')[0]
+        const dateFinStr = affectation.dateFin.toISOString().split('T')[0]
+
+        const absenceConflit = absences.find((abs) => {
+          if (abs.ressource_id !== ressourceId) return false
+          const absDateDebut = abs.date_debut instanceof Date 
+            ? abs.date_debut.toISOString().split('T')[0]
+            : new Date(abs.date_debut).toISOString().split('T')[0]
+          const absDateFin = abs.date_fin instanceof Date 
+            ? abs.date_fin.toISOString().split('T')[0]
+            : new Date(abs.date_fin).toISOString().split('T')[0]
+          return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
+        })
+
+        if (absenceConflit) {
+          // Ignorer cette affectation (ressource absente)
+          continue
+        }
+
+        // Vérifier conflits avec autres affectations
+        const affectationsRessource = toutesAffectationsRessources.get(ressourceId) || []
+        const dateDebutUTC = normalizeDateToUTC(affectation.dateDebut)
+        const dateFinUTC = normalizeDateToUTC(affectation.dateFin)
+        
+        const affectationsConflit = affectationsRessource.filter((aff) => {
+          const affDateDebut = normalizeDateToUTC(aff.date_debut)
+          const affDateFin = normalizeDateToUTC(aff.date_fin)
+          const chevauche = affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC
+          const autreAffaire = aff.affaire_id !== affaireId || aff.competence !== competence
+          return chevauche && autreAffaire
+        })
+
+        if (affectationsConflit.length > 0) {
+          // Ignorer cette affectation (conflit avec autre affectation)
+          continue
+        }
+
+        // Affectation valide, l'ajouter à la liste
+        affectationsValides.push({
+          ressource_id: ressourceId,
+          competence,
+          date_debut: affectation.dateDebut,
+          date_fin: affectation.dateFin,
+          charge: 1,
+          force_weekend_ferie: false // Toujours false car on filtre les jours ouvrés
+        })
       }
+
+      if (affectationsValides.length === 0) {
+        showAlert(
+          'Information',
+          'Aucune affectation valide (toutes bloquées par absences ou conflits).',
+          'info'
+        )
+        return
+      }
+
+      // Créer toutes les affectations valides en batch (sans refresh intermédiaire)
+      let nbAffectationsCreees = 0
+      for (const affectation of affectationsValides) {
+        try {
+          await saveAffectation(affectation)
+          nbAffectationsCreees++
+        } catch (err) {
+          console.error(`[Planning2] Erreur création affectation ${affectation.date_debut.toLocaleDateString('fr-FR')}:`, err)
+        }
+      }
+
+      // Recharger les données après toutes les créations (refresh unique)
+      if (nbAffectationsCreees > 0) {
+        await refreshAffectations()
+        
+        // Consolider si précision JOUR
+        if (precision === 'JOUR') {
+          await consolidateAffectations(competence)
+        }
+      }
+
+      const nbBloquees = affectationsACreer.length - affectationsValides.length
+      const messageFinal = nbBloquees > 0
+        ? `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n${nbBloquees} période(s) ont été bloquées (absences ou conflits).`
+        : `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n(Uniquement jours ouvrés : lundi-vendredi, hors fériés)`
 
       showAlert(
         'Affectation de masse terminée',
-        `Tentative d'affectation sur ${nbTentatives} période(s) avec besoin.\n\nLes affectations ont été créées pour les périodes disponibles. Certaines périodes peuvent avoir été bloquées (absences ou conflits) - vérifiez les alertes éventuelles.`,
+        messageFinal,
         'info'
       )
     } catch (err) {
@@ -1122,7 +1269,7 @@ export default function Planning2({
         'error'
       )
     }
-  }, [competencesData, handleAffectationChange, confirmAsync, showAlert])
+  }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, showAlert])
 
   // Navigation
   const handlePreviousPeriod = () => {
