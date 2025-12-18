@@ -808,6 +808,124 @@ export default function Planning2({
     })
   }, [])
 
+  // Composant interne pour gérer les cellules de ressources avec tooltip
+  const RessourceCell = React.memo(({
+    ressource,
+    isAffecte,
+    absence,
+    absenceColorClass,
+    isOver,
+    totalAffecteCol,
+    besoin,
+    competence,
+    colIndex,
+    onAffectationChange
+  }: {
+    ressource: { id: string; nom: string; isPrincipale: boolean }
+    isAffecte: boolean
+    absence: Absence | null
+    absenceColorClass: string
+    isOver: boolean
+    totalAffecteCol: number
+    besoin: number
+    competence: string
+    colIndex: number
+    onAffectationChange: (competence: string, ressourceId: string, colIndex: number, checked: boolean) => void
+  }) => {
+    const [tooltipPos, setTooltipPos] = React.useState<{ top: number; left: number } | null>(null)
+    const [showTooltip, setShowTooltip] = React.useState(false)
+    const cellRef = React.useRef<HTMLDivElement>(null)
+    
+    const handleMouseEnter = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+      if (absence || isAffecte) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        setTooltipPos({
+          top: rect.bottom + 8,
+          left: rect.left + rect.width / 2
+        })
+        setShowTooltip(true)
+      }
+    }, [absence, isAffecte])
+    
+    const handleMouseLeave = React.useCallback(() => {
+      setShowTooltip(false)
+    }, [])
+    
+    return (
+      <>
+        <div
+          ref={cellRef}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          className={`relative isolate z-10 group p-2 rounded-lg border-2 transition-all ${
+            isAffecte
+              ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-green-600 shadow-md'
+              : absence
+              ? `${absenceColorClass} border-opacity-50 cursor-not-allowed opacity-70`
+              : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={isAffecte}
+              onChange={(e) => onAffectationChange(competence, ressource.id, colIndex, e.target.checked)}
+              disabled={!!absence}
+              className={`w-4 h-4 rounded accent-green-600 cursor-pointer ${
+                absence ? 'cursor-not-allowed opacity-50' : ''
+              }`}
+            />
+            <span className={`text-xs font-medium truncate flex-1 ${
+              isAffecte ? 'text-white' : 'text-gray-700'
+            }`}>
+              {ressource.isPrincipale && <span className="text-indigo-600">★ </span>}
+              {ressource.nom}
+            </span>
+          </div>
+        </div>
+        
+        {/* Tooltip avec position fixed */}
+        {(absence || isAffecte) && showTooltip && tooltipPos && (
+          <div
+            className="fixed z-[99999] opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none"
+            style={{
+              top: `${tooltipPos.top}px`,
+              left: `${tooltipPos.left}px`,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            {absence ? (
+              <>
+                <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
+                <div>{absence.type}</div>
+              </>
+            ) : isAffecte ? (
+              <>
+                {isOver ? (
+                  <>
+                    <div className="font-semibold mb-1 text-red-300">⚠️ Sur-affectation</div>
+                    <div>
+                      {totalAffecteCol} personne(s) affectée(s)<br />
+                      pour {besoin} besoin(s)
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-semibold mb-1 text-green-300">✓ Affectation</div>
+                    <div>{ressource.nom} est affecté(e)</div>
+                  </>
+                )}
+              </>
+            ) : null}
+            {/* Flèche du tooltip */}
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+          </div>
+        )}
+      </>
+    )
+  })
+  RessourceCell.displayName = 'RessourceCell'
+
   const getAbsenceForDate = useCallback((ressourceId: string, date: Date): Absence | null => {
     const dateStr = normalizeDateToUTC(date).toISOString().split('T')[0]
     return absences.find((abs) => {
@@ -1127,65 +1245,19 @@ export default function Planning2({
                                       const absenceColorClass = absence ? getAbsenceColor(absence.type) : ''
                                       
                                       return (
-                                        <div
+                                        <RessourceCell
                                           key={ressource.id}
-                                          className={`relative group p-2 rounded-lg border-2 transition-all ${
-                                            isAffecte
-                                              ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-green-600 shadow-md'
-                                              : absence
-                                              ? `${absenceColorClass} border-opacity-50 cursor-not-allowed opacity-70`
-                                              : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <input
-                                              type="checkbox"
-                                              checked={isAffecte}
-                                              onChange={(e) => handleAffectationChange(compData.competence, ressource.id, idx, e.target.checked)}
-                                              disabled={!!absence}
-                                              className={`w-4 h-4 rounded accent-green-600 cursor-pointer ${
-                                                absence ? 'cursor-not-allowed opacity-50' : ''
-                                              }`}
-                                            />
-                                            <span className={`text-xs font-medium truncate flex-1 ${
-                                              isAffecte ? 'text-white' : 'text-gray-700'
-                                            }`}>
-                                              {ressource.isPrincipale && <span className="text-indigo-600">★ </span>}
-                                              {ressource.nom}
-                                            </span>
-                                          </div>
-                                          
-                                          {/* Tooltips conditionnels */}
-                                          {(absence || isAffecte) && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[9999] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
-                                              {absence ? (
-                                                <>
-                                                  <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
-                                                  <div>{absence.type}</div>
-                                                </>
-                                              ) : isAffecte ? (
-                                                <>
-                                                  {isOver ? (
-                                                    <>
-                                                      <div className="font-semibold mb-1 text-red-300">⚠️ Sur-affectation</div>
-                                                      <div>
-                                                        {totalAffecteCol} personne(s) affectée(s)<br />
-                                                        pour {besoin} besoin(s)
-                                                      </div>
-                                                    </>
-                                                  ) : (
-                                                    <>
-                                                      <div className="font-semibold mb-1 text-green-300">✓ Affectation</div>
-                                                      <div>{ressource.nom} est affecté(e)</div>
-                                                    </>
-                                                  )}
-                                                </>
-                                              ) : null}
-                                              {/* Flèche du tooltip */}
-                                              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
-                                            </div>
-                                          )}
-                                        </div>
+                                          ressource={ressource}
+                                          isAffecte={isAffecte}
+                                          absence={absence}
+                                          absenceColorClass={absenceColorClass}
+                                          isOver={isOver}
+                                          totalAffecteCol={totalAffecteCol}
+                                          besoin={besoin}
+                                          competence={compData.competence}
+                                          colIndex={idx}
+                                          onAffectationChange={handleAffectationChange}
+                                        />
                                       )
                                     })}
                                   </div>
