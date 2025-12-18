@@ -134,12 +134,13 @@ export default function GrilleChargeAffectation({
     return Array.from(compSet).sort()
   }, [periodes, competencesMap])
   
-  // Initialiser les compétences filtrées avec toutes les compétences disponibles
+  // Initialiser les compétences filtrées avec toutes les compétences disponibles au démarrage
   useEffect(() => {
     if (competencesList.length > 0 && competencesFiltrees.size === 0) {
+      console.log(`[GrilleChargeAffectation] Initialisation compétences: ${competencesList.length} compétence(s) sélectionnée(s)`)
       setCompetencesFiltrees(new Set(competencesList))
     }
-  }, [competencesList, competencesFiltrees.size])
+  }, [competencesList])
   
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set<string>())
@@ -408,17 +409,19 @@ export default function GrilleChargeAffectation({
   // ========================================
   // TOGGLE COMPÉTENCE
   // ========================================
-  const toggleCompetence = (competence: string): void => {
+  const toggleCompetence = useCallback((competence: string): void => {
     setCompetencesFiltrees(prev => {
       const newSet = new Set(prev)
       if (newSet.has(competence)) {
         newSet.delete(competence)
+        console.log(`[GrilleChargeAffectation] Compétence "${competence}" désélectionnée`)
       } else {
         newSet.add(competence)
+        console.log(`[GrilleChargeAffectation] Compétence "${competence}" sélectionnée`)
       }
       return newSet
     })
-  }
+  }, [])
 
   // ========================================
   // RENDER
@@ -450,13 +453,19 @@ export default function GrilleChargeAffectation({
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setCompetencesFiltrees(new Set(competencesList))}
+                onClick={() => {
+                  console.log(`[GrilleChargeAffectation] Bouton "Tout sélectionner" cliqué - ${competencesList.length} compétence(s)`)
+                  setCompetencesFiltrees(new Set(competencesList))
+                }}
                 className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
               >
                 Tout sélectionner
               </button>
               <button
-                onClick={() => setCompetencesFiltrees(new Set())}
+                onClick={() => {
+                  console.log(`[GrilleChargeAffectation] Bouton "Tout désélectionner" cliqué`)
+                  setCompetencesFiltrees(new Set<string>())
+                }}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-all"
               >
                 Tout désélectionner
