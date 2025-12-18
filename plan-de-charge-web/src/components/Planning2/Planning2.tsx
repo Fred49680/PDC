@@ -488,6 +488,66 @@ export default function Planning2({
 
   const pendingConfirmResolver = useRef<((value: boolean) => void) | null>(null)
 
+  // Utilitaires de dialogue
+  const confirmAsync = useCallback(
+    (
+      title: string,
+      message: string,
+      options?: {
+        confirmText?: string
+        cancelText?: string
+        type?: 'warning' | 'error' | 'info'
+      }
+    ): Promise<boolean> => {
+      return new Promise((resolve) => {
+        pendingConfirmResolver.current = resolve
+        setConfirmDialog({
+          isOpen: true,
+          title,
+          message,
+          onConfirm: () => {
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+            if (pendingConfirmResolver.current) {
+              pendingConfirmResolver.current(true)
+              pendingConfirmResolver.current = null
+            }
+          },
+          onCancel: () => {
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+            if (pendingConfirmResolver.current) {
+              pendingConfirmResolver.current(false)
+              pendingConfirmResolver.current = null
+            }
+          },
+          confirmText: options?.confirmText || 'OK',
+          cancelText: options?.cancelText || 'Annuler',
+          type: options?.type || 'warning'
+        })
+      })
+    },
+    []
+  )
+
+  const showAlert = useCallback(
+    (
+      title: string,
+      message: string,
+      type: 'error' | 'info' = 'error'
+    ) => {
+      setConfirmDialog({
+        isOpen: true,
+        title,
+        message,
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+        onCancel: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+        confirmText: 'Compris',
+        cancelText: '',
+        type
+      })
+    },
+    []
+  )
+
   // Modal de charge de masse
   const [chargeMasseModal, setChargeMasseModal] = useState<{
     isOpen: boolean
@@ -565,59 +625,6 @@ export default function Planning2({
       pendingChargeMasseResolver.current = null
     }
     setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
-  }, [])
-
-  const confirmAsync = useCallback((
-    title: string,
-    message: string,
-    options?: {
-      confirmText?: string
-      cancelText?: string
-      type?: 'warning' | 'error' | 'info'
-    }
-  ): Promise<boolean> => {
-    return new Promise((resolve) => {
-      pendingConfirmResolver.current = resolve
-      setConfirmDialog({
-        isOpen: true,
-        title,
-        message,
-        onConfirm: () => {
-          setConfirmDialog(prev => ({ ...prev, isOpen: false }))
-          if (pendingConfirmResolver.current) {
-            pendingConfirmResolver.current(true)
-            pendingConfirmResolver.current = null
-          }
-        },
-        onCancel: () => {
-          setConfirmDialog(prev => ({ ...prev, isOpen: false }))
-          if (pendingConfirmResolver.current) {
-            pendingConfirmResolver.current(false)
-            pendingConfirmResolver.current = null
-          }
-        },
-        confirmText: options?.confirmText || 'OK',
-        cancelText: options?.cancelText || 'Annuler',
-        type: options?.type || 'warning'
-      })
-    })
-  }, [])
-
-  const showAlert = useCallback((
-    title: string,
-    message: string,
-    type: 'error' | 'info' = 'error'
-  ) => {
-    setConfirmDialog({
-      isOpen: true,
-      title,
-      message,
-      onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
-      onCancel: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
-      confirmText: 'Compris',
-      cancelText: '',
-      type
-    })
   }, [])
 
   // Handlers
