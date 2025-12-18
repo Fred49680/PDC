@@ -33,6 +33,7 @@ export interface Affectation {
   date_debut: Date
   date_fin: Date
   charge: number
+  force_weekend_ferie?: boolean // Indique si cette affectation a été forcée (confirmée) pour un week-end ou jour férié
   created_at: Date
   updated_at: Date
   created_by?: string

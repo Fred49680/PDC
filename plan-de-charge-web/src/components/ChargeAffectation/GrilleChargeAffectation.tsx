@@ -673,6 +673,7 @@ export default function GrilleChargeAffectation({
           dateFinPeriode = colDateNormalisee
           
           // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
+          let forceWeekendFerieCharge = false
           if (nbRessources > 0 && col.isWeekend) {
             const confirme = await confirmAsync(
               'Attention',
@@ -689,6 +690,7 @@ export default function GrilleChargeAffectation({
               saveTimeoutRef.current.delete(cellKey)
               return
             }
+            forceWeekendFerieCharge = true // Marquer comme forcé
           }
 
           // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
@@ -708,6 +710,7 @@ export default function GrilleChargeAffectation({
               saveTimeoutRef.current.delete(cellKey)
               return
             }
+            forceWeekendFerieCharge = true // Marquer comme forcé
           }
         } else if (precision === 'SEMAINE') {
           // Mode SEMAINE : lundi à dimanche de la semaine
@@ -934,27 +937,38 @@ export default function GrilleChargeAffectation({
     try {
       if (checked) {
         // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
+        let forceWeekendFerie = false
         if (precision === 'JOUR' && col.isWeekend) {
+          console.log('[handleAffectationChange] Demande confirmation week-end...')
           const confirme = await confirmAsync(
             'Attention',
             `Vous souhaitez affecter cette ressource un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
             { type: 'warning' }
           )
+          console.log('[handleAffectationChange] Réponse confirmation week-end:', confirme)
           if (!confirme) {
+            console.log('[handleAffectationChange] Confirmation refusée, annulation affectation')
             return // Annuler l'affectation
           }
+          forceWeekendFerie = true // Marquer comme forcé
+          console.log('[handleAffectationChange] Confirmation acceptée, forceWeekendFerie = true')
         }
 
         // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
         if (precision === 'JOUR' && col.isHoliday) {
+          console.log('[handleAffectationChange] Demande confirmation jour férié...')
           const confirme = await confirmAsync(
             'Attention',
             `Vous souhaitez affecter cette ressource un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`,
             { type: 'warning' }
           )
+          console.log('[handleAffectationChange] Réponse confirmation jour férié:', confirme)
           if (!confirme) {
+            console.log('[handleAffectationChange] Confirmation refusée, annulation affectation')
             return // Annuler l'affectation
           }
+          forceWeekendFerie = true // Marquer comme forcé
+          console.log('[handleAffectationChange] Confirmation acceptée, forceWeekendFerie = true')
         }
 
         // Vérifier si la ressource a une absence sur cette période
@@ -1031,13 +1045,16 @@ export default function GrilleChargeAffectation({
         }
 
         // Appel API réel saveAffectation() (le hook gère la mise à jour optimiste)
+        console.log('[handleAffectationChange] Enregistrement affectation avec force_weekend_ferie =', forceWeekendFerie)
         await saveAffectation({
           ressource_id: ressourceId,
           competence,
           date_debut: dateDebutAffectation,
           date_fin: dateFinAffectation,
           charge: 1,
+          force_weekend_ferie: forceWeekendFerie, // Passer le flag de forçage
         })
+        console.log('[handleAffectationChange] Affectation enregistrée avec succès')
 
         // Recharger toutes les affectations après sauvegarde pour mettre à jour le cache
         const supabase = createClient()
