@@ -220,7 +220,7 @@ export default function Planning2({
         cols.push({
           date,
           label: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-          shortLabel: `${day} ${month}`,
+          shortLabel: `${dayName} ${day} ${month}`,
           isWeekend: isWeekend(date),
           isHoliday: isFrenchHoliday(date),
           semaineISO: formatSemaineISO(date),
