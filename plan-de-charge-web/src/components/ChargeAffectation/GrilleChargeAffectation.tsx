@@ -175,9 +175,12 @@ export default function GrilleChargeAffectation({
         ) {
           const cellKey = `${affectation.competence}|${col.date.getTime()}`
           if (!grille.has(cellKey)) {
-            grille.set(cellKey, new Set())
+            grille.set(cellKey, new Set<string>())
           }
-          grille.get(cellKey).add(affectation.ressource_id)
+          const affectationsSet = grille.get(cellKey)
+          if (affectationsSet) {
+            affectationsSet.add(affectation.ressource_id)
+          }
         }
       })
     })
