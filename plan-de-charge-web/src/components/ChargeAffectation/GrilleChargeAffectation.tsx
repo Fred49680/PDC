@@ -150,31 +150,54 @@ export default function GrilleChargeAffectation({
     }
   }, [propPrecision, propDateDebut, propDateFin, propResponsable, propTranche])
 
-  // Réinitialiser les filtres en cascade quand on change le responsable
+  // Utiliser des refs pour suivre les changements utilisateur (évite les boucles avec props)
+  const prevResponsableRef = useRef(responsable)
+  const prevSiteRef = useRef(site)
+  const prevTrancheRef = useRef(tranche)
+
+  // Réinitialiser les filtres en cascade quand l'utilisateur change le responsable
   useEffect(() => {
-    if (responsable && onResponsableChange) {
-      onResponsableChange(responsable)
+    // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
+    if (responsable !== prevResponsableRef.current && responsable) {
+      prevResponsableRef.current = responsable
+      if (onResponsableChange) {
+        onResponsableChange(responsable)
+      }
       // Réinitialiser site, tranche et affaire si le responsable change
       if (onSiteChange) onSiteChange('')
       if (onTrancheChange) onTrancheChange('')
       if (onAffaireChange) onAffaireChange('', '')
+    } else if (responsable !== prevResponsableRef.current) {
+      prevResponsableRef.current = responsable
     }
   }, [responsable, onResponsableChange, onSiteChange, onTrancheChange, onAffaireChange])
 
-  // Réinitialiser tranche et affaire quand le site change
+  // Réinitialiser tranche et affaire quand l'utilisateur change le site
   useEffect(() => {
-    if (site && onSiteChange) {
-      onSiteChange(site)
+    // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
+    if (site !== prevSiteRef.current && site) {
+      prevSiteRef.current = site
+      if (onSiteChange) {
+        onSiteChange(site)
+      }
       if (onTrancheChange) onTrancheChange('')
       if (onAffaireChange) onAffaireChange('', '')
+    } else if (site !== prevSiteRef.current) {
+      prevSiteRef.current = site
     }
   }, [site, onSiteChange, onTrancheChange, onAffaireChange])
 
-  // Réinitialiser affaire quand la tranche change
+  // Réinitialiser affaire quand l'utilisateur change la tranche
   useEffect(() => {
-    if (tranche && onTrancheChange) {
-      onTrancheChange(tranche)
+    // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
+    if (tranche !== prevTrancheRef.current && tranche) {
+      prevTrancheRef.current = tranche
+      if (onTrancheChange) {
+        onTrancheChange(tranche)
+      }
       if (onAffaireChange) onAffaireChange('', '')
+    } else if (tranche !== prevTrancheRef.current) {
+      prevTrancheRef.current = tranche
     }
   }, [tranche, onTrancheChange, onAffaireChange])
   
@@ -743,7 +766,11 @@ export default function GrilleChargeAffectation({
               <select
                 value={responsable}
                 onChange={(e) => {
-                  setResponsable(e.target.value)
+                  const newResponsable = e.target.value
+                  setResponsable(newResponsable)
+                  if (onResponsableChange) {
+                    onResponsableChange(newResponsable)
+                  }
                 }}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
               >
@@ -764,10 +791,13 @@ export default function GrilleChargeAffectation({
               <select
                 value={site}
                 onChange={(e) => {
-                  setSite(e.target.value)
+                  const newSite = e.target.value
+                  setSite(newSite)
+                  if (onSiteChange) {
+                    onSiteChange(newSite)
+                  }
                 }}
-                disabled={!responsable && responsablesDisponibles.length > 0}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
               >
                 <option value="">Sélectionner un site...</option>
                 {sitesDisponibles.map((s) => (
@@ -786,7 +816,11 @@ export default function GrilleChargeAffectation({
               <select
                 value={tranche}
                 onChange={(e) => {
-                  setTranche(e.target.value)
+                  const newTranche = e.target.value
+                  setTranche(newTranche)
+                  if (onTrancheChange) {
+                    onTrancheChange(newTranche)
+                  }
                 }}
                 disabled={!site}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
