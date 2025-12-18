@@ -106,7 +106,7 @@ export default function GrilleChargeAffectation({
     site,
     autoRefresh,
   })
-  
+
   const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation } = useAffectations({
     affaireId,
     site,
@@ -396,12 +396,12 @@ export default function GrilleChargeAffectation({
     
     if (precision === 'JOUR') {
       // Mode JOUR : une colonne par jour
-      const dates = getDatesBetween(dateDebut, dateFin)
-      dates.forEach((date) => {
-        cols.push({
-          date,
+        const dates = getDatesBetween(dateDebut, dateFin)
+        dates.forEach((date) => {
+          cols.push({
+            date,
           label: date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-          isWeekend: isWeekend(date),
+            isWeekend: isWeekend(date),
           isHoliday: isFrenchHoliday(date),
           semaineISO: formatSemaineISO(date),
         })
@@ -420,7 +420,7 @@ export default function GrilleChargeAffectation({
         weekEnd.setDate(weekEnd.getDate() + 6)
         
         // Utiliser le lundi comme date de référence pour la colonne
-        cols.push({
+          cols.push({
           date: weekStart,
           label: `${weekStart.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} - ${weekEnd.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`,
           isWeekend: false, // Une semaine contient des week-ends, mais la colonne représente la semaine entière
@@ -445,7 +445,7 @@ export default function GrilleChargeAffectation({
           monthEnd.setTime(dateFin.getTime())
         }
         
-        cols.push({
+          cols.push({
           date: monthStart,
           label: monthStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
           isWeekend: false,
@@ -513,11 +513,16 @@ export default function GrilleChargeAffectation({
         }
         
         if (correspond) {
-          // *** NOUVEAU : En mode JOUR, ne pas charger les données sur les week-ends/fériés ***
+          // *** CORRECTION : En mode JOUR, charger les données sur les week-ends/fériés SEULEMENT si force_weekend_ferie = true ***
           if (precision === 'JOUR' && (col.isWeekend || col.isHoliday)) {
-            // Ne pas charger les données sur les week-ends/fériés en mode JOUR
-            // (sauf si validation - mais pour l'instant on ne charge rien)
-            return // Skip cette colonne
+            // Vérifier si la période a été forcée (confirmée) pour week-end/férié
+            const isForced = periode.force_weekend_ferie === true
+            if (!isForced) {
+              // Ne pas charger les périodes non forcées sur week-ends/fériés
+              return // Skip cette colonne
+            }
+            // Si force_weekend_ferie = true, continuer et charger la période
+            console.log(`[GrilleChargeAffectation] ✅ Chargement période forcée week-end/férié: ${periode.competence} le ${col.date.toLocaleDateString('fr-FR')}`)
           }
           
           const cellKey = `${periode.competence}|${col.date.getTime()}`
@@ -680,6 +685,8 @@ export default function GrilleChargeAffectation({
         // Calculer les dates de début et fin selon la précision
         let dateDebutPeriode: Date
         let dateFinPeriode: Date
+        // *** NOUVEAU : Déclarer forceWeekendFerieCharge en dehors du bloc if (precision === 'JOUR') pour pouvoir l'utiliser plus bas ***
+        let forceWeekendFerieCharge = false
         
         if (precision === 'JOUR') {
           // Mode JOUR : une seule date
@@ -687,7 +694,6 @@ export default function GrilleChargeAffectation({
           dateFinPeriode = colDateNormalisee
           
           // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
-          let forceWeekendFerieCharge = false
           if (nbRessources > 0 && col.isWeekend) {
             console.log('[handleChargeChange] 🔔 Demande confirmation week-end pour CHARGE -', competence, '-', col.date.toLocaleDateString('fr-FR'))
             const confirme = await confirmAsync(
@@ -785,7 +791,7 @@ export default function GrilleChargeAffectation({
         }
         
         // Trouver la période existante pour cette compétence/période
-        const periodeExistante = periodes.find(
+          const periodeExistante = periodes.find(
           (p) => {
             const pDateDebut = normalizeDateToUTC(new Date(p.date_debut))
             const pDateFin = normalizeDateToUTC(new Date(p.date_fin))
@@ -798,16 +804,34 @@ export default function GrilleChargeAffectation({
         
         if (nbRessources === 0 && periodeExistante) {
           // Supprimer la période si elle existe et que la charge passe à 0
-          await deletePeriode(periodeExistante.id)
+            await deletePeriode(periodeExistante.id)
         } else if (nbRessources > 0) {
           // Appel API réel savePeriode() (le hook gère la mise à jour optimiste)
-          await savePeriode({
+          console.log('[handleChargeChange] 📍 POINT DE CONTRÔLE CHARGE 2 : Avant savePeriode, forceWeekendFerieCharge =', forceWeekendFerieCharge)
+          console.log('[handleChargeChange] 📦 Données CHARGE à enregistrer:', {
             id: periodeExistante?.id,
             competence,
-            date_debut: dateDebutPeriode,
-            date_fin: dateFinPeriode,
+            date_debut: dateDebutPeriode.toISOString(),
+            date_fin: dateFinPeriode.toISOString(),
             nb_ressources: nbRessources,
+            force_weekend_ferie: forceWeekendFerieCharge
           })
+          
+          try {
+            console.log('[handleChargeChange] 🚀 Appel savePeriode()...')
+            await savePeriode({
+              id: periodeExistante?.id,
+              competence,
+              date_debut: dateDebutPeriode,
+              date_fin: dateFinPeriode,
+              nb_ressources: nbRessources,
+              force_weekend_ferie: forceWeekendFerieCharge
+            })
+            console.log('[handleChargeChange] ✅✅✅ savePeriode() TERMINÉ AVEC SUCCÈS')
+          } catch (err) {
+            console.error('[handleChargeChange] ❌❌❌ ERREUR dans savePeriode():', err)
+            throw err
+          }
           
           // Si mode JOUR et autoRefresh activé, consolider après sauvegarde
           if (precision === 'JOUR' && autoRefresh) {
@@ -1147,13 +1171,13 @@ export default function GrilleChargeAffectation({
           setToutesAffectationsRessources(affectationsMap)
           setAffairesDetails(affairesMap)
         }
-      } else {
+        } else {
         // Trouver l'affectation à supprimer (chercher par chevauchement de période)
         const affectationASupprimer = affectations.find(a => {
           const aDateDebut = normalizeDateToUTC(new Date(a.date_debut))
           const aDateFin = normalizeDateToUTC(new Date(a.date_fin))
           return a.ressource_id === ressourceId && 
-                 a.competence === competence &&
+              a.competence === competence &&
                  // Chevauchement : (aDateDebut <= dateFinAffectation) && (aDateFin >= dateDebutAffectation)
                  aDateDebut <= dateFinAffectation &&
                  aDateFin >= dateDebutAffectation
@@ -1211,9 +1235,9 @@ export default function GrilleChargeAffectation({
           })
           setToutesAffectationsRessources(affectationsMap)
           setAffairesDetails(affairesMap)
+          }
         }
-      }
-    } catch (err) {
+      } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
   }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate, periodeContientWeekendOuFerie, confirmAsync, showAlert])
@@ -1222,7 +1246,7 @@ export default function GrilleChargeAffectation({
   // TOTAL AFFECTÉ - Mémoïsé
   // ========================================
   const getTotalAffecte = useCallback((competence: string, col: ColonneDate): number => {
-    const cellKey = `${competence}|${col.date.getTime()}`
+      const cellKey = `${competence}|${col.date.getTime()}`
     return (grilleAffectations.get(cellKey) || new Set<string>()).size
   }, [grilleAffectations])
 
@@ -1261,7 +1285,7 @@ export default function GrilleChargeAffectation({
   // ========================================
   // RENDER
   // ========================================
-  return (
+    return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-[1600px] mx-auto space-y-6">
         
@@ -1275,7 +1299,7 @@ export default function GrilleChargeAffectation({
             <div className="mt-4 flex items-center gap-2 text-blue-600">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span className="text-sm">Chargement des données...</span>
-            </div>
+      </div>
           )}
         </div>
 
@@ -1445,7 +1469,7 @@ export default function GrilleChargeAffectation({
 
         {/* GRILLE */}
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-          <div className="overflow-x-auto">
+      <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white sticky top-0 z-20">
                 <tr>
@@ -1454,10 +1478,10 @@ export default function GrilleChargeAffectation({
                       <Target className="w-4 h-4" />
                       Compétence / Ressource
                     </div>
-                  </th>
-                  {colonnes.map((col, idx) => (
-                    <th
-                      key={idx}
+              </th>
+              {colonnes.map((col, idx) => (
+                <th
+                  key={idx}
                       className={`
                         px-3 py-3 text-center font-semibold min-w-[100px]
                         ${col.isWeekend ? 'bg-blue-500/90' : col.isHoliday ? 'bg-pink-500/90' : ''}
@@ -1467,15 +1491,15 @@ export default function GrilleChargeAffectation({
                       <div className="text-xs opacity-80 mt-1">{col.semaineISO}</div>
                       {col.isWeekend && <div className="text-xs mt-0.5 font-bold">WE</div>}
                       {col.isHoliday && <div className="text-xs mt-0.5 font-bold">JF</div>}
-                    </th>
-                  ))}
+                </th>
+              ))}
                   <th className="px-4 py-3 text-center font-semibold bg-gradient-to-r from-blue-600 to-indigo-600">
                     Total
-                  </th>
-                </tr>
-              </thead>
+              </th>
+            </tr>
+          </thead>
               
-              <tbody>
+          <tbody>
                 {competencesFiltrees.size === 0 ? (
                   <tr>
                     <td colSpan={colonnes.length + 2} className="p-12 text-center">
@@ -1491,13 +1515,13 @@ export default function GrilleChargeAffectation({
                 ) : (
                   Array.from(competencesFiltrees).map((comp) => {
                     const ressourcesComp = ressourcesParCompetence.get(comp) || []
-                    const totalCharge = colonnes.reduce((sum, col) => {
-                      const cellKey = `${comp}|${col.date.getTime()}`
-                      return sum + (grilleCharge.get(cellKey) || 0)
-                    }, 0)
+              const totalCharge = colonnes.reduce((sum, col) => {
+                const cellKey = `${comp}|${col.date.getTime()}`
+                return sum + (grilleCharge.get(cellKey) || 0)
+              }, 0)
 
-                    return (
-                      <React.Fragment key={comp}>
+              return (
+                <React.Fragment key={comp}>
                         {/* LIGNE BESOIN */}
                         <tr className="bg-gradient-to-r from-yellow-50 to-amber-50 hover:from-yellow-100 hover:to-amber-100 transition-all">
                           <td className="px-4 py-3 font-semibold sticky left-0 bg-gradient-to-r from-yellow-50 to-amber-50 z-10 border-b-2 border-yellow-200">
@@ -1505,25 +1529,25 @@ export default function GrilleChargeAffectation({
                               <Users className="w-4 h-4 text-yellow-700" />
                               <span className="text-yellow-900">Besoin ({comp})</span>
                             </div>
-                          </td>
-                          {colonnes.map((col, idx) => {
-                            const cellKey = `${comp}|${col.date.getTime()}`
-                            const value = grilleCharge.get(cellKey) || 0
+                    </td>
+                    {colonnes.map((col, idx) => {
+                      const cellKey = `${comp}|${col.date.getTime()}`
+                      const value = grilleCharge.get(cellKey) || 0
                             const isSaving = savingCells.has(cellKey)
 
-                            return (
-                              <td
-                                key={idx}
+                      return (
+                        <td
+                          key={idx}
                                 className={`px-2 py-2 border-b-2 border-yellow-200 relative ${
                                   col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''
-                                }`}
-                              >
+                          }`}
+                        >
                                 <div className="relative">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={value}
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={value}
                                     onChange={(e) => handleChargeChange(comp, col, parseInt(e.target.value) || 0)}
                                     className="w-full text-center border-2 border-yellow-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white font-semibold transition-all"
                                   />
@@ -1533,13 +1557,13 @@ export default function GrilleChargeAffectation({
                                     </div>
                                   )}
                                 </div>
-                              </td>
-                            )
-                          })}
+                        </td>
+                      )
+                    })}
                           <td className="px-4 py-3 text-center font-bold text-yellow-900 bg-yellow-100 border-b-2 border-yellow-200">
                             {totalCharge}
-                          </td>
-                        </tr>
+                    </td>
+                  </tr>
 
                         {/* LIGNE AFFECTÉ */}
                         <tr className="bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all">
@@ -1548,16 +1572,16 @@ export default function GrilleChargeAffectation({
                               <CheckCircle2 className="w-4 h-4 text-green-700" />
                               <span className="text-green-900">Affecté ({comp})</span>
                             </div>
-                          </td>
-                          {colonnes.map((col, idx) => {
-                            const totalAffecte = getTotalAffecte(comp, col)
-                            const besoin = grilleCharge.get(`${comp}|${col.date.getTime()}`) || 0
-                            const isOver = totalAffecte > besoin
-                            const isUnder = totalAffecte < besoin && besoin > 0
+                    </td>
+                    {colonnes.map((col, idx) => {
+                      const totalAffecte = getTotalAffecte(comp, col)
+                      const besoin = grilleCharge.get(`${comp}|${col.date.getTime()}`) || 0
+                      const isOver = totalAffecte > besoin
+                      const isUnder = totalAffecte < besoin && besoin > 0
 
-                            return (
-                              <td
-                                key={idx}
+                      return (
+                        <td
+                          key={idx}
                                 className={`
                                   px-3 py-3 text-center font-bold border-b-2 border-green-200 transition-all
                                   ${col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''}
@@ -1565,15 +1589,15 @@ export default function GrilleChargeAffectation({
                                   ${isUnder && !col.isWeekend && !col.isHoliday ? 'bg-orange-100 text-orange-900' : ''}
                                   ${!isOver && !isUnder && !col.isWeekend && !col.isHoliday ? 'text-green-900' : ''}
                                 `}
-                              >
-                                {totalAffecte}
-                              </td>
-                            )
-                          })}
+                        >
+                          {totalAffecte}
+                        </td>
+                      )
+                    })}
                           <td className="px-4 py-3 text-center font-bold text-green-900 bg-green-100 border-b-2 border-green-200">
                             {colonnes.reduce((sum, col) => sum + getTotalAffecte(comp, col), 0)}
-                          </td>
-                        </tr>
+                    </td>
+                  </tr>
 
                         {/* RESSOURCES */}
                         {loadingRessources ? (
@@ -1596,22 +1620,22 @@ export default function GrilleChargeAffectation({
                           </tr>
                         ) : (
                           ressourcesComp.map((ressource) => {
-                            const competencesRessource = competencesMap.get(ressource.id) || []
+                    const competencesRessource = competencesMap.get(ressource.id) || []
                             const competenceInfo = competencesRessource.find(c => c.competence === comp)
-                            const isPrincipale = competenceInfo?.type_comp === 'P'
+                    const isPrincipale = competenceInfo?.type_comp === 'P'
 
-                            return (
+                    return (
                               <tr key={ressource.id} className="hover:bg-blue-50/30 transition-all">
                                 <td className={`px-4 py-2 sticky left-0 bg-white z-10 ${isPrincipale ? 'font-semibold' : ''}`}>
                                   <div className="flex items-center gap-2">
                                     {isPrincipale && <span className="text-blue-600 text-lg">★</span>}
                                     <span className="text-gray-900 font-medium">{ressource.nom}</span>
                                   </div>
-                                </td>
-                                {colonnes.map((col, idx) => {
-                                  const cellKey = `${comp}|${col.date.getTime()}`
+                        </td>
+                        {colonnes.map((col, idx) => {
+                          const cellKey = `${comp}|${col.date.getTime()}`
                                   const affectees = grilleAffectations.get(cellKey) || new Set<string>()
-                                  const isAffecte = affectees.has(ressource.id)
+                          const isAffecte = affectees.has(ressource.id)
 
                                   // Calculer les dates de la période pour vérifier les sur-affectations
                                   let dateDebutPeriode: Date
@@ -1726,17 +1750,17 @@ export default function GrilleChargeAffectation({
                                     }
                                   }
 
-                                  return (
-                                    <td
-                                      key={idx}
+                          return (
+                            <td
+                              key={idx}
                                       className={`px-2 py-2 text-center relative ${
                                         col.isWeekend ? 'bg-blue-100/70' : col.isHoliday ? 'bg-pink-100/70' : ''
                                       } ${isDejaAffectee && !isAffecte && !col.isWeekend && !col.isHoliday ? 'bg-gray-200/50' : ''} ${absenceCell ? absenceColorClass : ''}`}
                                     >
                                       <div className="relative inline-block group/tooltip">
-                                        <input
-                                          type="checkbox"
-                                          checked={isAffecte}
+                              <input
+                                type="checkbox"
+                                checked={isAffecte}
                                           onChange={async (e) => {
                                             const wasChecked = e.target.checked
                                             console.log('[GrilleChargeAffectation] 🔘 onChange checkbox déclenché, checked =', wasChecked, 'pour', ressource.nom, '-', comp, '-', col.date.toLocaleDateString('fr-FR'))
@@ -1781,32 +1805,32 @@ export default function GrilleChargeAffectation({
                                           </div>
                                         )}
                                       </div>
-                                    </td>
-                                  )
-                                })}
+                            </td>
+                          )
+                        })}
                                 <td className="px-4 py-2 text-center font-medium bg-gray-50">
-                                  {colonnes.reduce((sum, col) => {
-                                    const cellKey = `${comp}|${col.date.getTime()}`
+                          {colonnes.reduce((sum, col) => {
+                            const cellKey = `${comp}|${col.date.getTime()}`
                                     const affectees = grilleAffectations.get(cellKey) || new Set<string>()
-                                    return sum + (affectees.has(ressource.id) ? 1 : 0)
-                                  }, 0)}
-                                </td>
-                              </tr>
-                            )
+                            return sum + (affectees.has(ressource.id) ? 1 : 0)
+                          }, 0)}
+                        </td>
+                      </tr>
+                    )
                           })
                         )}
 
-                        <tr>
+                  <tr>
                           <td colSpan={colonnes.length + 2} className="h-4 bg-gradient-to-b from-gray-100 to-transparent"></td>
-                        </tr>
-                      </React.Fragment>
-                    )
+                  </tr>
+                </React.Fragment>
+              )
                   })
                 )}
-              </tbody>
-            </table>
+          </tbody>
+        </table>
           </div>
-        </div>
+      </div>
 
         {/* LÉGENDE */}
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
@@ -1816,39 +1840,39 @@ export default function GrilleChargeAffectation({
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
               <span className="text-sm text-gray-700">Besoin (charge)</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-green-100 border-2 border-green-400 rounded"></div>
               <span className="text-sm text-gray-700">Affecté</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-red-200 border-2 border-red-500 rounded"></div>
               <span className="text-sm text-gray-700">Sur-affectation</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-orange-100 border-2 border-orange-400 rounded"></div>
               <span className="text-sm text-gray-700">Sous-affectation</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-blue-50 border-2 border-blue-300 rounded"></div>
               <span className="text-sm text-gray-700">Week-end</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-pink-50 border-2 border-pink-300 rounded"></div>
               <span className="text-sm text-gray-700">Jour férié</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <span className="text-blue-600 text-lg">★</span>
               <span className="text-sm text-gray-700">Compétence principale</span>
-            </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 text-blue-500" />
               <span className="text-sm text-gray-700">Sauvegarde en cours</span>
-            </div>
           </div>
+        </div>
 
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
             <ul className="space-y-2 text-sm text-gray-700">
@@ -1869,7 +1893,7 @@ export default function GrilleChargeAffectation({
                 <span>Utilisez les filtres pour afficher uniquement les compétences qui vous intéressent</span>
               </li>
             </ul>
-          </div>
+      </div>
         </div> 
       </div>
       
@@ -1884,6 +1908,6 @@ export default function GrilleChargeAffectation({
         cancelText={confirmDialog.cancelText}
         type={confirmDialog.type}
       />
-    </div> 
-  ) 
+    </div>
+  )
 }

@@ -38,6 +38,7 @@ export interface PeriodeCharge {
   date_debut: Date
   date_fin: Date
   nb_ressources: number
+  force_weekend_ferie?: boolean // Indique si cette période de charge a été forcée (confirmée) pour un week-end ou jour férié
   created_at: Date
   updated_at: Date
   created_by?: string

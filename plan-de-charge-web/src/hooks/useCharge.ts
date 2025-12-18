@@ -353,7 +353,7 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
       }
 
       // Recharger les périodes après consolidation
-      await loadPeriodes()
+    await loadPeriodes()
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur consolidate:', err)
