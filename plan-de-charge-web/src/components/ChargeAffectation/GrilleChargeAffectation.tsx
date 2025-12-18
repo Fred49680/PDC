@@ -540,6 +540,23 @@ export default function GrilleChargeAffectation({
   }, [ressources, competencesMap, competencesList])
 
   // ========================================
+  // FONCTION : Vérifier si une période contient des week-ends ou jours fériés
+  // ========================================
+  const periodeContientWeekendOuFerie = useCallback((dateDebut: Date, dateFin: Date): boolean => {
+    let currentDate = new Date(dateDebut)
+    const dateFinCopy = new Date(dateFin)
+    
+    while (currentDate <= dateFinCopy) {
+      if (isWeekend(currentDate) || isFrenchHoliday(currentDate)) {
+        return true
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    return false
+  }, [])
+
+  // ========================================
   // HANDLER CHARGE AVEC DEBOUNCING
   // ========================================
   const handleChargeChange = useCallback((competence: string, col: ColonneDate, value: number) => {
@@ -720,23 +737,6 @@ export default function GrilleChargeAffectation({
       return absDateDebut <= dateStr && absDateFin >= dateStr
     }) || null
   }, [absences])
-
-  // ========================================
-  // FONCTION : Vérifier si une période contient des week-ends ou jours fériés
-  // ========================================
-  const periodeContientWeekendOuFerie = useCallback((dateDebut: Date, dateFin: Date): boolean => {
-    let currentDate = new Date(dateDebut)
-    const dateFinCopy = new Date(dateFin)
-    
-    while (currentDate <= dateFinCopy) {
-      if (isWeekend(currentDate) || isFrenchHoliday(currentDate)) {
-        return true
-      }
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
-    
-    return false
-  }, [])
 
   // ========================================
   // HANDLER AFFECTATION
