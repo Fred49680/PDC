@@ -58,6 +58,7 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
         ...p,
         date_debut: p.date_debut ? new Date(p.date_debut) : new Date(),
         date_fin: p.date_fin ? new Date(p.date_fin) : new Date(),
+        force_weekend_ferie: p.force_weekend_ferie === true, // Convertir en boolean explicite
         created_at: p.created_at ? new Date(p.created_at) : new Date(),
         updated_at: p.updated_at ? new Date(p.updated_at) : new Date(),
       })) as PeriodeCharge[]
@@ -125,6 +126,7 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
         ...data,
         date_debut: data.date_debut ? new Date(data.date_debut) : new Date(),
         date_fin: data.date_fin ? new Date(data.date_fin) : new Date(),
+        force_weekend_ferie: data.force_weekend_ferie === true, // Convertir en boolean explicite
         created_at: data.created_at ? new Date(data.created_at) : new Date(),
         updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
       } as PeriodeCharge

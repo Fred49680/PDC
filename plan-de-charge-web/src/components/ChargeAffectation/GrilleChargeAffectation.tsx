@@ -479,7 +479,7 @@ export default function GrilleChargeAffectation({
     periodes.forEach((periode, idx) => {
       const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
       const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
-      console.log(`[GrilleChargeAffectation] DEBUG - Période ${idx + 1}: ${periode.competence} du ${periodeDateDebut.toLocaleDateString('fr-FR')} au ${periodeDateFin.toLocaleDateString('fr-FR')}`)
+      console.log(`[GrilleChargeAffectation] DEBUG - Période ${idx + 1}: ${periode.competence} du ${periodeDateDebut.toLocaleDateString('fr-FR')} au ${periodeDateFin.toLocaleDateString('fr-FR')} (force_weekend_ferie=${periode.force_weekend_ferie}, type: ${typeof periode.force_weekend_ferie})`)
       
       let trouvee = false
       colonnes.forEach((col) => {
@@ -517,12 +517,14 @@ export default function GrilleChargeAffectation({
           if (precision === 'JOUR' && (col.isWeekend || col.isHoliday)) {
             // Vérifier si la période a été forcée (confirmée) pour week-end/férié
             const isForced = periode.force_weekend_ferie === true
+            console.log(`[GrilleChargeAffectation] 🔍 Vérification période week-end/férié: ${periode.competence} le ${col.date.toLocaleDateString('fr-FR')} - force_weekend_ferie=${periode.force_weekend_ferie} (type: ${typeof periode.force_weekend_ferie}), isForced=${isForced}`)
             if (!isForced) {
               // Ne pas charger les périodes non forcées sur week-ends/fériés
+              console.log(`[GrilleChargeAffectation] ⏭️ Période NON forcée ignorée: ${periode.competence} le ${col.date.toLocaleDateString('fr-FR')}`)
               return // Skip cette colonne
             }
             // Si force_weekend_ferie = true, continuer et charger la période
-            console.log(`[GrilleChargeAffectation] ✅ Chargement période forcée week-end/férié: ${periode.competence} le ${col.date.toLocaleDateString('fr-FR')}`)
+            console.log(`[GrilleChargeAffectation] ✅ Chargement période forcée week-end/férié: ${periode.competence} le ${col.date.toLocaleDateString('fr-FR')} (nb_ressources=${periode.nb_ressources})`)
           }
           
           const cellKey = `${periode.competence}|${col.date.getTime()}`
