@@ -1116,7 +1116,7 @@ export default function Planning2({
 
                                 {/* Ressources - Affichées uniquement si besoin > 0 */}
                                 {besoin > 0 && (
-                                  <div className={`space-y-1.5 max-h-[400px] overflow-y-auto rounded-xl p-2 ${
+                                  <div className={`space-y-1.5 max-h-[400px] overflow-y-auto overflow-x-hidden rounded-xl p-2 ${
                                     col.isWeekend ? 'bg-blue-50' :
                                     col.isHoliday ? 'bg-pink-50' :
                                     ''
@@ -1157,7 +1157,7 @@ export default function Planning2({
                                           
                                           {/* Tooltips conditionnels */}
                                           {(absence || isAffecte) && (
-                                            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[100] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-2 whitespace-pre-line max-w-xs pointer-events-none">
                                               {absence ? (
                                                 <>
                                                   <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
@@ -1181,6 +1181,8 @@ export default function Planning2({
                                                   )}
                                                 </>
                                               ) : null}
+                                              {/* Flèche du tooltip */}
+                                              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
                                             </div>
                                           )}
                                         </div>
