@@ -9,6 +9,7 @@ import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
+import type { Absence } from '@/types/absences'
 import { createClient } from '@/lib/supabase/client'
 import type { Affectation } from '@/types/affectations'
 
@@ -604,6 +605,52 @@ export default function GrilleChargeAffectation({
   }, [toutesAffectationsRessources])
 
   // ========================================
+  // FONCTION : Obtenir la couleur d'absence selon le type
+  // ========================================
+  const getAbsenceColor = useCallback((typeAbsence: string): string => {
+    const typeUpper = typeAbsence.toUpperCase().trim()
+    
+    // Maladie : jaune
+    if (typeUpper.includes('MALADIE') || typeUpper.includes('ARRET') || typeUpper.includes('ARRÊT')) {
+      return 'bg-yellow-200 border-yellow-400'
+    }
+    
+    // Formation : rose
+    if (typeUpper.includes('FORMATION') || typeUpper.includes('TRAINING')) {
+      return 'bg-pink-200 border-pink-400'
+    }
+    
+    // CP (Congés payés) : bleu
+    if (typeUpper.includes('CP') || typeUpper.includes('CONGÉ') || typeUpper.includes('CONGE') || typeUpper.includes('PAYÉ') || typeUpper.includes('PAYE')) {
+      return 'bg-blue-200 border-blue-400'
+    }
+    
+    // Autres : violet
+    return 'bg-purple-200 border-purple-400'
+  }, [])
+
+  // ========================================
+  // FONCTION : Vérifier si une ressource a une absence sur une date
+  // ========================================
+  const getAbsenceForDate = useCallback((ressourceId: string, date: Date): Absence | null => {
+    const dateStr = normalizeDateToUTC(date).toISOString().split('T')[0]
+    
+    return absences.find((abs) => {
+      if (abs.ressource_id !== ressourceId) return false
+      
+      const absDateDebut = abs.date_debut instanceof Date 
+        ? abs.date_debut.toISOString().split('T')[0]
+        : new Date(abs.date_debut).toISOString().split('T')[0]
+      const absDateFin = abs.date_fin instanceof Date 
+        ? abs.date_fin.toISOString().split('T')[0]
+        : new Date(abs.date_fin).toISOString().split('T')[0]
+      
+      // La date doit être dans la période d'absence
+      return absDateDebut <= dateStr && absDateFin >= dateStr
+    }) || null
+  }, [absences])
+
+  // ========================================
   // HANDLER AFFECTATION
   // ========================================
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, col: ColonneDate, checked: boolean) => {
@@ -863,7 +910,7 @@ export default function GrilleChargeAffectation({
     } catch (err) {
       console.error('[GrilleChargeAffectation] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails])
+  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, getAffectationsExistantess, affaires, affaireId, site, affairesDetails, getAbsenceColor, getAbsenceForDate])
 
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
@@ -1317,30 +1364,94 @@ export default function GrilleChargeAffectation({
                                     tooltipText = `Déjà affectée sur :\n${details.join('\n\n')}`
                                   }
 
+                                  // *** NOUVEAU : Vérifier si la ressource a une absence sur cette date ***
+                                  let absenceCell: Absence | null = null
+                                  let absenceColorClass = ''
+                                  let absenceTooltip = ''
+                                  
+                                  // En mode JOUR, vérifier la date exacte
+                                  if (precision === 'JOUR') {
+                                    absenceCell = getAbsenceForDate(ressource.id, col.date)
+                                    if (absenceCell) {
+                                      absenceColorClass = getAbsenceColor(absenceCell.type)
+                                      const absDateDebut = absenceCell.date_debut instanceof Date 
+                                        ? absenceCell.date_debut
+                                        : new Date(absenceCell.date_debut)
+                                      const absDateFin = absenceCell.date_fin instanceof Date 
+                                        ? absenceCell.date_fin
+                                        : new Date(absenceCell.date_fin)
+                                      absenceTooltip = `Absence : ${absenceCell.type}\nDu ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`
+                                      if (absenceCell.commentaire) {
+                                        absenceTooltip += `\n${absenceCell.commentaire}`
+                                      }
+                                    }
+                                  } else {
+                                    // En mode SEMAINE ou MOIS, vérifier si une absence chevauche la période
+                                    const dateDebutStr = dateDebutPeriode.toISOString().split('T')[0]
+                                    const dateFinStr = dateFinPeriode.toISOString().split('T')[0]
+                                    
+                                    absenceCell = absences.find((abs) => {
+                                      if (abs.ressource_id !== ressource.id) return false
+                                      
+                                      const absDateDebut = abs.date_debut instanceof Date 
+                                        ? abs.date_debut.toISOString().split('T')[0]
+                                        : new Date(abs.date_debut).toISOString().split('T')[0]
+                                      const absDateFin = abs.date_fin instanceof Date 
+                                        ? abs.date_fin.toISOString().split('T')[0]
+                                        : new Date(abs.date_fin).toISOString().split('T')[0]
+                                      
+                                      // Chevauchement : (absDateDebut <= dateFinStr) && (absDateFin >= dateDebutStr)
+                                      return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
+                                    }) || null
+                                    
+                                    if (absenceCell) {
+                                      absenceColorClass = getAbsenceColor(absenceCell.type)
+                                      const absDateDebut = absenceCell.date_debut instanceof Date 
+                                        ? absenceCell.date_debut
+                                        : new Date(absenceCell.date_debut)
+                                      const absDateFin = absenceCell.date_fin instanceof Date 
+                                        ? absenceCell.date_fin
+                                        : new Date(absenceCell.date_fin)
+                                      absenceTooltip = `Absence : ${absenceCell.type}\nDu ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`
+                                      if (absenceCell.commentaire) {
+                                        absenceTooltip += `\n${absenceCell.commentaire}`
+                                      }
+                                    }
+                                  }
+
                                   return (
                                     <td
                                       key={idx}
                                       className={`px-2 py-2 text-center relative ${
                                         col.isWeekend ? 'bg-blue-50/50' : col.isHoliday ? 'bg-pink-50/50' : ''
-                                      } ${isDejaAffectee && !isAffecte ? 'bg-gray-200/50' : ''}`}
+                                      } ${isDejaAffectee && !isAffecte ? 'bg-gray-200/50' : ''} ${absenceCell ? absenceColorClass : ''}`}
                                     >
                                       <div className="relative inline-block group/tooltip">
                                         <input
                                           type="checkbox"
                                           checked={isAffecte}
                                           onChange={(e) => handleAffectationChange(comp, ressource.id, col, e.target.checked)}
-                                          disabled={isDejaAffectee && !isAffecte}
+                                          disabled={(isDejaAffectee && !isAffecte) || (absenceCell !== null)}
                                           className={`w-5 h-5 rounded transition-all ${
-                                            isDejaAffectee && !isAffecte
+                                            (isDejaAffectee && !isAffecte) || (absenceCell !== null)
                                               ? 'cursor-not-allowed opacity-50 bg-gray-300'
                                               : 'cursor-pointer accent-green-500 hover:scale-110'
                                           }`}
                                         />
-                                        {/* Tooltip au survol */}
-                                        {isDejaAffectee && tooltipText && (
+                                        {/* Tooltip au survol pour sur-affectation */}
+                                        {isDejaAffectee && tooltipText && !absenceCell && (
                                           <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-[100] invisible group-hover/tooltip:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 whitespace-pre-line max-w-xs pointer-events-none">
                                             <div className="font-semibold mb-1 text-yellow-300">⚠️ Déjà affectée</div>
                                             <div className="text-xs">{tooltipText}</div>
+                                            {/* Flèche pointant vers la gauche */}
+                                            <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-b-[6px] border-r-[6px] border-transparent border-r-gray-900"></div>
+                                          </div>
+                                        )}
+                                        {/* Tooltip au survol pour absence */}
+                                        {absenceCell && absenceTooltip && (
+                                          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-[100] invisible group-hover/tooltip:visible bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 whitespace-pre-line max-w-xs pointer-events-none">
+                                            <div className="font-semibold mb-1 text-yellow-300">⚠️ Absence</div>
+                                            <div className="text-xs">{absenceTooltip}</div>
                                             {/* Flèche pointant vers la gauche */}
                                             <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-b-[6px] border-r-[6px] border-transparent border-r-gray-900"></div>
                                           </div>
