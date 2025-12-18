@@ -586,6 +586,40 @@ export default function GrilleChargeAffectation({
           // Mode JOUR : une seule date
           dateDebutPeriode = colDateNormalisee
           dateFinPeriode = colDateNormalisee
+          
+          // *** NOUVEAU : Confirmation pour week-end (mode JOUR uniquement) ***
+          if (nbRessources > 0 && col.isWeekend) {
+            const confirme = window.confirm(
+              `⚠️ Attention : Vous souhaitez enregistrer une charge un week-end (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+            )
+            if (!confirme) {
+              // Annuler la sauvegarde et remettre la valeur à 0
+              setSavingCells(prev => {
+                const newSet = new Set(prev)
+                newSet.delete(cellKey)
+                return newSet
+              })
+              saveTimeoutRef.current.delete(cellKey)
+              return
+            }
+          }
+
+          // *** NOUVEAU : Confirmation pour jour férié (mode JOUR uniquement) ***
+          if (nbRessources > 0 && col.isHoliday) {
+            const confirme = window.confirm(
+              `⚠️ Attention : Vous souhaitez enregistrer une charge un jour férié (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+            )
+            if (!confirme) {
+              // Annuler la sauvegarde et remettre la valeur à 0
+              setSavingCells(prev => {
+                const newSet = new Set(prev)
+                newSet.delete(cellKey)
+                return newSet
+              })
+              saveTimeoutRef.current.delete(cellKey)
+              return
+            }
+          }
         } else if (precision === 'SEMAINE') {
           // Mode SEMAINE : lundi à dimanche de la semaine
           const dayOfWeek = col.date.getDay()
