@@ -8,7 +8,6 @@ import type { Affaire } from '@/types/charge'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
-import { SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
 
 interface GrilleChargeAffectationProps {
   affaireId: string
@@ -17,14 +16,8 @@ interface GrilleChargeAffectationProps {
   dateFin: Date
   precision: Precision
   affaires: Affaire[]
-  responsable?: string
-  tranche?: string
   onDateChange?: (newDateDebut: Date, newDateFin: Date) => void
   onPrecisionChange?: (newPrecision: Precision) => void
-  onAffaireChange?: (affaireId: string, site: string) => void
-  onResponsableChange?: (responsable: string) => void
-  onSiteChange?: (site: string) => void
-  onTrancheChange?: (tranche: string) => void
 }
 
 interface ColonneDate {
@@ -78,63 +71,17 @@ export default function GrilleChargeAffectation({
   dateFin: propDateFin,
   precision: propPrecision,
   affaires,
-  responsable: propResponsable,
-  tranche: propTranche,
   onDateChange,
   onPrecisionChange,
-  onAffaireChange,
-  onResponsableChange,
-  onSiteChange,
-  onTrancheChange,
 }: GrilleChargeAffectationProps) {
   const [precision, setPrecision] = useState<Precision>(propPrecision)
   const [dateDebut, setDateDebut] = useState(propDateDebut)
   const [dateFin, setDateFin] = useState(propDateFin)
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const [responsable, setResponsable] = useState(propResponsable || '')
-  const [tranche, setTranche] = useState(propTranche || '')
   
-  // Filtrer les affaires actives et ouvertes/prévisionnelles
-  const affairesActives = affaires.filter(
-    (a) => a.actif && (a.statut === 'Ouverte' || a.statut === 'Prévisionnelle')
-  )
-
-  // Extraire les responsables uniques depuis les affaires
-  const responsablesDisponibles = Array.from(
-    new Set(affairesActives.map((a) => a.responsable).filter(Boolean))
-  ).sort()
-
-  // Filtrer les affaires selon le responsable sélectionné
-  const affairesFiltreesParResponsable = responsable
-    ? affairesActives.filter((a) => a.responsable === responsable)
-    : affairesActives
-
-  // Extraire les sites uniques depuis les affaires filtrées par responsable
-  // Si aucun responsable sélectionné, utiliser toutes les affaires actives
-  const sitesDisponibles = Array.from(
-    new Set((responsable ? affairesFiltreesParResponsable : affairesActives).map((a) => a.site).filter(Boolean))
-  ).sort()
-
-  // Filtrer les affaires selon le responsable et le site sélectionnés
-  const affairesFiltreesParResponsableEtSite = site
-    ? affairesFiltreesParResponsable.filter((a) => a.site === site)
-    : affairesFiltreesParResponsable
-
-  // Extraire les tranches uniques depuis les affaires filtrées
-  const tranchesDisponibles = Array.from(
-    new Set(affairesFiltreesParResponsableEtSite.map((a) => a.tranche).filter(Boolean))
-  ).sort()
-
-  // Filtrer les affaires selon responsable, site et tranche
-  const affairesFiltreesFinales = tranche
-    ? affairesFiltreesParResponsableEtSite.filter((a) => a.tranche === tranche)
-    : affairesFiltreesParResponsableEtSite
-  
-  // Synchroniser avec les props si elles changent (mais ne pas écraser si l'utilisateur a changé localement)
+  // Synchroniser avec les props si elles changent
   useEffect(() => {
-    // Ne synchroniser que si la prop a vraiment changé (évite d'écraser les changements locaux)
     if (propPrecision !== precision) {
-      console.log(`[GrilleChargeAffectation] Synchronisation précision depuis props: ${propPrecision}`)
       setPrecision(propPrecision)
     }
     if (propDateDebut.getTime() !== dateDebut.getTime()) {
@@ -143,42 +90,7 @@ export default function GrilleChargeAffectation({
     if (propDateFin.getTime() !== dateFin.getTime()) {
       setDateFin(propDateFin)
     }
-    if (propResponsable !== responsable) {
-      setResponsable(propResponsable || '')
-    }
-    if (propTranche !== tranche) {
-      setTranche(propTranche || '')
-    }
-  }, [propPrecision, propDateDebut, propDateFin, propResponsable, propTranche])
-
-  // Utiliser une ref pour suivre les changements utilisateur du responsable (évite les boucles avec props)
-  const prevResponsableRef = useRef(responsable)
-  const prevTrancheRef = useRef(tranche)
-
-  // Réinitialiser les filtres en cascade quand l'utilisateur change le responsable
-  useEffect(() => {
-    // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
-    if (responsable !== prevResponsableRef.current && responsable) {
-      prevResponsableRef.current = responsable
-      // Réinitialiser site, tranche et affaire si le responsable change
-      if (onSiteChange) onSiteChange('')
-      if (onTrancheChange) onTrancheChange('')
-      if (onAffaireChange) onAffaireChange('', '')
-    } else if (responsable !== prevResponsableRef.current) {
-      prevResponsableRef.current = responsable
-    }
-  }, [responsable, onSiteChange, onTrancheChange, onAffaireChange])
-
-  // Réinitialiser tranche et affaire quand l'utilisateur change la tranche
-  useEffect(() => {
-    // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
-    if (tranche !== prevTrancheRef.current && tranche) {
-      prevTrancheRef.current = tranche
-      if (onAffaireChange) onAffaireChange('', '')
-    } else if (tranche !== prevTrancheRef.current) {
-      prevTrancheRef.current = tranche
-    }
-  }, [tranche, onAffaireChange])
+  }, [propPrecision, propDateDebut, propDateFin])
   
   // ========================================
   // CHARGEMENT DES DONNÉES RÉELLES
@@ -724,126 +636,6 @@ export default function GrilleChargeAffectation({
               <span className="text-sm">Chargement des données...</span>
             </div>
           )}
-        </div>
-
-        {/* SÉLECTION AFFAIRE */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <Target className="w-6 h-6 text-blue-600" />
-              Sélection affaire
-            </h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Responsable */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Responsable
-              </label>
-              <select
-                value={responsable}
-                onChange={(e) => {
-                  const newResponsable = e.target.value
-                  setResponsable(newResponsable)
-                  // Les callbacks de réinitialisation sont gérés dans le useEffect
-                  if (onResponsableChange) {
-                    onResponsableChange(newResponsable)
-                  }
-                }}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
-              >
-                <option value="">Tous les responsables...</option>
-                {responsablesDisponibles.map((resp) => (
-                  <option key={resp} value={resp}>
-                    {resp}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Site */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Site <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={site}
-                onChange={(e) => {
-                  const newSite = e.target.value
-                  if (onSiteChange) {
-                    onSiteChange(newSite)
-                  }
-                }}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
-              >
-                <option value="">Sélectionner un site...</option>
-                {sitesDisponibles.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tranche */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Tranche
-              </label>
-              <select
-                value={tranche}
-                onChange={(e) => {
-                  const newTranche = e.target.value
-                  setTranche(newTranche)
-                  // Les callbacks de réinitialisation sont gérés dans le useEffect
-                  if (onTrancheChange) {
-                    onTrancheChange(newTranche)
-                  }
-                }}
-                disabled={!site}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">Toutes les tranches...</option>
-                {tranchesDisponibles.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Affaire */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Affaire <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={affaireId}
-                onChange={(e) => {
-                  const selectedAffaireId = e.target.value
-                  if (selectedAffaireId && onAffaireChange) {
-                    const affaire = affairesFiltreesFinales.find(
-                      (a) => a.affaire_id === selectedAffaireId
-                    )
-                    if (affaire) {
-                      onAffaireChange(selectedAffaireId, affaire.site)
-                    }
-                  }
-                }}
-                disabled={!site}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">Sélectionner une affaire...</option>
-                {affairesFiltreesFinales.map((affaire) => (
-                  <option key={affaire.id} value={affaire.affaire_id || ''}>
-                    {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
         </div>
 
         {/* FILTRES COMPÉTENCES */}

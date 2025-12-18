@@ -128,8 +128,118 @@ export default function PlanningPage() {
           
         </div>
 
-                 {/* Grille combinée */}
-                 {affaireId && site ? (
+        {/* SÉLECTION AFFAIRE */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <Target className="w-6 h-6 text-blue-600" />
+              Sélection affaire
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Responsable */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Responsable
+              </label>
+              <select
+                value={responsable}
+                onChange={(e) => {
+                  setResponsable(e.target.value)
+                }}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
+              >
+                <option value="">Tous les responsables...</option>
+                {responsablesDisponibles.map((resp) => (
+                  <option key={resp} value={resp}>
+                    {resp}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Site */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Site <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={site}
+                onChange={(e) => {
+                  setSite(e.target.value)
+                }}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
+              >
+                <option value="">Sélectionner un site...</option>
+                {sitesDisponibles.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tranche */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Tranche
+              </label>
+              <select
+                value={tranche}
+                onChange={(e) => {
+                  setTranche(e.target.value)
+                }}
+                disabled={!site}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Toutes les tranches...</option>
+                {tranchesDisponibles.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Affaire */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Affaire <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={affaireId}
+                onChange={(e) => {
+                  const selectedAffaireId = e.target.value
+                  if (selectedAffaireId) {
+                    const affaire = affairesFiltreesFinales.find(
+                      (a) => a.affaire_id === selectedAffaireId
+                    )
+                    if (affaire) {
+                      setAffaireId(selectedAffaireId)
+                      setSite(affaire.site)
+                    }
+                  } else {
+                    setAffaireId('')
+                  }
+                }}
+                disabled={!site}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Sélectionner une affaire...</option>
+                {affairesFiltreesFinales.map((affaire) => (
+                  <option key={affaire.id} value={affaire.affaire_id || ''}>
+                    {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Grille combinée */}
+        {affaireId && site ? (
                    <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
                      <GrilleChargeAffectation
                        affaireId={affaireId}
@@ -138,27 +248,12 @@ export default function PlanningPage() {
                        dateFin={dateFin}
                        precision={precision}
                        affaires={affairesActives}
-                       responsable={responsable}
-                       tranche={tranche}
                        onDateChange={(newDateDebut, newDateFin) => {
                          setDateDebut(newDateDebut)
                          setDateFin(newDateFin)
                        }}
                        onPrecisionChange={(newPrecision) => {
                          setPrecision(newPrecision)
-                       }}
-                       onAffaireChange={(newAffaireId, newSite) => {
-                         setAffaireId(newAffaireId)
-                         if (newSite) setSite(newSite)
-                       }}
-                       onResponsableChange={(newResponsable) => {
-                         setResponsable(newResponsable)
-                       }}
-                       onSiteChange={(newSite) => {
-                         setSite(newSite)
-                       }}
-                       onTrancheChange={(newTranche) => {
-                         setTranche(newTranche)
                        }}
                      />
                    </div>
