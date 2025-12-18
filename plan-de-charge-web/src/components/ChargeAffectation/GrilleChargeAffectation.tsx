@@ -151,9 +151,8 @@ export default function GrilleChargeAffectation({
     }
   }, [propPrecision, propDateDebut, propDateFin, propResponsable, propTranche])
 
-  // Utiliser des refs pour suivre les changements utilisateur (évite les boucles avec props)
+  // Utiliser une ref pour suivre les changements utilisateur du responsable (évite les boucles avec props)
   const prevResponsableRef = useRef(responsable)
-  const prevSiteRef = useRef(site)
   const prevTrancheRef = useRef(tranche)
 
   // Réinitialiser les filtres en cascade quand l'utilisateur change le responsable
@@ -161,9 +160,6 @@ export default function GrilleChargeAffectation({
     // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
     if (responsable !== prevResponsableRef.current && responsable) {
       prevResponsableRef.current = responsable
-      if (onResponsableChange) {
-        onResponsableChange(responsable)
-      }
       // Réinitialiser site, tranche et affaire si le responsable change
       if (onSiteChange) onSiteChange('')
       if (onTrancheChange) onTrancheChange('')
@@ -171,36 +167,18 @@ export default function GrilleChargeAffectation({
     } else if (responsable !== prevResponsableRef.current) {
       prevResponsableRef.current = responsable
     }
-  }, [responsable, onResponsableChange, onSiteChange, onTrancheChange, onAffaireChange])
+  }, [responsable, onSiteChange, onTrancheChange, onAffaireChange])
 
-  // Réinitialiser tranche et affaire quand l'utilisateur change le site
-  useEffect(() => {
-    // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
-    if (site !== prevSiteRef.current && site) {
-      prevSiteRef.current = site
-      if (onSiteChange) {
-        onSiteChange(site)
-      }
-      if (onTrancheChange) onTrancheChange('')
-      if (onAffaireChange) onAffaireChange('', '')
-    } else if (site !== prevSiteRef.current) {
-      prevSiteRef.current = site
-    }
-  }, [site, onSiteChange, onTrancheChange, onAffaireChange])
-
-  // Réinitialiser affaire quand l'utilisateur change la tranche
+  // Réinitialiser tranche et affaire quand l'utilisateur change la tranche
   useEffect(() => {
     // Seulement si c'est un changement utilisateur (pas une synchronisation depuis props)
     if (tranche !== prevTrancheRef.current && tranche) {
       prevTrancheRef.current = tranche
-      if (onTrancheChange) {
-        onTrancheChange(tranche)
-      }
       if (onAffaireChange) onAffaireChange('', '')
     } else if (tranche !== prevTrancheRef.current) {
       prevTrancheRef.current = tranche
     }
-  }, [tranche, onTrancheChange, onAffaireChange])
+  }, [tranche, onAffaireChange])
   
   // ========================================
   // CHARGEMENT DES DONNÉES RÉELLES
@@ -769,6 +747,7 @@ export default function GrilleChargeAffectation({
                 onChange={(e) => {
                   const newResponsable = e.target.value
                   setResponsable(newResponsable)
+                  // Les callbacks de réinitialisation sont gérés dans le useEffect
                   if (onResponsableChange) {
                     onResponsableChange(newResponsable)
                   }
@@ -793,7 +772,6 @@ export default function GrilleChargeAffectation({
                 value={site}
                 onChange={(e) => {
                   const newSite = e.target.value
-                  setSite(newSite)
                   if (onSiteChange) {
                     onSiteChange(newSite)
                   }
@@ -819,6 +797,7 @@ export default function GrilleChargeAffectation({
                 onChange={(e) => {
                   const newTranche = e.target.value
                   setTranche(newTranche)
+                  // Les callbacks de réinitialisation sont gérés dans le useEffect
                   if (onTrancheChange) {
                     onTrancheChange(newTranche)
                   }
