@@ -114,6 +114,7 @@ export default function GrilleChargeAffectation({
   
   // États de filtres
   const [competencesFiltrees, setCompetencesFiltrees] = useState<Set<string>>(new Set<string>())
+  const [competencesInitialisees, setCompetencesInitialisees] = useState(false) // Flag pour éviter réinitialisation après interaction utilisateur
   
   // Extraire la liste des compétences depuis les périodes et les ressources
   const competencesList = useMemo(() => {
@@ -135,9 +136,10 @@ export default function GrilleChargeAffectation({
   }, [periodes, competencesMap])
   
   // Initialiser les compétences filtrées avec toutes les compétences disponibles au démarrage
-  // (seulement quand le chargement est terminé et qu'aucune compétence n'est encore sélectionnée)
+  // (seulement une fois, au premier chargement terminé, si l'utilisateur n'a pas encore interagi)
   useEffect(() => {
     if (
+      !competencesInitialisees &&
       !loadingCharge && 
       !loadingRessources && 
       competencesList.length > 0 && 
@@ -145,8 +147,9 @@ export default function GrilleChargeAffectation({
     ) {
       console.log(`[GrilleChargeAffectation] Initialisation compétences: ${competencesList.length} compétence(s) sélectionnée(s)`)
       setCompetencesFiltrees(new Set(competencesList))
+      setCompetencesInitialisees(true) // Marquer comme initialisé pour éviter réinitialisation future
     }
-  }, [competencesList, loadingCharge, loadingRessources, competencesFiltrees.size])
+  }, [competencesList, loadingCharge, loadingRessources, competencesFiltrees.size, competencesInitialisees])
   
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set<string>())
@@ -425,6 +428,8 @@ export default function GrilleChargeAffectation({
         newSet.add(competence)
         console.log(`[GrilleChargeAffectation] Compétence "${competence}" sélectionnée`)
       }
+      // Marquer que l'utilisateur a interagi (empêche la réinitialisation automatique)
+      setCompetencesInitialisees(true)
       return newSet
     })
   }, [])
@@ -462,6 +467,7 @@ export default function GrilleChargeAffectation({
                 onClick={() => {
                   console.log(`[GrilleChargeAffectation] Bouton "Tout sélectionner" cliqué - ${competencesList.length} compétence(s)`)
                   setCompetencesFiltrees(new Set(competencesList))
+                  setCompetencesInitialisees(true) // Marquer que l'utilisateur a interagi
                 }}
                 className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
               >
@@ -471,6 +477,7 @@ export default function GrilleChargeAffectation({
                 onClick={() => {
                   console.log(`[GrilleChargeAffectation] Bouton "Tout désélectionner" cliqué`)
                   setCompetencesFiltrees(new Set<string>())
+                  setCompetencesInitialisees(true) // Marquer que l'utilisateur a interagi
                 }}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-all"
               >
