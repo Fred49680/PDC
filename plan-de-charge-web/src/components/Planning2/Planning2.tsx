@@ -842,6 +842,7 @@ export default function Planning2({
       if (!shouldShowTooltip.current) return
       
       const handleGlobalMouseMove = (e: MouseEvent) => {
+        // Centrer le tooltip sur le curseur (le transform translateX(-50%) centrera depuis ce point)
         setTooltipPos({
           top: e.clientY - 10,
           left: e.clientX
@@ -911,8 +912,7 @@ export default function Planning2({
             style={{
               top: `${tooltipPos.top}px`,
               left: `${tooltipPos.left}px`,
-              transform: 'translateY(-100%) translateX(-50%)',
-              pointerEvents: 'none'
+              transform: 'translateY(-100%) translateX(-50%)'
             }}
           >
             {absence ? (
