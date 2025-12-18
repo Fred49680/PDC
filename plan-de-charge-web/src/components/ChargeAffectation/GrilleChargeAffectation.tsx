@@ -310,9 +310,9 @@ export default function GrilleChargeAffectation({
   // ========================================
   // TOTAL AFFECTÉ - Mémoïsé
   // ========================================
-  const getTotalAffecte = useCallback((competence, col) => {
+  const getTotalAffecte = useCallback((competence: string, col: ColonneDate): number => {
     const cellKey = `${competence}|${col.date.getTime()}`
-    return (grilleAffectations.get(cellKey) || new Set()).size
+    return (grilleAffectations.get(cellKey) || new Set<string>()).size
   }, [grilleAffectations])
 
   // ========================================
