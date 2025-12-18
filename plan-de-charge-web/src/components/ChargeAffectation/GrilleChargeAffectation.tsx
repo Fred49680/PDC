@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { CheckCircle2, Info, Users, Target, ChevronLeft, ChevronRight, Filter, Loader2 } from 'lucide-react'
 import { normalizeDateToUTC } from '@/utils/calendar'
+import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import type { Affaire } from '@/types/charge'
 import { useCharge } from '@/hooks/useCharge'
@@ -38,7 +39,7 @@ interface ColonneDate {
 
 // Utility functions simplifiées
 const isWeekend = (date: Date): boolean => [0, 6].includes(date.getDay())
-const isFrenchHoliday = (_date: Date): boolean => false // Simplification
+// isFrenchHoliday est maintenant importé depuis @/utils/holidays
 
 const getDatesBetween = (start: Date, end: Date): Date[] => {
   const dates: Date[] = []

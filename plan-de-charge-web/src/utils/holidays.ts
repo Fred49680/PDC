@@ -94,13 +94,16 @@ export function getFrenchHolidaysBetween(start: Date, end: Date): Date[] {
 
 /**
  * Vérifier si une date est un jour férié français
+ * (Fériés français standards, hors Alsace-Lorraine)
  */
 export function isFrenchHoliday(date: Date): boolean {
-  const year = getYear(date)
+  // Normaliser la date à minuit pour la comparaison
+  const dateNormalisee = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const year = getYear(dateNormalisee)
   const holidays = getFrenchHolidays(year)
-  return holidays.some(h => 
-    h.getFullYear() === date.getFullYear() &&
-    h.getMonth() === date.getMonth() &&
-    h.getDate() === date.getDate()
-  )
+  return holidays.some(h => {
+    // Normaliser le jour férié à minuit pour la comparaison
+    const hNormalise = new Date(h.getFullYear(), h.getMonth(), h.getDate())
+    return hNormalise.getTime() === dateNormalisee.getTime()
+  })
 }
