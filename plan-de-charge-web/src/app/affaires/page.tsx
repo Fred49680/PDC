@@ -343,7 +343,7 @@ export default function AffairesPage() {
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-              placeholder="Recherche intelligente (ID, Libellé, Site, Compte, Responsable, Tranche, Statut)..."
+              placeholder="Recherche intelligente (Libellé, Site, Compte, Responsable, Tranche, Statut)..."
             />
           </div>
         </div>
@@ -373,31 +373,31 @@ export default function AffairesPage() {
                 <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Affaire ID
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Site
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Libellé
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Compte
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Responsable
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Libellé
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Tranche
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Compte
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Statut
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Budget (H)
+                      Budget
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      RAF (H)
+                      RAF
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Date MAJ RAF
+                      Date maj RAF
                     </th>
                   </tr>
                 </thead>
@@ -418,16 +418,16 @@ export default function AffairesPage() {
                         className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
                         onClick={() => handleRowClick(affaire)}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.affaire_id || <span className="text-gray-400 italic">(vide)</span>}
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.compte || '-'}
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.responsable || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.tranche || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.compte || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {/* Afficher le statut réel (Ouverte/Prévisionnelle/Fermée) */}
