@@ -839,7 +839,7 @@ export default function Planning2({
       showAlert(
         'Affectation de masse terminée',
         `Tentative d'affectation sur ${nbTentatives} période(s) avec besoin.\n\nLes affectations ont été créées pour les périodes disponibles. Certaines périodes peuvent avoir été bloquées (absences ou conflits) - vérifiez les alertes éventuelles.`,
-        'success'
+        'info'
       )
     } catch (err) {
       console.error('[Planning2] Erreur affectation de masse:', err)
