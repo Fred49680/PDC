@@ -14,33 +14,89 @@ import { ImportExcel } from '@/components/Affaires/ImportExcel'
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
-  const [filters, setFilters] = useState({ search: '', hideClosed: false })
   const [showImport, setShowImport] = useState(false)
   const { affaires: allAffaires, loading, error, saveAffaire, deleteAffaire, loadAffaires } = useAffaires()
   
-  // Filtrage intelligent côté client
-  const affaires = allAffaires.filter((affaire) => {
-    // Filtrer les affaires fermées si hideClosed est activé
-    if (filters.hideClosed && affaire.statut === 'Fermée') {
-      return false
-    }
-    
-    // Filtre intelligent : recherche dans plusieurs colonnes
-    if (filters.search.trim() === '') {
+  // Filtres en cascade (comme la page Planning)
+  const [responsable, setResponsable] = useState('')
+  const [site, setSite] = useState('')
+  const [tranche, setTranche] = useState('')
+  const [numeroCompte, setNumeroCompte] = useState('')
+  const [hideClosed, setHideClosed] = useState(true) // Masquer les clôturées par défaut
+  
+  // Filtrer les affaires actives et ouvertes/prévisionnelles (sauf si hideClosed est désactivé)
+  const affairesActives = allAffaires.filter(
+    (a) => {
+      // Masquer les clôturées si hideClosed est activé
+      if (hideClosed && a.statut === 'Clôturé') {
+        return false
+      }
       return true
     }
-    
-    const searchLower = filters.search.toLowerCase().trim()
-    return (
-      (affaire.affaire_id?.toLowerCase().includes(searchLower) ?? false) ||
-      (affaire.libelle?.toLowerCase().includes(searchLower) ?? false) ||
-      (affaire.site?.toLowerCase().includes(searchLower) ?? false) ||
-      (affaire.compte?.toLowerCase().includes(searchLower) ?? false) ||
-      (affaire.responsable?.toLowerCase().includes(searchLower) ?? false) ||
-      (affaire.tranche?.toLowerCase().includes(searchLower) ?? false) ||
-      (affaire.statut?.toLowerCase().includes(searchLower) ?? false)
-    )
-  })
+  )
+
+  // Extraire les responsables uniques depuis les affaires
+  const responsablesDisponibles = Array.from(
+    new Set(affairesActives.map((a) => a.responsable).filter(Boolean))
+  ).sort()
+
+  // Filtrer les affaires selon le responsable sélectionné
+  const affairesFiltreesParResponsable = responsable
+    ? affairesActives.filter((a) => a.responsable === responsable)
+    : affairesActives
+
+  // Extraire les sites uniques depuis les affaires filtrées par responsable
+  const sitesDisponibles = Array.from(
+    new Set(affairesFiltreesParResponsable.map((a) => a.site).filter(Boolean))
+  ).sort()
+
+  // Filtrer les affaires selon le responsable et le site sélectionnés
+  const affairesFiltreesParResponsableEtSite = site
+    ? affairesFiltreesParResponsable.filter((a) => a.site === site)
+    : affairesFiltreesParResponsable
+
+  // Extraire les tranches uniques depuis les affaires filtrées
+  const tranchesDisponibles = Array.from(
+    new Set(affairesFiltreesParResponsableEtSite.map((a) => a.tranche).filter(Boolean))
+  ).sort()
+
+  // Filtrer les affaires selon responsable, site et tranche
+  const affairesFiltreesParTranche = tranche
+    ? affairesFiltreesParResponsableEtSite.filter((a) => a.tranche === tranche)
+    : affairesFiltreesParResponsableEtSite
+
+  // Filtrer par numéro de compte si renseigné (recherche dans affaire_id et compte)
+  const affaires = numeroCompte
+    ? affairesFiltreesParTranche.filter((a) => 
+        (a.affaire_id && a.affaire_id.toLowerCase().includes(numeroCompte.toLowerCase())) ||
+        (a.compte && a.compte.toLowerCase().includes(numeroCompte.toLowerCase()))
+      )
+    : affairesFiltreesParTranche
+
+  // Réinitialiser les filtres en cascade quand on change le responsable
+  useEffect(() => {
+    if (responsable) {
+      // Réinitialiser site, tranche et numéro de compte si le responsable change
+      setSite('')
+      setTranche('')
+      setNumeroCompte('')
+    }
+  }, [responsable])
+
+  // Réinitialiser tranche et numéro de compte quand le site change
+  useEffect(() => {
+    if (site) {
+      setTranche('')
+      setNumeroCompte('')
+    }
+  }, [site])
+
+  // Réinitialiser numéro de compte quand la tranche change
+  useEffect(() => {
+    if (tranche) {
+      setNumeroCompte('')
+    }
+  }, [tranche])
 
   const [formData, setFormData] = useState({
     id: '',
@@ -307,44 +363,117 @@ export default function AffairesPage() {
           />
         )}
 
-        {/* Filtres - Design moderne */}
+        {/* Filtres - Design moderne (même système que Planning) */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Search className="w-5 h-5 text-indigo-600" />
               <h2 className="text-xl font-bold text-gray-800">Filtres</h2>
             </div>
             <button
               type="button"
-              onClick={() => setFilters({ ...filters, hideClosed: !filters.hideClosed })}
+              onClick={() => setHideClosed(!hideClosed)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-                filters.hideClosed
+                hideClosed
                   ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {filters.hideClosed ? (
+              {hideClosed ? (
                 <>
                   <EyeOff className="w-4 h-4" />
-                  Masquer les fermées
+                  Masquer les clôturées
                 </>
               ) : (
                 <>
                   <Eye className="w-4 h-4" />
-                  Afficher les fermées
+                  Afficher les clôturées
                 </>
               )}
             </button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-              placeholder="Recherche intelligente (Libellé, Site, Compte, Responsable, Tranche, Statut)..."
-            />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Numéro de compte (filtre intelligent) */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Numéro de compte
+              </label>
+              <input
+                type="text"
+                value={numeroCompte}
+                onChange={(e) => {
+                  setNumeroCompte(e.target.value)
+                }}
+                placeholder="Rechercher par numéro..."
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium"
+              />
+            </div>
+
+            {/* Responsable */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Responsable
+              </label>
+              <select
+                value={responsable}
+                onChange={(e) => {
+                  setResponsable(e.target.value)
+                }}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium"
+              >
+                <option value="">Tous les responsables...</option>
+                {responsablesDisponibles.map((resp) => (
+                  <option key={resp} value={resp}>
+                    {resp}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Site */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Site
+              </label>
+              <select
+                value={site}
+                onChange={(e) => {
+                  setSite(e.target.value)
+                }}
+                disabled={!responsable && responsablesDisponibles.length > 0}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Tous les sites...</option>
+                {sitesDisponibles.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tranche */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Tranche
+              </label>
+              <select
+                value={tranche}
+                onChange={(e) => {
+                  setTranche(e.target.value)
+                }}
+                disabled={!site}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Toutes les tranches...</option>
+                {tranchesDisponibles.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -430,7 +559,7 @@ export default function AffairesPage() {
                           {affaire.compte || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {/* Afficher le statut réel (Ouverte/Prévisionnelle/Fermée) */}
+                          {/* Afficher le statut réel (Ouverte/Prévisionnelle/Clôturé) */}
                           {affaire.statut === 'Ouverte' ? (
                             <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                               Ouverte
@@ -439,9 +568,9 @@ export default function AffairesPage() {
                             <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                               Prévisionnelle
                             </span>
-                          ) : affaire.statut === 'Fermée' ? (
+                          ) : affaire.statut === 'Clôturé' ? (
                             <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                              Fermée
+                              Clôturé
                             </span>
                           ) : (
                             <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -586,7 +715,7 @@ export default function AffairesPage() {
                     >
                       <option value="Ouverte">Ouverte</option>
                       <option value="Prévisionnelle">Prévisionnelle</option>
-                      <option value="Fermée">Fermée</option>
+                      <option value="Clôturé">Clôturé</option>
                     </select>
                   </div>
                 </div>
