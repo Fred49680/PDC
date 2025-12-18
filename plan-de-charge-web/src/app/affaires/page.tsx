@@ -831,7 +831,7 @@ export default function AffairesPage() {
                               type="number"
                               step="0.01"
                               min="0"
-                              value={typeof editingValue === 'number' ? editingValue : editingValue}
+                              value={typeof editingValue === 'number' ? editingValue : (typeof editingValue === 'string' ? parseFloat(editingValue) || 0 : 0)}
                               onChange={(e) => setEditingValue(parseFloat(e.target.value) || 0)}
                               onBlur={() => handleCellSave(affaire, 'budget_heures')}
                               onKeyDown={(e) => {
@@ -860,7 +860,7 @@ export default function AffairesPage() {
                               type="number"
                               step="0.01"
                               min="0"
-                              value={typeof editingValue === 'number' ? editingValue : editingValue}
+                              value={typeof editingValue === 'number' ? editingValue : (typeof editingValue === 'string' ? parseFloat(editingValue) || 0 : 0)}
                               onChange={(e) => setEditingValue(parseFloat(e.target.value) || 0)}
                               onBlur={() => handleCellSave(affaire, 'raf_heures')}
                               onKeyDown={(e) => {
