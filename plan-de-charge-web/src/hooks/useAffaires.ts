@@ -57,6 +57,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           raf_heures: item.raf_heures ? Number(item.raf_heures) : undefined,
           date_maj_raf: item.date_maj_raf ? new Date(item.date_maj_raf) : undefined,
           responsable: item.responsable || undefined,
+          compte: item.compte || undefined,
           date_creation: new Date(item.date_creation),
           date_modification: new Date(item.date_modification),
           actif: item.actif ?? true,
@@ -113,6 +114,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           raf_heures: affaire.raf_heures !== undefined && affaire.raf_heures !== null ? Number(affaire.raf_heures) : null,
           date_maj_raf: affaire.date_maj_raf ? new Date(affaire.date_maj_raf).toISOString().split('T')[0] : null,
           responsable: affaire.responsable && affaire.responsable.trim() !== '' ? affaire.responsable.trim() : null,
+          compte: affaire.compte && affaire.compte.trim() !== '' ? affaire.compte.trim() : null,
           actif: affaire.actif ?? true,
           date_modification: new Date().toISOString(),
         }

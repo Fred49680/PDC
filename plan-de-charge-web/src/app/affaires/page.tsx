@@ -35,6 +35,7 @@ export default function AffairesPage() {
       (affaire.affaire_id?.toLowerCase().includes(searchLower) ?? false) ||
       (affaire.libelle?.toLowerCase().includes(searchLower) ?? false) ||
       (affaire.site?.toLowerCase().includes(searchLower) ?? false) ||
+      (affaire.compte?.toLowerCase().includes(searchLower) ?? false) ||
       (affaire.responsable?.toLowerCase().includes(searchLower) ?? false) ||
       (affaire.tranche?.toLowerCase().includes(searchLower) ?? false) ||
       (affaire.statut?.toLowerCase().includes(searchLower) ?? false)
@@ -52,6 +53,7 @@ export default function AffairesPage() {
     raf_heures: 0,
     date_maj_raf: undefined as Date | undefined,
     responsable: '',
+    compte: '',
     actif: true,
   })
 
@@ -132,6 +134,7 @@ export default function AffairesPage() {
         raf_heures: 0,
         date_maj_raf: undefined,
         responsable: '',
+        compte: '',
         actif: true,
       })
       setIsEditing(false)
@@ -208,6 +211,7 @@ export default function AffairesPage() {
       raf_heures: affaire.raf_heures || 0,
       date_maj_raf: affaire.date_maj_raf,
       responsable: affaire.responsable || '',
+      compte: affaire.compte || '',
       actif: affaire.actif,
     })
     setIsEditing(true)
@@ -230,6 +234,7 @@ export default function AffairesPage() {
           raf_heures: 0,
           date_maj_raf: undefined,
           responsable: '',
+          compte: '',
           actif: true,
         })
         setIsEditing(false)
@@ -251,6 +256,7 @@ export default function AffairesPage() {
       raf_heures: 0,
       date_maj_raf: undefined,
       responsable: '',
+      compte: '',
       actif: true,
     })
     setIsEditing(false)
@@ -337,7 +343,7 @@ export default function AffairesPage() {
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-              placeholder="Recherche intelligente (ID, Libellé, Site, Responsable, Tranche, Statut)..."
+              placeholder="Recherche intelligente (ID, Libellé, Site, Compte, Responsable, Tranche, Statut)..."
             />
           </div>
         </div>
@@ -376,6 +382,9 @@ export default function AffairesPage() {
                       Libellé
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Compte
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Responsable
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
@@ -395,7 +404,7 @@ export default function AffairesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center">
+                      <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -414,6 +423,9 @@ export default function AffairesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {affaire.compte || '-'}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {affaire.responsable || '-'}
                         </td>
@@ -471,6 +483,7 @@ export default function AffairesPage() {
               raf_heures: 0,
               date_maj_raf: undefined,
               responsable: '',
+              compte: '',
               actif: true,
             })
           }}>
@@ -593,18 +606,32 @@ export default function AffairesPage() {
                   />
                 </div>
 
-                {/* Quatrième ligne : Responsable */}
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Responsable
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.responsable || ''}
-                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white text-sm"
-                    placeholder="Nom du responsable"
-                  />
+                {/* Quatrième ligne : Responsable et Numéro de compte */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Responsable
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.responsable || ''}
+                      onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white text-sm"
+                      placeholder="Nom du responsable"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Numéro de compte
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.compte || ''}
+                      onChange={(e) => setFormData({ ...formData, compte: e.target.value })}
+                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white text-sm"
+                      placeholder="Ex: 123ABC456"
+                    />
+                  </div>
                 </div>
 
                 {/* Cinquième ligne : Budget et RAF */}
@@ -677,6 +704,7 @@ export default function AffairesPage() {
                         raf_heures: 0,
                         date_maj_raf: undefined,
                         responsable: '',
+                        compte: '',
                         actif: true,
                       })
                     }}
