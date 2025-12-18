@@ -113,8 +113,11 @@ export default function AffairesPage() {
     actif: true,
   })
 
-  const [isEditing, setIsEditing] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  
+  // État pour l'édition inline
+  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
+  const [editingValue, setEditingValue] = useState<string | number | Date | undefined>('')
 
   // Générer automatiquement l'affaire_id lorsque tranche, site, libelle ou statut changent
   useEffect(() => {
@@ -193,7 +196,6 @@ export default function AffairesPage() {
         compte: '',
         actif: true,
       })
-      setIsEditing(false)
       setShowModal(false)
     } catch (err: any) {
       console.error('[AffairesPage] Erreur:', err)
@@ -245,57 +247,120 @@ export default function AffairesPage() {
     return normalized
   }
 
-  const handleRowClick = (affaire: typeof affaires[0]) => {
-    console.log('[AffairesPage] handleRowClick - affaire:', affaire)
-    console.log('[AffairesPage] handleRowClick - affaire.site (raw):', affaire.site)
-    console.log('[AffairesPage] handleRowClick - affaire.tranche (raw):', affaire.tranche)
+  // Gérer l'édition inline d'une cellule
+  const handleCellEdit = (affaire: typeof affaires[0], field: string) => {
+    let initialValue: string | number | Date | undefined = ''
     
-    const normalizedSite = normalizeSite(affaire.site)
-    const normalizedTranche = normalizeTranche(affaire.tranche)
+    switch (field) {
+      case 'site':
+        initialValue = affaire.site || ''
+        break
+      case 'responsable':
+        initialValue = affaire.responsable || ''
+        break
+      case 'libelle':
+        initialValue = affaire.libelle || ''
+        break
+      case 'tranche':
+        initialValue = affaire.tranche || ''
+        break
+      case 'compte':
+        initialValue = affaire.compte || ''
+        break
+      case 'statut':
+        initialValue = affaire.statut || 'Ouverte'
+        break
+      case 'budget_heures':
+        initialValue = affaire.budget_heures || 0
+        break
+      case 'raf_heures':
+        initialValue = affaire.raf_heures || 0
+        break
+      case 'date_maj_raf':
+        initialValue = affaire.date_maj_raf ? format(affaire.date_maj_raf, 'yyyy-MM-dd') : ''
+        break
+    }
     
-    console.log('[AffairesPage] handleRowClick - normalizedSite:', normalizedSite)
-    console.log('[AffairesPage] handleRowClick - normalizedTranche:', normalizedTranche)
+    setEditingCell({ rowId: affaire.id, field })
+    setEditingValue(initialValue)
+  }
+  
+  // Sauvegarder la modification inline
+  const handleCellSave = async (affaire: typeof affaires[0], field: string) => {
+    if (!editingCell || editingCell.rowId !== affaire.id || editingCell.field !== field) return
     
-    setFormData({
-      id: affaire.id,
-      affaire_id: affaire.affaire_id || '',
-      site: normalizedSite,
-      libelle: affaire.libelle,
-      tranche: normalizedTranche,
-      statut: affaire.statut || 'Ouverte',
-      budget_heures: affaire.budget_heures || 0,
-      raf_heures: affaire.raf_heures || 0,
-      date_maj_raf: affaire.date_maj_raf,
-      responsable: affaire.responsable || '',
-      compte: affaire.compte || '',
-      actif: affaire.actif,
-    })
-    setIsEditing(true)
-    setShowModal(true)
+    try {
+      const normalizedSite = normalizeSite(affaire.site)
+      const normalizedTranche = normalizeTranche(affaire.tranche)
+      
+      // Normaliser les valeurs selon le champ modifié
+      let newSite = normalizedSite
+      let newTranche = normalizedTranche
+      
+      if (field === 'site') {
+        newSite = normalizeSite(String(editingValue))
+      }
+      if (field === 'tranche') {
+        newTranche = normalizeTranche(String(editingValue))
+      }
+      
+      const updatedAffaire = {
+        ...affaire,
+        site: newSite,
+        responsable: field === 'responsable' ? String(editingValue) : affaire.responsable,
+        libelle: field === 'libelle' ? String(editingValue) : affaire.libelle,
+        tranche: newTranche,
+        compte: field === 'compte' ? String(editingValue) : affaire.compte,
+        statut: field === 'statut' ? String(editingValue) : affaire.statut,
+        budget_heures: field === 'budget_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.budget_heures,
+        raf_heures: field === 'raf_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.raf_heures,
+        date_maj_raf: field === 'date_maj_raf' ? (editingValue && String(editingValue).trim() !== '' ? new Date(String(editingValue)) : undefined) : affaire.date_maj_raf,
+        date_modification: new Date(),
+      }
+      
+      // Si statut, tranche, site ou libelle change, régénérer l'affaire_id
+      if (field === 'statut' || field === 'tranche' || field === 'site' || field === 'libelle') {
+        const newLibelle = field === 'libelle' ? String(editingValue) : affaire.libelle
+        const newStatut = field === 'statut' ? String(editingValue) : affaire.statut
+        
+        if (newTranche && newSite && newLibelle && newStatut) {
+          const generatedId = generateAffaireId(newTranche, newSite, newLibelle, newStatut)
+          updatedAffaire.affaire_id = (newStatut === 'Ouverte' || newStatut === 'Prévisionnelle') ? generatedId : null
+        } else {
+          updatedAffaire.affaire_id = null
+        }
+      }
+      
+      // Si RAF change, mettre à jour date_maj_raf automatiquement
+      if (field === 'raf_heures') {
+        const rafValue = typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0
+        if (rafValue > 0) {
+          updatedAffaire.date_maj_raf = new Date()
+        }
+      }
+      
+      await saveAffaire(updatedAffaire)
+      setEditingCell(null)
+      setEditingValue('')
+    } catch (err: any) {
+      console.error('[AffairesPage] Erreur sauvegarde inline:', err)
+      alert('Erreur lors de la sauvegarde :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+    }
+  }
+  
+  // Annuler l'édition inline
+  const handleCellCancel = () => {
+    setEditingCell(null)
+    setEditingValue('')
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
       try {
         await deleteAffaire(id)
-        setShowModal(false)
-        setFormData({
-          id: '',
-          affaire_id: '',
-          site: '',
-          libelle: '',
-          tranche: '',
-          statut: 'Ouverte',
-          budget_heures: 0,
-          raf_heures: 0,
-          date_maj_raf: undefined,
-          responsable: '',
-          compte: '',
-          actif: true,
-        })
-        setIsEditing(false)
       } catch (err) {
         console.error('[AffairesPage] Erreur suppression:', err)
+        alert('Erreur lors de la suppression :\n\n' + (err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'))
       }
     }
   }
@@ -315,7 +380,6 @@ export default function AffairesPage() {
       compte: '',
       actif: true,
     })
-    setIsEditing(false)
     setShowModal(true)
   }
 
@@ -479,12 +543,18 @@ export default function AffairesPage() {
 
         {/* Liste des affaires */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-            <h2 className="text-2xl font-bold text-gray-800">Liste des affaires</h2>
-            <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold">
-              {affaires.length}
-            </span>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
+              <h2 className="text-2xl font-bold text-gray-800">Liste des affaires</h2>
+              <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold">
+                {affaires.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Edit2 className="w-4 h-4" />
+              <span>Double-cliquez sur une cellule pour modifier</span>
+            </div>
           </div>
 
           {loading ? (
@@ -528,12 +598,15 @@ export default function AffairesPage() {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Date maj RAF
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center">
+                      <td colSpan={10} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -544,48 +617,308 @@ export default function AffairesPage() {
                     affaires.map((affaire) => (
                       <tr 
                         key={affaire.id} 
-                        className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
-                        onClick={() => handleRowClick(affaire)}
+                        className="hover:bg-gray-50 transition-colors duration-150"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{affaire.site}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.responsable || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{affaire.libelle}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.tranche || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.compte || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {/* Afficher le statut réel (Ouverte/Prévisionnelle/Clôturé) */}
-                          {affaire.statut === 'Ouverte' ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              Ouverte
-                            </span>
-                          ) : affaire.statut === 'Prévisionnelle' ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                              Prévisionnelle
-                            </span>
-                          ) : affaire.statut === 'Clôturé' ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                              Clôturé
-                            </span>
+                        {/* Site - Select */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'site')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'site' ? (
+                            <select
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'site')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'site')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            >
+                              {SITES_LIST.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
                           ) : (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                              {affaire.statut || 'Non défini'}
+                            <span className="cursor-text">{affaire.site}</span>
+                          )}
+                        </td>
+                        
+                        {/* Site - Select */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'site')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'site' ? (
+                            <select
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'site')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'site')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            >
+                              {SITES_LIST.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="cursor-text">{affaire.site}</span>
+                          )}
+                        </td>
+                        
+                        {/* Responsable - Input text */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'responsable')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'responsable' ? (
+                            <input
+                              type="text"
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'responsable')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'responsable')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder="Responsable"
+                            />
+                          ) : (
+                            <span className="cursor-text">{affaire.responsable || '-'}</span>
+                          )}
+                        </td>
+                        
+                        {/* Libellé - Input text */}
+                        <td 
+                          className="px-6 py-4 text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'libelle')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'libelle' ? (
+                            <input
+                              type="text"
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'libelle')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'libelle')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder="Libellé"
+                            />
+                          ) : (
+                            <span className="cursor-text">{affaire.libelle}</span>
+                          )}
+                        </td>
+                        
+                        {/* Tranche - Select */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'tranche')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'tranche' ? (
+                            <select
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'tranche')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'tranche')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            >
+                              {TRANCHES_LIST.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="cursor-text">{affaire.tranche || '-'}</span>
+                          )}
+                        </td>
+                        
+                        {/* Compte - Input text */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'compte')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'compte' ? (
+                            <input
+                              type="text"
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'compte')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'compte')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder="Numéro de compte"
+                            />
+                          ) : (
+                            <span className="cursor-text">{affaire.compte || '-'}</span>
+                          )}
+                        </td>
+                        
+                        {/* Statut - Select */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'statut')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'statut' ? (
+                            <select
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'statut')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'statut')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            >
+                              <option value="Ouverte">Ouverte</option>
+                              <option value="Prévisionnelle">Prévisionnelle</option>
+                              <option value="Clôturé">Clôturé</option>
+                            </select>
+                          ) : (
+                            <span className="cursor-text">
+                              {affaire.statut === 'Ouverte' ? (
+                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                  Ouverte
+                                </span>
+                              ) : affaire.statut === 'Prévisionnelle' ? (
+                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                  Prévisionnelle
+                                </span>
+                              ) : affaire.statut === 'Clôturé' ? (
+                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                  Clôturé
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                  {affaire.statut || 'Non défini'}
+                                </span>
+                              )}
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}
+                        
+                        {/* Budget - Input number */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'budget_heures')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'budget_heures' ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={typeof editingValue === 'number' ? editingValue : editingValue}
+                              onChange={(e) => setEditingValue(parseFloat(e.target.value) || 0)}
+                              onBlur={() => handleCellSave(affaire, 'budget_heures')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'budget_heures')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder="0.00"
+                            />
+                          ) : (
+                            <span className="cursor-text">
+                              {affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}
+                            </span>
+                          )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}
+                        
+                        {/* RAF - Input number */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'raf_heures')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'raf_heures' ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={typeof editingValue === 'number' ? editingValue : editingValue}
+                              onChange={(e) => setEditingValue(parseFloat(e.target.value) || 0)}
+                              onBlur={() => handleCellSave(affaire, 'raf_heures')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'raf_heures')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder="0.00"
+                            />
+                          ) : (
+                            <span className="cursor-text">
+                              {affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}
+                            </span>
+                          )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        
+                        {/* Date maj RAF - Input date */}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-50 transition-colors"
+                          onDoubleClick={() => handleCellEdit(affaire, 'date_maj_raf')}
+                          title="Double-cliquez pour modifier"
+                        >
+                          {editingCell?.rowId === affaire.id && editingCell?.field === 'date_maj_raf' ? (
+                            <input
+                              type="date"
+                              value={String(editingValue)}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire, 'date_maj_raf')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(affaire, 'date_maj_raf')
+                                if (e.key === 'Escape') handleCellCancel()
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            />
+                          ) : (
+                            <span className="cursor-text">
+                              {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                            </span>
+                          )}
+                        </td>
+                        
+                        {/* Actions */}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
+                                handleDelete(affaire.id)
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 flex items-center gap-1.5 font-medium text-xs"
+                            title="Supprimer l'affaire"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Supprimer
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -600,7 +933,6 @@ export default function AffairesPage() {
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => {
             setShowModal(false)
-            setIsEditing(false)
             setFormData({
               id: '',
               affaire_id: '',
@@ -621,22 +953,9 @@ export default function AffairesPage() {
                 <div className="flex items-center gap-2.5">
                   <div className="w-1 h-6 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
                   <h2 className="text-xl font-bold text-gray-800">
-                    {isEditing ? 'Modifier une affaire' : 'Nouvelle affaire'}
+                    Nouvelle affaire
                   </h2>
                 </div>
-                {isEditing && (
-                  <button
-                    onClick={() => {
-                      if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
-                        handleDelete(formData.id)
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Supprimer
-                  </button>
-                )}
               </div>
               
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -821,7 +1140,6 @@ export default function AffairesPage() {
                     type="button"
                     onClick={() => {
                       setShowModal(false)
-                      setIsEditing(false)
                       setFormData({
                         id: '',
                         affaire_id: '',
@@ -846,7 +1164,7 @@ export default function AffairesPage() {
                     className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    {isEditing ? 'Enregistrer' : 'Créer'}
+                    Créer
                   </button>
                 </div>
               </form>
