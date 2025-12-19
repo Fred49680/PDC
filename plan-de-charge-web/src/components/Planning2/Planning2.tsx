@@ -476,6 +476,9 @@ export default function Planning2({
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set())
   const saveTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  
+  // État pour suivre les opérations de masse (affectations)
+  const [isGeneratingAffectations, setIsGeneratingAffectations] = useState(false)
 
   // Modal de confirmation
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -746,6 +749,11 @@ export default function Planning2({
   }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, colonnes, confirmAsync, chargeMasseModal.isGenerating])
 
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, colIndex: number, checked: boolean) => {
+    // Désactiver l'enregistrement automatique pendant la génération de masse d'affectations
+    if (isGeneratingAffectations) {
+      return
+    }
+    
     const col = colonnes[colIndex]
     if (!col) return
 
@@ -883,7 +891,7 @@ export default function Planning2({
     } catch (err) {
       console.error('[Planning2] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, addToast, autoRefresh])
+  }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, addToast, autoRefresh, isGeneratingAffectations])
 
   // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
@@ -1216,9 +1224,12 @@ export default function Planning2({
       
       if (!confirme) return
 
-      // Désactiver temporairement l'auto-refresh pour éviter les scintillements pendant le batch
+      // Désactiver temporairement l'auto-refresh et l'enregistrement auto pour éviter les scintillements
       const autoRefreshAvant = autoRefresh
       setAutoRefresh(false)
+      
+      // Marquer comme en cours de génération pour désactiver handleAffectationChange
+      setIsGeneratingAffectations(true)
 
       try {
         // Vérifier absences et conflits pour chaque affectation, puis créer celles qui sont valides
@@ -1292,16 +1303,24 @@ export default function Planning2({
 
         // Créer toutes les affectations valides en batch (sans refresh intermédiaire)
         let nbAffectationsCreees = 0
-        for (const affectation of affectationsValides) {
-          try {
-            await saveAffectation(affectation)
-            nbAffectationsCreees++
-          } catch (err) {
-            console.error(`[Planning2] Erreur création affectation ${affectation.date_debut.toLocaleDateString('fr-FR')}:`, err)
-          }
+        const batchSize = 20 // Traiter par lots pour éviter de bloquer l'UI
+        
+        // Traitement par lots avec feedback visuel
+        for (let i = 0; i < affectationsValides.length; i += batchSize) {
+          const batch = affectationsValides.slice(i, i + batchSize)
+          await Promise.all(
+            batch.map(async (affectation) => {
+              try {
+                await saveAffectation(affectation)
+                nbAffectationsCreees++
+              } catch (err) {
+                console.error(`[Planning2] Erreur création affectation ${affectation.date_debut.toLocaleDateString('fr-FR')}:`, err)
+              }
+            })
+          )
         }
-
-        // Recharger les données après toutes les créations (refresh unique)
+        
+        // Recharger les données UNE SEULE FOIS après toutes les créations (refresh unique)
         if (nbAffectationsCreees > 0) {
           await refreshAffectations()
           
@@ -1321,17 +1340,26 @@ export default function Planning2({
           'success',
           5000
         )
+      } catch (err) {
+        console.error('[Planning2] Erreur lors de la génération de masse d\'affectations:', err)
+        addToast(
+          'Erreur lors de la création des affectations. Veuillez réessayer.',
+          'error',
+          5000
+        )
       } finally {
         // Réactiver l'auto-refresh à son état précédent
         setAutoRefresh(autoRefreshAvant)
+        setIsGeneratingAffectations(false)
       }
       } catch (err) {
         console.error('[Planning2] Erreur affectation de masse:', err)
         addToast(
-          `Erreur lors de l'affectation de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+          `Erreur lors de l&apos;affectation de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
           'error',
           5000
         )
+        setIsGeneratingAffectations(false)
       }
     }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
@@ -1950,7 +1978,7 @@ export default function Planning2({
                   <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Cliquez sur l'icône calendrier ou utilisez le format YYYY-MM-DD
+                  Cliquez sur l&apos;icône calendrier ou utilisez le format YYYY-MM-DD
                 </p>
               </div>
 
