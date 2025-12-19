@@ -27,6 +27,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
   const verifierEtMettreAJourRenouvellementsRef = useRef<(() => Promise<{ updated: number; alertsCreated: number; initialized: number }>) | null>(null)
   
   // Mémoriser les options pour éviter les recréations
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoizedOptions = useMemo(() => options, [
     options.ressourceId,
     options.site,
@@ -309,6 +310,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur verifierEtMettreAJourRenouvellements:', err)
       throw err
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getSupabaseClient, createAlerte]) // Retirer loadInterims des dépendances pour éviter les boucles
   
   // Mettre à jour la référence quand verifierEtMettreAJourRenouvellements change
@@ -370,6 +372,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur desactiverInterimsExpires:', err)
       throw err
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
 
   /**
@@ -477,6 +480,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur createInterim:', err)
       throw err
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getSupabaseClient]) // Retirer loadInterims et verifierEtMettreAJourRenouvellements pour éviter les boucles
 
   /**
@@ -583,6 +587,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur updateInterim:', err)
       throw err
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getSupabaseClient, interims, supprimerAlertesRenouvellement]) // Retirer loadInterims et verifierEtMettreAJourRenouvellements pour éviter les boucles
 
   /**
@@ -613,6 +618,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur deleteInterim:', err)
       throw err
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
 
   /**
@@ -698,6 +704,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
     } finally {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
 
   // Charger les intérims au montage et vérifier automatiquement les renouvellements
@@ -734,6 +741,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
     return () => {
       isMounted = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optionsKey]) // Utiliser optionsKey au lieu de loadInterims pour éviter les boucles
 
   return {
