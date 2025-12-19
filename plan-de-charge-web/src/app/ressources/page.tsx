@@ -46,26 +46,6 @@ export default function RessourcesPage() {
   // Charger les sites pour le select
   const { sites: sitesList, loading: sitesLoading } = useSites(sitesOptions)
 
-  // Normaliser la valeur du site dans formData une fois que les sites sont chargés
-  useEffect(() => {
-    if (!sitesLoading && sitesList.length > 0 && formData.site && isEditing) {
-      // Vérifier si la valeur du site correspond exactement à une des options
-      const siteValues = sitesList.map(s => s.site?.trim() || '')
-      const currentSite = formData.site.trim()
-      
-      // Si la valeur n'est pas dans la liste, chercher une correspondance (insensible à la casse)
-      if (!siteValues.includes(currentSite)) {
-        const matchingSite = sitesList.find(s => s.site?.trim().toLowerCase() === currentSite.toLowerCase())
-        if (matchingSite) {
-          setFormData(prev => ({ ...prev, site: matchingSite.site.trim() }))
-        }
-      } else if (formData.site !== currentSite) {
-        // Normaliser en enlevant les espaces si nécessaire
-        setFormData(prev => ({ ...prev, site: currentSite }))
-      }
-    }
-  }, [sitesLoading, sitesList, isEditing])
-
   const [formData, setFormData] = useState({
     id: '',
     nom: '',
@@ -109,6 +89,26 @@ export default function RessourcesPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'informations' | 'competences'>('informations')
+
+  // Normaliser la valeur du site dans formData une fois que les sites sont chargés
+  useEffect(() => {
+    if (!sitesLoading && sitesList.length > 0 && formData.site && isEditing) {
+      // Vérifier si la valeur du site correspond exactement à une des options
+      const siteValues = sitesList.map(s => s.site?.trim() || '')
+      const currentSite = formData.site.trim()
+      
+      // Si la valeur n'est pas dans la liste, chercher une correspondance (insensible à la casse)
+      if (!siteValues.includes(currentSite)) {
+        const matchingSite = sitesList.find(s => s.site?.trim().toLowerCase() === currentSite.toLowerCase())
+        if (matchingSite) {
+          setFormData(prev => ({ ...prev, site: matchingSite.site.trim() }))
+        }
+      } else if (formData.site !== currentSite) {
+        // Normaliser en enlevant les espaces si nécessaire
+        setFormData(prev => ({ ...prev, site: currentSite }))
+      }
+    }
+  }, [sitesLoading, sitesList, isEditing, formData.site])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
