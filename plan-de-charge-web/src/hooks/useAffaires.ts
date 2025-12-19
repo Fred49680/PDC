@@ -1,18 +1,22 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Affaire } from '@/types/charge'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface UseAffairesOptions {
   affaireId?: string
   site?: string
+  enableRealtime?: boolean // Option pour activer/désactiver Realtime
 }
 
 export function useAffaires(options: UseAffairesOptions = {}) {
   const [affaires, setAffaires] = useState<Affaire[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const enableRealtime = options.enableRealtime !== false // Par défaut activé
 
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -199,6 +203,122 @@ export function useAffaires(options: UseAffairesOptions = {}) {
     },
     [getSupabaseClient, loadAffaires]
   )
+
+  // Abonnement Realtime pour les mises à jour automatiques
+  useEffect(() => {
+    if (!enableRealtime) return
+
+    const supabase = getSupabaseClient()
+    const channelName = `affaires-changes-${Date.now()}-${Math.random()}`
+    
+    // Construire le filtre pour Realtime
+    let filter = ''
+    if (options.affaireId) {
+      filter = `affaire_id=eq.${options.affaireId}`
+    }
+    if (options.site) {
+      filter = filter ? `${filter}&site=eq.${options.site}` : `site=eq.${options.site}`
+    }
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'affaires',
+          filter: filter || undefined,
+        },
+        (payload) => {
+          console.log('[useAffaires] Changement Realtime:', payload.eventType)
+          
+          // Mise à jour optimiste de l'état local
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newAffaire = payload.new as any
+            setAffaires((prev) => {
+              // Vérifier si l'affaire existe déjà
+              const exists = prev.some((a) => a.id === newAffaire.id)
+              if (exists) return prev
+              
+              // Ajouter la nouvelle affaire avec transformation
+              const transformed: Affaire = {
+                id: newAffaire.id,
+                affaire_id: newAffaire.affaire_id || null,
+                site: newAffaire.site,
+                libelle: newAffaire.libelle,
+                tranche: newAffaire.tranche || undefined,
+                statut: newAffaire.statut || 'Ouverte',
+                budget_heures: newAffaire.budget_heures ? Number(newAffaire.budget_heures) : undefined,
+                raf_heures: newAffaire.raf_heures ? Number(newAffaire.raf_heures) : undefined,
+                date_maj_raf: newAffaire.date_maj_raf ? new Date(newAffaire.date_maj_raf) : undefined,
+                responsable: newAffaire.responsable || undefined,
+                compte: newAffaire.compte || undefined,
+                date_creation: new Date(newAffaire.date_creation),
+                date_modification: new Date(newAffaire.date_modification),
+                actif: newAffaire.actif ?? true,
+                created_by: newAffaire.created_by,
+                updated_by: newAffaire.updated_by,
+                date_debut_demande: newAffaire.date_debut_demande ? new Date(newAffaire.date_debut_demande) : undefined,
+                date_fin_demande: newAffaire.date_fin_demande ? new Date(newAffaire.date_fin_demande) : undefined,
+                total_planifie: newAffaire.total_planifie ? Number(newAffaire.total_planifie) : undefined,
+              }
+              return [...prev, transformed].sort((a, b) => {
+                const aId = a.affaire_id || ''
+                const bId = b.affaire_id || ''
+                return aId.localeCompare(bId)
+              })
+            })
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const updatedAffaire = payload.new as any
+            setAffaires((prev) =>
+              prev.map((a) =>
+                a.id === updatedAffaire.id
+                  ? {
+                      ...a,
+                      affaire_id: updatedAffaire.affaire_id || null,
+                      site: updatedAffaire.site,
+                      libelle: updatedAffaire.libelle,
+                      tranche: updatedAffaire.tranche || undefined,
+                      statut: updatedAffaire.statut || 'Ouverte',
+                      budget_heures: updatedAffaire.budget_heures ? Number(updatedAffaire.budget_heures) : undefined,
+                      raf_heures: updatedAffaire.raf_heures ? Number(updatedAffaire.raf_heures) : undefined,
+                      date_maj_raf: updatedAffaire.date_maj_raf ? new Date(updatedAffaire.date_maj_raf) : undefined,
+                      responsable: updatedAffaire.responsable || undefined,
+                      compte: updatedAffaire.compte || undefined,
+                      date_modification: new Date(updatedAffaire.date_modification),
+                      actif: updatedAffaire.actif ?? true,
+                      updated_by: updatedAffaire.updated_by,
+                      date_debut_demande: updatedAffaire.date_debut_demande ? new Date(updatedAffaire.date_debut_demande) : undefined,
+                      date_fin_demande: updatedAffaire.date_fin_demande ? new Date(updatedAffaire.date_fin_demande) : undefined,
+                      total_planifie: updatedAffaire.total_planifie ? Number(updatedAffaire.total_planifie) : undefined,
+                    }
+                  : a
+              )
+            )
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const deletedId = (payload.old as any).id
+            setAffaires((prev) => prev.filter((a) => a.id !== deletedId))
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useAffaires] Abonnement Realtime activé')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[useAffaires] Erreur abonnement Realtime')
+        }
+      })
+
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [enableRealtime, options.affaireId, options.site, getSupabaseClient])
 
   useEffect(() => {
     loadAffaires()

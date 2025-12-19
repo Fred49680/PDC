@@ -1,21 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Absence } from '@/types/absences'
 import { removeConflictingAffectationsForAbsence } from '@/utils/removeConflictingAffectations'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface UseAbsencesOptions {
   ressourceId?: string
   site?: string
   dateDebut?: Date
   dateFin?: Date
+  enableRealtime?: boolean // Option pour activer/désactiver Realtime
 }
 
 export function useAbsences(options: UseAbsencesOptions = {}) {
   const [absences, setAbsences] = useState<Absence[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const enableRealtime = options.enableRealtime !== false // Par défaut activé
 
   // Créer le client de manière lazy (seulement côté client) - mémorisé avec useCallback
   const getSupabaseClient = useCallback(() => {
@@ -65,6 +69,72 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
       setLoading(false)
     }
   }, [options.ressourceId, options.site, options.dateDebut, options.dateFin, getSupabaseClient])
+
+  // Abonnement Realtime pour les absences
+  useEffect(() => {
+    if (!enableRealtime) return
+
+    const supabase = getSupabaseClient()
+    const channelName = `absences-changes-${Date.now()}-${Math.random()}`
+    
+    // Construire le filtre pour Realtime
+    let filter = ''
+    if (options.ressourceId) {
+      filter = `ressource_id=eq.${options.ressourceId}`
+    }
+    if (options.site) {
+      filter = filter ? `${filter}&site=eq.${options.site}` : `site=eq.${options.site}`
+    }
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'absences',
+          filter: filter || undefined,
+        },
+        (payload) => {
+          console.log('[useAbsences] Changement Realtime:', payload.eventType)
+          
+          // Mise à jour optimiste de l'état local
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newAbsence = payload.new as any
+            setAbsences((prev) => {
+              const exists = prev.some((a) => a.id === newAbsence.id)
+              if (exists) return prev
+              return [...prev, newAbsence as Absence].sort((a, b) => 
+                new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
+              )
+            })
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const updatedAbsence = payload.new as any
+            setAbsences((prev) =>
+              prev.map((a) => (a.id === updatedAbsence.id ? (updatedAbsence as Absence) : a))
+            )
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const deletedId = (payload.old as any).id
+            setAbsences((prev) => prev.filter((a) => a.id !== deletedId))
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useAbsences] Abonnement Realtime activé')
+        }
+      })
+
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [enableRealtime, options.ressourceId, options.site, getSupabaseClient])
 
   useEffect(() => {
     loadAbsences()

@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface UseRessourcesOptions {
   ressourceId?: string
   site?: string
   actif?: boolean
+  enableRealtime?: boolean // Option pour activer/désactiver Realtime
 }
 
 export function useRessources(options: UseRessourcesOptions = {}) {
@@ -15,6 +17,9 @@ export function useRessources(options: UseRessourcesOptions = {}) {
   const [competences, setCompetences] = useState<Map<string, RessourceCompetence[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const competencesChannelRef = useRef<RealtimeChannel | null>(null)
+  const enableRealtime = options.enableRealtime !== false // Par défaut activé
 
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -266,6 +271,97 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     },
     [getSupabaseClient, loadRessources]
   )
+
+  // Abonnement Realtime pour les ressources
+  useEffect(() => {
+    if (!enableRealtime) return
+
+    const supabase = getSupabaseClient()
+    const channelName = `ressources-changes-${Date.now()}-${Math.random()}`
+    
+    // Construire le filtre pour Realtime
+    let filter = ''
+    if (options.ressourceId) {
+      filter = `id=eq.${options.ressourceId}`
+    }
+    if (options.site) {
+      filter = filter ? `${filter}&site=eq.${options.site}` : `site=eq.${options.site}`
+    }
+    if (options.actif !== undefined) {
+      filter = filter ? `${filter}&actif=eq.${options.actif}` : `actif=eq.${options.actif}`
+    }
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ressources',
+          filter: filter || undefined,
+        },
+        (payload) => {
+          console.log('[useRessources] Changement Realtime:', payload.eventType)
+          
+          // Recharger les ressources et compétences
+          loadRessources()
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useRessources] Abonnement Realtime activé')
+        }
+      })
+
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [enableRealtime, options.ressourceId, options.site, options.actif, getSupabaseClient, loadRessources])
+
+  // Abonnement Realtime pour les compétences
+  useEffect(() => {
+    if (!enableRealtime) return
+
+    const supabase = getSupabaseClient()
+    const channelName = `ressources-competences-changes-${Date.now()}-${Math.random()}`
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ressources_competences',
+        },
+        (payload) => {
+          console.log('[useRessources] Changement Realtime compétences:', payload.eventType)
+          
+          // Recharger les ressources et compétences
+          loadRessources()
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useRessources] Abonnement Realtime compétences activé')
+        }
+      })
+
+    competencesChannelRef.current = channel
+
+    return () => {
+      if (competencesChannelRef.current) {
+        supabase.removeChannel(competencesChannelRef.current)
+        competencesChannelRef.current = null
+      }
+    }
+  }, [enableRealtime, getSupabaseClient, loadRessources])
 
   useEffect(() => {
     loadRessources()
