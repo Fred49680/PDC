@@ -631,6 +631,9 @@ export default function RessourcesPage() {
                       date_debut_contrat: '',
                       date_fin_contrat: '',
                       actif: true,
+                      ressource_id: '',
+                      a_renouveler: '',
+                      commentaire: '',
                     })
                     setCompetencesSelection(new Map())
                     setCompetencesPersonnalisees([{ nom: '', principale: false }])
@@ -801,6 +804,9 @@ export default function RessourcesPage() {
                           date_debut_contrat: '',
                           date_fin_contrat: '',
                           actif: true,
+                          ressource_id: '',
+                          a_renouveler: '',
+                          commentaire: '',
                         })
                         setCompetencesSelection(new Map())
                         setCompetencesPersonnalisees([{ nom: '', principale: false }])
