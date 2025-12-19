@@ -1,32 +1,36 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
 import { addDays, isSameDay } from 'date-fns'
 import type { Affectation, Ressource } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface UseAffectationsOptions {
   affaireId: string
   site: string
   competence?: string
   autoRefresh?: boolean // Option pour désactiver le refresh automatique
+  enableRealtime?: boolean // Option pour activer/désactiver Realtime
 }
 
-export function useAffectations({ affaireId, site, competence, autoRefresh = true }: UseAffectationsOptions) {
+export function useAffectations({ affaireId, site, competence, autoRefresh = true, enableRealtime = true }: UseAffectationsOptions) {
   const [affectations, setAffectations] = useState<Affectation[]>([])
   const [ressources, setRessources] = useState<Ressource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const affaireDbIdRef = useRef<string | null>(null)
 
   // Créer le client de manière lazy (seulement côté client)
-  const getSupabaseClient = () => {
+  const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
       throw new Error('Supabase client can only be created on the client side')
     }
     return createClient()
-  }
+  }, [])
 
   const loadAffectations = useCallback(async () => {
     try {
@@ -98,6 +102,106 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur loadRessources:', err)
     }
   }, [site])
+
+  // Abonnement Realtime pour les affectations
+  useEffect(() => {
+    if (!enableRealtime || !affaireId || !site) return
+
+    const supabase = getSupabaseClient()
+    
+    const setupRealtime = async () => {
+      try {
+        // Récupérer l'ID de l'affaire pour le filtre Realtime
+        const { data: affaireData } = await supabase
+          .from('affaires')
+          .select('id')
+          .eq('affaire_id', affaireId)
+          .eq('site', site)
+          .single()
+        
+        if (!affaireData) return
+        
+        affaireDbIdRef.current = affaireData.id
+        const channelName = `affectations-changes-${affaireDbIdRef.current}-${Date.now()}`
+        
+        let filter = `affaire_id=eq.${affaireDbIdRef.current}`
+        if (competence) {
+          filter = `${filter}&competence=eq.${competence}`
+        }
+        
+        const channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'affectations',
+              filter: filter,
+            },
+            (payload) => {
+              console.log('[useAffectations] Changement Realtime:', payload.eventType)
+              
+              // Mise à jour optimiste
+              if (payload.eventType === 'INSERT' && payload.new) {
+                const newAffectation = payload.new as any
+                setAffectations((prev) => {
+                  const exists = prev.some((a) => a.id === newAffectation.id)
+                  if (exists) return prev
+                  const transformed: Affectation = {
+                    ...newAffectation,
+                    date_debut: new Date(newAffectation.date_debut),
+                    date_fin: new Date(newAffectation.date_fin),
+                    created_at: new Date(newAffectation.created_at),
+                    updated_at: new Date(newAffectation.updated_at),
+                  }
+                  return [...prev, transformed].sort((a, b) => 
+                    new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
+                  )
+                })
+              } else if (payload.eventType === 'UPDATE' && payload.new) {
+                const updatedAffectation = payload.new as any
+                setAffectations((prev) =>
+                  prev.map((a) =>
+                    a.id === updatedAffectation.id
+                      ? {
+                          ...a,
+                          ...updatedAffectation,
+                          date_debut: new Date(updatedAffectation.date_debut),
+                          date_fin: new Date(updatedAffectation.date_fin),
+                          updated_at: new Date(updatedAffectation.updated_at),
+                        }
+                      : a
+                  )
+                )
+              } else if (payload.eventType === 'DELETE' && payload.old) {
+                const deletedId = (payload.old as any).id
+                setAffectations((prev) => prev.filter((a) => a.id !== deletedId))
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('[useAffectations] Abonnement Realtime activé')
+            }
+          })
+
+        channelRef.current = channel
+      } catch (err) {
+        console.error('[useAffectations] Erreur setup Realtime:', err)
+      }
+    }
+
+    setupRealtime()
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+      affaireDbIdRef.current = null
+    }
+  }, [enableRealtime, affaireId, site, competence, getSupabaseClient])
 
   useEffect(() => {
     if (affaireId && site) {

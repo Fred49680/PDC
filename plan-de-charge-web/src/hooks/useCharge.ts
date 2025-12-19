@@ -1,29 +1,32 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeDateToUTC, isBusinessDay, getDatesBetween } from '@/utils/calendar'
 import { addDays, isSameDay } from 'date-fns'
 import type { PeriodeCharge } from '@/types/charge'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface UseChargeOptions {
   affaireId: string
   site: string
   autoRefresh?: boolean // Option pour désactiver le refresh automatique
+  enableRealtime?: boolean // Option pour activer/désactiver Realtime
 }
 
-export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOptions) {
+export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime = true }: UseChargeOptions) {
   const [periodes, setPeriodes] = useState<PeriodeCharge[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   // Créer le client de manière lazy (seulement côté client)
-  const getSupabaseClient = () => {
+  const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
       throw new Error('Supabase client can only be created on the client side')
     }
     return createClient()
-  }
+  }, [])
 
   const loadPeriodes = useCallback(async () => {
     try {
@@ -71,6 +74,104 @@ export function useCharge({ affaireId, site, autoRefresh = true }: UseChargeOpti
       setLoading(false)
     }
   }, [affaireId, site])
+
+  // Abonnement Realtime pour les périodes de charge
+  useEffect(() => {
+    if (!enableRealtime || !affaireId || !site) return
+
+    const supabase = getSupabaseClient()
+    
+    // Récupérer l'ID de l'affaire pour le filtre Realtime
+    let affaireDbId: string | null = null
+    
+    const setupRealtime = async () => {
+      try {
+        const { data: affaireData } = await supabase
+          .from('affaires')
+          .select('id')
+          .eq('affaire_id', affaireId)
+          .eq('site', site)
+          .single()
+        
+        if (!affaireData) return
+        
+        affaireDbId = affaireData.id
+        const channelName = `periodes-charge-${affaireDbId}-${Date.now()}`
+        
+        const channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'periodes_charge',
+              filter: `affaire_id=eq.${affaireDbId}`,
+            },
+            (payload) => {
+              console.log('[useCharge] Changement Realtime:', payload.eventType)
+              
+              // Mise à jour optimiste
+              if (payload.eventType === 'INSERT' && payload.new) {
+                const newPeriode = payload.new as any
+                setPeriodes((prev) => {
+                  const exists = prev.some((p) => p.id === newPeriode.id)
+                  if (exists) return prev
+                  const transformed: PeriodeCharge = {
+                    ...newPeriode,
+                    date_debut: new Date(newPeriode.date_debut),
+                    date_fin: new Date(newPeriode.date_fin),
+                    force_weekend_ferie: newPeriode.force_weekend_ferie === true,
+                    created_at: new Date(newPeriode.created_at),
+                    updated_at: new Date(newPeriode.updated_at),
+                  }
+                  return [...prev, transformed].sort((a, b) => 
+                    new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
+                  )
+                })
+              } else if (payload.eventType === 'UPDATE' && payload.new) {
+                const updatedPeriode = payload.new as any
+                setPeriodes((prev) =>
+                  prev.map((p) =>
+                    p.id === updatedPeriode.id
+                      ? {
+                          ...p,
+                          ...updatedPeriode,
+                          date_debut: new Date(updatedPeriode.date_debut),
+                          date_fin: new Date(updatedPeriode.date_fin),
+                          force_weekend_ferie: updatedPeriode.force_weekend_ferie === true,
+                          updated_at: new Date(updatedPeriode.updated_at),
+                        }
+                      : p
+                  )
+                )
+              } else if (payload.eventType === 'DELETE' && payload.old) {
+                const deletedId = (payload.old as any).id
+                setPeriodes((prev) => prev.filter((p) => p.id !== deletedId))
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('[useCharge] Abonnement Realtime activé')
+            }
+          })
+
+        channelRef.current = channel
+      } catch (err) {
+        console.error('[useCharge] Erreur setup Realtime:', err)
+      }
+    }
+
+    setupRealtime()
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [enableRealtime, affaireId, site, getSupabaseClient])
 
   useEffect(() => {
     if (affaireId && site) {

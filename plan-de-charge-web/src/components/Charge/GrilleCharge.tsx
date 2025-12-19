@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
-import { useRealtime } from '@/hooks/useRealtime'
 import { businessDaysBetween, getDatesBetween, formatSemaineISO } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
@@ -26,22 +25,15 @@ export function GrilleCharge({
   const { periodes, loading, error, savePeriode, consolidate } = useCharge({
     affaireId,
     site,
+    enableRealtime: true, // Realtime géré directement dans useCharge
   })
 
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   const [competences, setCompetences] = useState<string[]>([])
-
-  // Écouter les changements en temps réel
-  useRealtime({
-    table: 'periodes_charge',
-    filter: `affaire_id=eq.${affaireId}`,
-    callback: (payload) => {
-      console.log('[GrilleCharge] Changement temps réel:', payload)
-      if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
-        // Recharger la grille sera fait automatiquement par useCharge
-      }
-    },
-  })
+  
+  // Debounce pour les sauvegardes (éviter trop de requêtes)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingSavesRef = useRef<Map<string, { competence: string; col: typeof colonnes[0]; value: number }>>(new Map())
 
   // Générer les colonnes selon la précision
   const colonnes = useMemo(() => {
@@ -123,21 +115,66 @@ export function GrilleCharge({
     setGrille(newGrille)
   }, [periodes, colonnes])
 
-  const handleCellChange = async (competence: string, col: typeof colonnes[0], value: number) => {
-    try {
-      const dateDebutPeriode = col.weekStart || col.date
-      const dateFinPeriode = col.weekEnd || col.date
+  // Mise à jour optimiste de la grille locale
+  const updateGrilleLocal = useCallback((competence: string, col: typeof colonnes[0], value: number) => {
+    setGrille((prev) => {
+      const newGrille = new Map(prev)
+      const cellKey = `${competence}|${col.date.getTime()}`
+      newGrille.set(cellKey, value)
+      return newGrille
+    })
+  }, [])
 
-      await savePeriode({
-        competence,
-        date_debut: dateDebutPeriode,
-        date_fin: dateFinPeriode,
-        nb_ressources: value,
-      })
-    } catch (err) {
-      console.error('[GrilleCharge] Erreur savePeriode:', err)
+  // Sauvegarde avec debounce et batch
+  const handleCellChange = useCallback((competence: string, col: typeof colonnes[0], value: number) => {
+    // Mise à jour optimiste immédiate
+    updateGrilleLocal(competence, col, value)
+
+    // Stocker la sauvegarde en attente
+    const cellKey = `${competence}|${col.date.getTime()}`
+    pendingSavesRef.current.set(cellKey, { competence, col, value })
+
+    // Annuler le timeout précédent
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
     }
-  }
+
+    // Programmer la sauvegarde après 500ms d'inactivité
+    saveTimeoutRef.current = setTimeout(async () => {
+      const saves = Array.from(pendingSavesRef.current.values())
+      pendingSavesRef.current.clear()
+
+      // Sauvegarder toutes les modifications en batch
+      try {
+        await Promise.all(
+          saves.map(({ competence, col, value }) => {
+            const dateDebutPeriode = col.weekStart || col.date
+            const dateFinPeriode = col.weekEnd || col.date
+
+            return savePeriode({
+              competence,
+              date_debut: dateDebutPeriode,
+              date_fin: dateFinPeriode,
+              nb_ressources: value,
+            })
+          })
+        )
+      } catch (err) {
+        console.error('[GrilleCharge] Erreur batch save:', err)
+        // En cas d'erreur, recharger depuis le serveur
+        // (useCharge se chargera du rechargement via Realtime)
+      }
+    }, 500)
+  }, [savePeriode, updateGrilleLocal])
+
+  // Nettoyage du timeout au démontage
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
 
   if (loading) {
     return (
