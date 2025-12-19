@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   BarChart3, Users, Calendar, LayoutDashboard, Home, Building2, 
-  MapPin, Target, AlertCircle, Menu, X, Sparkles
+  MapPin, Target, AlertCircle, Menu, X, Sparkles, ArrowRightLeft
 } from 'lucide-react'
 import { InstallPWA } from '@/components/UI/InstallPWA'
 
@@ -23,6 +23,8 @@ export function Layout({ children }: LayoutProps) {
     { href: '/ressources', label: 'Ressources', icon: Users, color: 'from-green-500 to-emerald-600' },
     { href: '/planning2', label: 'Planning', icon: Sparkles, color: 'from-indigo-500 to-purple-600' },
     { href: '/absences', label: 'Absences', icon: Calendar, color: 'from-purple-500 to-indigo-600' },
+    { href: '/transferts', label: 'Transferts', icon: ArrowRightLeft, color: 'from-cyan-500 to-blue-600' },
+    { href: '/interims', label: 'Intérims', icon: Target, color: 'from-purple-500 to-pink-600' },
     { href: '/alertes', label: 'Alertes', icon: AlertCircle, color: 'from-orange-500 to-amber-600' },
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'from-orange-500 to-amber-600' },
     { href: '/admin/sites', label: 'Sites', icon: MapPin, color: 'from-blue-500 to-cyan-600' },
