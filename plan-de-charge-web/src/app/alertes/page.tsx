@@ -61,6 +61,7 @@ export default function AlertesPage() {
       'ABSENCE_AJOUTEE': 'Absence ajoutée',
       'CONFLIT_DETECTE': 'Conflit détecté',
       'RENOUVELLEMENT_A_VENIR': 'Renouvellement à venir',
+      'RENOUVELLEMENT_INTÉRIM': 'Renouvellement intérim',
     }
     return labels[type] || type
   }
