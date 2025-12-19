@@ -82,6 +82,24 @@ const formatSemaineISO = (date: Date): string => {
   return `S${week.toString().padStart(2, '0')}`
 }
 
+// Fonction pour obtenir le format semaine ISO avec année : "01-2026"
+const getSemaineISOWithYear = (date: Date): string => {
+  // Calculer la semaine ISO (semaine qui contient le 4 janvier)
+  const jan4 = new Date(date.getFullYear(), 0, 4)
+  const jan4Day = jan4.getDay() || 7 // 0 = dimanche -> 7
+  const weekStart = new Date(jan4)
+  weekStart.setDate(jan4.getDate() - jan4Day + 1) // Lundi de la semaine contenant le 4 janvier
+  
+  const currentWeekStart = new Date(date)
+  const dayOfWeek = date.getDay() || 7
+  currentWeekStart.setDate(date.getDate() - dayOfWeek + 1)
+  
+  const weekNumber = Math.ceil((currentWeekStart.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
+  const isoYear = currentWeekStart >= weekStart ? date.getFullYear() : date.getFullYear() - 1
+  
+  return `${weekNumber.toString().padStart(2, '0')}-${isoYear}`
+}
+
 const addWeeks = (date: Date, weeks: number): Date => {
   const result = new Date(date)
   result.setDate(result.getDate() + weeks * 7)
@@ -280,7 +298,7 @@ export default function Planning2({
         cols.push({
           date: weekStart,
           label: `${weekStart.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} - ${weekEnd.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`,
-          shortLabel: `S${formatSemaineISO(weekStart).replace('S', '')}`,
+          shortLabel: getSemaineISOWithYear(weekStart),
           isWeekend: false,
           isHoliday: false,
           semaineISO: formatSemaineISO(weekStart),
@@ -297,10 +315,13 @@ export default function Planning2({
         const currentMonth = new Date(monthStart)
         currentMonth.setMonth(monthStart.getMonth() + i)
         
+        const monthShort = currentMonth.toLocaleDateString('fr-FR', { month: 'short' })
+        const year = currentMonth.getFullYear()
+        
         cols.push({
           date: currentMonth,
           label: currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
-          shortLabel: currentMonth.toLocaleDateString('fr-FR', { month: 'short' }),
+          shortLabel: `${monthShort}.${year}`,
           isWeekend: false,
           isHoliday: false,
           semaineISO: formatSemaineISO(currentMonth),
@@ -1593,9 +1614,18 @@ export default function Planning2({
       newDateDebut = subDays(dateDebut, diffDays + 1)
       newDateFin = subDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
-      // Navigation par semaine
-      newDateDebut = subWeeks(dateDebut, 1)
-      newDateFin = subWeeks(dateFin, 1)
+      // Navigation par mois (puisque on affiche 1 mois en mode SEMAINE)
+      const dayOfWeek = dateDebut.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      const weekStart = new Date(dateDebut)
+      weekStart.setDate(weekStart.getDate() - daysToMonday)
+      const monthStart = startOfMonth(weekStart)
+      newDateDebut = subMonths(monthStart, 1)
+      // Trouver le lundi de la semaine contenant le début du mois précédent
+      const dayOfWeekNew = newDateDebut.getDay()
+      const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+      newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+      newDateFin = endOfMonth(newDateDebut)
     } else if (precision === 'MOIS') {
       // Navigation par mois : reculer de 12 mois (fenêtre glissante)
       const monthStart = startOfMonth(dateDebut)
@@ -1624,9 +1654,18 @@ export default function Planning2({
       newDateDebut = addDays(dateDebut, diffDays + 1)
       newDateFin = addDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
-      // Navigation par semaine
-      newDateDebut = addWeeks(dateDebut, 1)
-      newDateFin = addWeeks(dateFin, 1)
+      // Navigation par mois (puisque on affiche 1 mois en mode SEMAINE)
+      const dayOfWeek = dateDebut.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      const weekStart = new Date(dateDebut)
+      weekStart.setDate(weekStart.getDate() - daysToMonday)
+      const monthStart = startOfMonth(weekStart)
+      newDateDebut = addMonths(monthStart, 1)
+      // Trouver le lundi de la semaine contenant le début du mois suivant
+      const dayOfWeekNew = newDateDebut.getDay()
+      const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+      newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+      newDateFin = endOfMonth(newDateDebut)
     } else if (precision === 'MOIS') {
       // Navigation par mois : avancer de 12 mois (fenêtre glissante)
       const monthStart = startOfMonth(dateDebut)
