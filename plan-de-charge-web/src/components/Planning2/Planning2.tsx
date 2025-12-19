@@ -2111,7 +2111,6 @@ export default function Planning2({
                       }))
                     }}
                     min={chargeMasseModal.dateDebut ? chargeMasseModal.dateDebut.toISOString().split('T')[0] : undefined}
-                    max={dateFin.toISOString().split('T')[0]}
                     disabled={chargeMasseModal.isGenerating}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     onKeyDown={(e) => {
