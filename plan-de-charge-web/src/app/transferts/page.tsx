@@ -45,7 +45,9 @@ export default function TransfertsPage() {
     () => ({
       siteOrigine: filters.siteOrigine || undefined,
       siteDestination: filters.siteDestination || undefined,
-      statut: filters.statut || undefined,
+      statut: (filters.statut === 'Planifié' || filters.statut === 'Appliqué' 
+        ? filters.statut as 'Planifié' | 'Appliqué' 
+        : undefined),
     }),
     [filters.siteOrigine, filters.siteDestination, filters.statut]
   )
