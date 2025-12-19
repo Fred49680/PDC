@@ -289,25 +289,22 @@ export default function Planning2({
         currentDate.setDate(currentDate.getDate() + 7)
       }
     } else if (precision === 'MOIS') {
-      const currentDate = new Date(dateDebut)
-      currentDate.setDate(1)
+      // Pour MOIS, toujours afficher 12 mois glissants à partir de dateDebut
+      const monthStart = new Date(dateDebut)
+      monthStart.setDate(1)
       
-      while (currentDate <= dateFin) {
-        const monthStart = new Date(currentDate)
-        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-        if (monthEnd > dateFin) monthEnd.setTime(dateFin.getTime())
+      for (let i = 0; i < 12; i++) {
+        const currentMonth = new Date(monthStart)
+        currentMonth.setMonth(monthStart.getMonth() + i)
         
         cols.push({
-          date: monthStart,
-          label: monthStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
-          shortLabel: monthStart.toLocaleDateString('fr-FR', { month: 'short' }),
+          date: currentMonth,
+          label: currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+          shortLabel: currentMonth.toLocaleDateString('fr-FR', { month: 'short' }),
           isWeekend: false,
           isHoliday: false,
-          semaineISO: formatSemaineISO(monthStart),
+          semaineISO: formatSemaineISO(currentMonth),
         })
-        
-        currentDate.setMonth(currentDate.getMonth() + 1)
-        currentDate.setDate(1)
       }
     }
     
@@ -1600,13 +1597,10 @@ export default function Planning2({
       newDateDebut = subWeeks(dateDebut, 1)
       newDateFin = subWeeks(dateFin, 1)
     } else if (precision === 'MOIS') {
-      // Navigation par mois
+      // Navigation par mois : reculer de 12 mois (fenêtre glissante)
       const monthStart = startOfMonth(dateDebut)
-      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
-      const diffMonths = Math.ceil(diffDays / 30)
-      
-      newDateDebut = subMonths(monthStart, diffMonths)
-      newDateFin = endOfMonth(newDateDebut)
+      newDateDebut = subMonths(monthStart, 12)
+      newDateFin = endOfMonth(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
     } else {
       // Par défaut, navigation par semaine
       newDateDebut = subWeeks(dateDebut, 1)
@@ -1634,13 +1628,10 @@ export default function Planning2({
       newDateDebut = addWeeks(dateDebut, 1)
       newDateFin = addWeeks(dateFin, 1)
     } else if (precision === 'MOIS') {
-      // Navigation par mois
+      // Navigation par mois : avancer de 12 mois (fenêtre glissante)
       const monthStart = startOfMonth(dateDebut)
-      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
-      const diffMonths = Math.ceil(diffDays / 30)
-      
-      newDateDebut = addMonths(monthStart, diffMonths)
-      newDateFin = endOfMonth(newDateDebut)
+      newDateDebut = addMonths(monthStart, 12)
+      newDateFin = endOfMonth(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
     } else {
       // Par défaut, navigation par semaine
       newDateDebut = addWeeks(dateDebut, 1)

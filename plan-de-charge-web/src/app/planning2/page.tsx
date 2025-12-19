@@ -74,8 +74,11 @@ export default function Planning2Page() {
       setDateDebut(weekStart)
       setDateFin(weekEnd)
     } else if (precision === 'MOIS') {
-      setDateDebut(startOfMonth(dateDebut))
-      setDateFin(endOfMonth(dateDebut))
+      // Pour MOIS, afficher 12 mois glissants à partir de dateDebut
+      const monthStart = startOfMonth(dateDebut)
+      const monthEnd12 = endOfMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1))
+      setDateDebut(monthStart)
+      setDateFin(monthEnd12)
     }
     // Note: Pour JOUR, on garde les dates telles quelles (pas de réinitialisation)
   }, [precision])
