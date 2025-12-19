@@ -1473,19 +1473,6 @@ function InterimsManagement({
 
   return (
     <div className="space-y-6">
-      {/* En-tête */}
-      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-xl p-8 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Gestion des Intérims</h1>
-            <p className="text-purple-100">
-              {stats.total} intérim(s) au total • {stats.aRenouveler} à renouveler • {stats.expirentBientot} expire(nt) bientôt
-            </p>
-          </div>
-          <Briefcase className="w-16 h-16 text-white/80" />
-        </div>
-      </div>
-
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
@@ -1653,7 +1640,7 @@ function InterimsManagement({
                     <h3 className="text-lg font-bold text-gray-800 mb-2">
                       {interim.ressource?.nom || 'Ressource inconnue'}
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
                         <span>{interim.site}</span>
@@ -1675,6 +1662,19 @@ function InterimsManagement({
                           }
                         </span>
                       </div>
+                      <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${getStatutColor(interim.a_renouveler || '')}`}>
+                        <span className="text-xs font-semibold">
+                          {interim.a_renouveler || 'En cours'}
+                        </span>
+                      </div>
+                      {interim.ressource && (
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          <span className={interim.ressource.actif ? 'text-green-600' : 'text-red-600'}>
+                            {interim.ressource.actif ? 'Actif' : 'Inactif'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     {interim.commentaire && (
                       <p className="mt-2 text-sm text-gray-500 italic">
@@ -1682,20 +1682,7 @@ function InterimsManagement({
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`px-3 py-1 rounded-lg border ${getStatutColor(interim.a_renouveler || '')}`}>
-                      <span className="text-xs font-semibold">
-                        {interim.a_renouveler || 'En cours'}
-                      </span>
-                    </div>
-                    {interim.ressource && (
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        <span className={interim.ressource.actif ? 'text-green-600' : 'text-red-600'}>
-                          {interim.ressource.actif ? 'Actif' : 'Inactif'}
-                        </span>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
                     {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
                       <button
                         onClick={(e) => {
