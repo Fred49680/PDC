@@ -704,14 +704,15 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">AffaireID</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heure</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Plannifié</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heures Planifiées</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d'affaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center">
+                      <td colSpan={6} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -774,10 +775,13 @@ export default function AffairesPage() {
                           )}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'HH:mm', { locale: fr }) : '-'}
+                          {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '-'}
+                          {affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        </td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {affaire.date_fin_demande ? format(affaire.date_fin_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                       </tr>
                     ))
