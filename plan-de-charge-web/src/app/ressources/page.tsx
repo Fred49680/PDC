@@ -790,7 +790,7 @@ export default function RessourcesPage() {
                   )}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         )}
 
