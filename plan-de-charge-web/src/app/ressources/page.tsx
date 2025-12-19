@@ -1004,6 +1004,8 @@ export default function RessourcesPage() {
             verifierEtMettreAJourRenouvellements={verifierEtMettreAJourRenouvellements}
             desactiverInterimsExpires={desactiverInterimsExpires}
             initialiserInterims={initialiserInterims}
+            competences={competences}
+            saveCompetencesBatch={saveCompetencesBatch}
           />
         ) : (
           <>
@@ -1146,6 +1148,8 @@ interface InterimsManagementProps {
   verifierEtMettreAJourRenouvellements: () => Promise<{ updated: number; alertsCreated: number }>
   desactiverInterimsExpires: () => Promise<{ desactivated: number }>
   initialiserInterims: () => Promise<{ created: number; updated: number }>
+  competences: Map<string, any[]>
+  saveCompetencesBatch: (ressourceId: string, competences: Array<{ competence: string; type_comp: string }>) => Promise<void>
 }
 
 function InterimsManagement({
@@ -1172,7 +1176,191 @@ function InterimsManagement({
   verifierEtMettreAJourRenouvellements,
   desactiverInterimsExpires,
   initialiserInterims,
+  competences,
+  saveCompetencesBatch,
 }: InterimsManagementProps) {
+  // États pour les compétences (similaires au modal ressources)
+  const [activeTab, setActiveTab] = useState<'informations' | 'competences'>('informations')
+  const [competencesSelection, setCompetencesSelection] = useState<Map<string, { selected: boolean; principale: boolean }>>(new Map())
+  const [competencesPersonnalisees, setCompetencesPersonnalisees] = useState<Array<{ nom: string; principale: boolean }>>([])
+  const [competenceFormRessourceId, setCompetenceFormRessourceId] = useState<string | null>(null)
+  
+  // Liste prédéfinie des compétences (même que dans ressources)
+  const competencesPredéfinies = [
+    'ADMIN',
+    'AUTO',
+    'BE_IES',
+    'ENCADREMENT',
+    'ESSAIS',
+    'FIBRE OPTIQUE',
+    'HSE_CRP',
+    'IEG',
+    'IES',
+    'INSTRUM',
+    'MECANIQUE',
+    'MONTAGE',
+    'PLOMBERIE',
+    'SERRURERIE',
+    'SOLDURE',
+    'TECHNICIEN',
+    'TELECOM',
+    'ELECTRICITE',
+    'ELECTROMECANIQUE',
+    'MAINTENANCE',
+    'CONTROLE',
+    'QUALITE',
+    'SECURITE',
+    'LOGISTIQUE',
+    'MANUTENTION',
+  ]
+
+  // Fonctions pour gérer les compétences
+  const loadCompetencesForRessource = (ressourceId: string) => {
+    const existingCompetences = competences.get(ressourceId) || []
+    const newSelection = new Map<string, { selected: boolean; principale: boolean }>()
+
+    competencesPredéfinies.forEach(comp => {
+      const existing = existingCompetences.find(c => c.competence === comp)
+      newSelection.set(comp, {
+        selected: !!existing,
+        principale: existing?.type_comp === 'P' || false,
+      })
+    })
+
+    const customComps = existingCompetences.filter(c => !competencesPredéfinies.includes(c.competence))
+
+    setCompetencesSelection(newSelection)
+    setCompetencesPersonnalisees(
+      customComps.length > 0
+        ? customComps.map(c => ({ nom: c.competence, principale: c.type_comp === 'P' }))
+        : [{ nom: '', principale: false }]
+    )
+    setCompetenceFormRessourceId(ressourceId)
+  }
+
+  const handleToggleCompetence = (competence: string) => {
+    const newSelection = new Map(competencesSelection)
+    const current = newSelection.get(competence) || { selected: false, principale: false }
+
+    newSelection.set(competence, {
+      selected: !current.selected,
+      principale: current.selected && current.principale ? false : current.principale,
+    })
+
+    setCompetencesSelection(newSelection)
+  }
+
+  const handleSetPrincipale = (competence: string) => {
+    const newSelection = new Map(competencesSelection)
+    const current = newSelection.get(competence) || { selected: false, principale: false }
+
+    if (!current.selected) {
+      newSelection.set(competence, { selected: true, principale: true })
+    } else {
+      newSelection.set(competence, {
+        selected: true,
+        principale: !current.principale
+      })
+    }
+
+    const newState = newSelection.get(competence)
+    if (newState && newState.principale) {
+      newSelection.forEach((value, key) => {
+        if (key !== competence && value.selected && value.principale) {
+          newSelection.set(key, { selected: value.selected, principale: false })
+        }
+      })
+
+      setCompetencesPersonnalisees(prev =>
+        prev.map(c => ({ ...c, principale: false }))
+      )
+    }
+
+    setCompetencesSelection(newSelection)
+  }
+
+  const handleToggleCompetencePersonnalisee = (index: number, value: string) => {
+    const newCustom = [...competencesPersonnalisees]
+    newCustom[index] = { nom: value, principale: newCustom[index]?.principale || false }
+    setCompetencesPersonnalisees(newCustom)
+  }
+
+  const handleAddCustomCompetence = () => {
+    setCompetencesPersonnalisees([...competencesPersonnalisees, { nom: '', principale: false }])
+  }
+
+  const handleRemoveCustomCompetence = (index: number) => {
+    const newCustom = competencesPersonnalisees.filter((_, i) => i !== index)
+    if (newCustom.length === 0) {
+      newCustom.push({ nom: '', principale: false })
+    }
+    setCompetencesPersonnalisees(newCustom)
+  }
+
+  const handleSetPrincipalePersonnalisee = (index: number) => {
+    if (!competencesPersonnalisees[index]?.nom.trim()) {
+      return
+    }
+
+    const newSelection = new Map(competencesSelection)
+    competencesSelection.forEach((value, key) => {
+      if (value.selected && value.principale) {
+        newSelection.set(key, { selected: value.selected, principale: false })
+      }
+    })
+    setCompetencesSelection(newSelection)
+
+    setCompetencesPersonnalisees(prev =>
+      prev.map((c, i) => ({ ...c, principale: i === index && c.nom.trim() !== '' }))
+    )
+  }
+
+  const handleSubmitCompetences = async () => {
+    const ressourceId = competenceFormRessourceId || formData.ressource_id
+    if (!ressourceId) return
+
+    try {
+      const competencesToSave: Array<{ competence: string; type_comp: string }> = []
+
+      competencesSelection.forEach((value, competence) => {
+        if (value.selected) {
+          competencesToSave.push({
+            competence,
+            type_comp: value.principale ? 'P' : 'S',
+          })
+        }
+      })
+
+      competencesPersonnalisees.forEach(custom => {
+        const trimmedNom = custom.nom.trim()
+        if (trimmedNom) {
+          competencesToSave.push({
+            competence: trimmedNom,
+            type_comp: custom.principale ? 'P' : 'S',
+          })
+        }
+      })
+
+      const principales = competencesToSave.filter(c => c.type_comp === 'P')
+      if (principales.length > 1) {
+        alert('Erreur : Une seule compétence principale est autorisée. Veuillez décocher les autres compétences principales.')
+        return
+      }
+
+      if (principales.length === 0 && competencesToSave.length > 0) {
+        console.warn('Aucune compétence principale sélectionnée. Toutes les compétences seront enregistrées comme secondaires.')
+      }
+
+      await saveCompetencesBatch(ressourceId, competencesToSave)
+
+      setCompetencesSelection(new Map())
+      setCompetencesPersonnalisees([{ nom: '', principale: false }])
+      setCompetenceFormRessourceId(null)
+    } catch (err) {
+      console.error('[InterimsManagement] Erreur sauvegarde compétences:', err)
+      alert('Erreur lors de la sauvegarde des compétences. Veuillez réessayer.')
+    }
+  }
   // Filtrer les intérims par terme de recherche
   const interimsFiltres = useMemo(() => {
     let filtered = interims as any[]
@@ -1354,6 +1542,12 @@ function InterimsManagement({
     })
     setIsEditing(true)
     setShowModal(true)
+    setActiveTab('informations')
+    
+    // Charger les compétences si on est en mode édition et qu'on a une ressource_id
+    if (interim.ressource_id) {
+      loadCompetencesForRessource(interim.ressource_id)
+    }
   }
 
   const handleDelete = async (interimId: string, aRenouveler: string) => {
@@ -1382,26 +1576,34 @@ function InterimsManagement({
   const handleRessourceChange = (selectedRessourceId: string) => {
     // Récupérer automatiquement le site depuis la ressource sélectionnée
     let normalizedSite = ''
-    
+
     if (selectedRessourceId) {
       const selectedRessource = ressourcesETT.find(r => r.id === selectedRessourceId)
       if (selectedRessource && selectedRessource.site) {
         // Normaliser le site en cherchant dans sitesList
         normalizedSite = selectedRessource.site.trim()
-        
+
         if (sitesList.length > 0) {
           const matchingSite = sitesList.find(s => {
             const siteFromList = s.site?.trim() || ''
             return siteFromList.toLowerCase() === normalizedSite.toLowerCase()
           })
-          
+
           if (matchingSite) {
             normalizedSite = matchingSite.site.trim()
           }
         }
       }
+      
+      // Charger les compétences de la ressource sélectionnée
+      loadCompetencesForRessource(selectedRessourceId)
+    } else {
+      // Réinitialiser les compétences si aucune ressource sélectionnée
+      setCompetencesSelection(new Map())
+      setCompetencesPersonnalisees([{ nom: '', principale: false }])
+      setCompetenceFormRessourceId(null)
     }
-    
+
     setFormData({ ...formData, ressource_id: selectedRessourceId, site: normalizedSite })
   }
 
@@ -1750,8 +1952,8 @@ function InterimsManagement({
       {/* Modal de création/édition */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-6 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-6 rounded-t-2xl flex items-center justify-between z-10">
               <h2 className="text-xl font-bold">
                 {isEditing ? 'Modifier l\'intérim' : 'Nouvel intérim'}
               </h2>
@@ -1759,6 +1961,10 @@ function InterimsManagement({
                 onClick={() => {
                   setShowModal(false)
                   setIsEditing(false)
+                  setActiveTab('informations')
+                  setCompetencesSelection(new Map())
+                  setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                  setCompetenceFormRessourceId(null)
                 }}
                 className="p-2 hover:bg-white/20 rounded-lg transition-colors"
               >
@@ -1766,99 +1972,294 @@ function InterimsManagement({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <Select
-                  label="Ressource *"
-                  value={formData.ressource_id}
-                  onChange={(e) => handleRessourceChange(e.target.value)}
-                  required
-                  className="w-full"
-                  options={[
-                    { value: '', label: 'Sélectionner une ressource' },
-                    ...ressourcesETT
-                      .filter(r => r.type_contrat === 'ETT')
-                      .map((ressource) => ({
-                        value: ressource.id,
-                        label: ressource.nom,
-                      })),
-                  ]}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Date de début *
-                  </label>
-                  <Input
-                    type="date"
-                    value={formData.date_debut_contrat}
-                    onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
-                    required
-                    className="w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Date de fin *
-                  </label>
-                  <Input
-                    type="date"
-                    value={formData.date_fin_contrat}
-                    onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
-                    required
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Select
-                  label="Statut renouvellement"
-                  value={formData.a_renouveler}
-                  onChange={(e) => setFormData({ ...formData, a_renouveler: e.target.value })}
-                  className="w-full"
-                  options={[
-                    { value: 'A renouveler', label: 'A renouveler' },
-                    { value: 'Oui', label: 'Oui' },
-                    { value: 'Non', label: 'Non' },
-                  ]}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Commentaire
-                </label>
-                <textarea
-                  value={formData.commentaire}
-                  onChange={(e) => setFormData({ ...formData, commentaire: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  rows={3}
-                />
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <Button
-                  type="submit"
-                  className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+            {/* Onglets */}
+            <div className="border-b border-gray-200 px-6">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('informations')}
+                  className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                    activeTab === 'informations'
+                      ? 'border-purple-600 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
                 >
-                  {isEditing ? 'Modifier' : 'Créer'}
-                </Button>
-                <Button
+                  Informations
+                </button>
+                <button
                   type="button"
                   onClick={() => {
-                    setShowModal(false)
-                    setIsEditing(false)
+                    setActiveTab('competences')
+                    // Charger les compétences si on passe à l'onglet compétences et qu'on a une ressource_id
+                    if (formData.ressource_id) {
+                      loadCompetencesForRessource(formData.ressource_id)
+                    }
                   }}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                    activeTab === 'competences'
+                      ? 'border-purple-600 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
                 >
-                  Annuler
-                </Button>
+                  Compétences
+                </button>
               </div>
-            </form>
+            </div>
+
+            {/* Contenu de l'onglet Informations */}
+            {activeTab === 'informations' && (
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                  <Select
+                    label="Ressource *"
+                    value={formData.ressource_id}
+                    onChange={(e) => handleRessourceChange(e.target.value)}
+                    required
+                    className="w-full"
+                    options={[
+                      { value: '', label: 'Sélectionner une ressource' },
+                      ...ressourcesETT
+                        .filter(r => r.type_contrat === 'ETT')
+                        .map((ressource) => ({
+                          value: ressource.id,
+                          label: ressource.nom,
+                        })),
+                    ]}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Date de début *
+                    </label>
+                    <Input
+                      type="date"
+                      value={formData.date_debut_contrat}
+                      onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
+                      required
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Date de fin *
+                    </label>
+                    <Input
+                      type="date"
+                      value={formData.date_fin_contrat}
+                      onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
+                      required
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Select
+                    label="Statut renouvellement"
+                    value={formData.a_renouveler}
+                    onChange={(e) => setFormData({ ...formData, a_renouveler: e.target.value })}
+                    className="w-full"
+                    options={[
+                      { value: 'A renouveler', label: 'A renouveler' },
+                      { value: 'Oui', label: 'Oui' },
+                      { value: 'Non', label: 'Non' },
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Commentaire
+                  </label>
+                  <textarea
+                    value={formData.commentaire}
+                    onChange={(e) => setFormData({ ...formData, commentaire: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+                  >
+                    {isEditing ? 'Modifier' : 'Créer'}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false)
+                      setIsEditing(false)
+                      setActiveTab('informations')
+                      setCompetencesSelection(new Map())
+                      setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                      setCompetenceFormRessourceId(null)
+                    }}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Contenu de l'onglet Compétences */}
+            {activeTab === 'competences' && (
+              <div className="p-6 space-y-6">
+                {!formData.ressource_id ? (
+                  <div className="text-center py-8">
+                    <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">
+                      Veuillez d'abord sélectionner une ressource pour gérer ses compétences.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Compétences prédéfinies */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-4">
+                        Compétences prédéfinies
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {competencesPredéfinies.map((comp) => {
+                          const compState = competencesSelection.get(comp) || { selected: false, principale: false }
+                          return (
+                            <div
+                              key={comp}
+                              className={`p-3 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                                compState.selected
+                                  ? compState.principale
+                                    ? 'bg-blue-100 border-blue-400 shadow-md'
+                                    : 'bg-green-50 border-green-300'
+                                  : 'bg-white border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => handleToggleCompetence(comp)}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={compState.selected}
+                                    onChange={() => handleToggleCompetence(comp)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                  />
+                                  <span className="text-sm font-medium text-gray-900">{comp}</span>
+                                </div>
+                                {compState.selected && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleSetPrincipale(comp)
+                                    }}
+                                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                                      compState.principale
+                                        ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                                        : 'bg-white border-gray-300 hover:border-blue-400 text-gray-400 hover:text-blue-500'
+                                    }`}
+                                    title={compState.principale ? 'Compétence principale (cliquer pour retirer)' : 'Marquer comme principale'}
+                                  >
+                                    <Star className={`w-4 h-4 ${compState.principale ? 'fill-white' : ''}`} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Compétences personnalisées */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <label className="block text-sm font-semibold text-gray-700">
+                          Compétences personnalisées
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleAddCustomCompetence}
+                          className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Ajouter
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {competencesPersonnalisees.map((custom, index) => (
+                          <div key={index} className="flex items-center gap-3">
+                            <input
+                              type="text"
+                              value={custom.nom}
+                              onChange={(e) => handleToggleCompetencePersonnalisee(index, e.target.value)}
+                              className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm placeholder:text-gray-500"
+                              placeholder="Nom de la compétence personnalisée..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrincipalePersonnalisee(index)}
+                              disabled={!custom.nom.trim()}
+                              className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
+                                custom.principale
+                                  ? 'bg-blue-500 border-blue-600 text-white shadow-md'
+                                  : custom.nom.trim()
+                                  ? 'bg-white border-gray-300 hover:border-blue-400 text-gray-400 hover:text-blue-500'
+                                  : 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+                              }`}
+                              title={custom.principale ? 'Compétence principale (cliquer pour retirer)' : custom.nom.trim() ? 'Marquer comme principale' : 'Saisir d\'abord un nom'}
+                            >
+                              <Star className={`w-5 h-5 ${custom.principale ? 'fill-white' : ''}`} />
+                            </button>
+                            {competencesPersonnalisees.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCustomCompetence(index)}
+                                className="w-10 h-10 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300 flex items-center justify-center transition-all"
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Boutons d'action compétences */}
+                    <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setCompetencesSelection(new Map())
+                          setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                          setCompetenceFormRessourceId(null)
+                          setActiveTab('informations')
+                        }}
+                        className="bg-gray-200 hover:bg-gray-300 text-gray-800"
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={async () => {
+                          if (!competenceFormRessourceId && formData.ressource_id) {
+                            setCompetenceFormRessourceId(formData.ressource_id)
+                          }
+                          await handleSubmitCompetences()
+                          setActiveTab('informations')
+                        }}
+                        className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+                      >
+                        <Award className="w-4 h-4 mr-2" />
+                        Enregistrer les compétences
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
