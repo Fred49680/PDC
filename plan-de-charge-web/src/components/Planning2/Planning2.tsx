@@ -84,18 +84,53 @@ const formatSemaineISO = (date: Date): string => {
 
 // Fonction pour obtenir le format semaine ISO avec année : "01-2026"
 const getSemaineISOWithYear = (date: Date): string => {
-  // Calculer la semaine ISO (semaine qui contient le 4 janvier)
-  const jan4 = new Date(date.getFullYear(), 0, 4)
-  const jan4Day = jan4.getDay() || 7 // 0 = dimanche -> 7
-  const weekStart = new Date(jan4)
-  weekStart.setDate(jan4.getDate() - jan4Day + 1) // Lundi de la semaine contenant le 4 janvier
+  // Calculer le lundi de la semaine ISO
+  const dayOfWeek = date.getDay() || 7 // 0 = dimanche -> 7
+  const weekStart = new Date(date)
+  weekStart.setDate(date.getDate() - dayOfWeek + 1)
   
-  const currentWeekStart = new Date(date)
-  const dayOfWeek = date.getDay() || 7
-  currentWeekStart.setDate(date.getDate() - dayOfWeek + 1)
+  // Calculer l'année ISO (année du jeudi de cette semaine)
+  const thursday = new Date(weekStart)
+  thursday.setDate(weekStart.getDate() + 3)
+  const isoYear = thursday.getFullYear()
   
-  const weekNumber = Math.ceil((currentWeekStart.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
-  const isoYear = currentWeekStart >= weekStart ? date.getFullYear() : date.getFullYear() - 1
+  // Calculer le numéro de semaine ISO
+  // La semaine ISO 1 est la semaine qui contient le 4 janvier
+  const jan4 = new Date(isoYear, 0, 4)
+  const jan4Day = jan4.getDay() || 7
+  const jan4WeekStart = new Date(jan4)
+  jan4WeekStart.setDate(jan4.getDate() - jan4Day + 1)
+  
+  // Calculer le nombre de semaines depuis le début de l'année ISO
+  const diffTime = weekStart.getTime() - jan4WeekStart.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  const weekNumber = Math.floor(diffDays / 7) + 1
+  
+  // Gérer les semaines de fin d'année (peuvent être semaine 52/53 de l'année précédente)
+  // et les semaines de début d'année (peuvent être semaine 1 de l'année suivante)
+  if (weekNumber < 1) {
+    // Semaine de l'année précédente
+    const prevJan4 = new Date(isoYear - 1, 0, 4)
+    const prevJan4Day = prevJan4.getDay() || 7
+    const prevJan4WeekStart = new Date(prevJan4)
+    prevJan4WeekStart.setDate(prevJan4.getDate() - prevJan4Day + 1)
+    const prevDiffTime = weekStart.getTime() - prevJan4WeekStart.getTime()
+    const prevDiffDays = Math.floor(prevDiffTime / (1000 * 60 * 60 * 24))
+    const prevWeekNumber = Math.floor(prevDiffDays / 7) + 1
+    return `${prevWeekNumber.toString().padStart(2, '0')}-${isoYear - 1}`
+  } else if (weekNumber > 52) {
+    // Vérifier si c'est vraiment la semaine 53 ou la semaine 1 de l'année suivante
+    const nextJan4 = new Date(isoYear + 1, 0, 4)
+    const nextJan4Day = nextJan4.getDay() || 7
+    const nextJan4WeekStart = new Date(nextJan4)
+    nextJan4WeekStart.setDate(nextJan4.getDate() - nextJan4Day + 1)
+    
+    if (weekStart >= nextJan4WeekStart) {
+      return `01-${isoYear + 1}`
+    }
+    // Sinon, c'est vraiment la semaine 53
+    return `53-${isoYear}`
+  }
   
   return `${weekNumber.toString().padStart(2, '0')}-${isoYear}`
 }
@@ -1614,7 +1649,7 @@ export default function Planning2({
       newDateDebut = subDays(dateDebut, diffDays + 1)
       newDateFin = subDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
-      // Navigation par mois (puisque on affiche 1 mois en mode SEMAINE)
+      // Navigation par mois : reculer de 1 mois
       const dayOfWeek = dateDebut.getDay()
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
       const weekStart = new Date(dateDebut)
@@ -1627,9 +1662,9 @@ export default function Planning2({
       newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
       newDateFin = endOfMonth(newDateDebut)
     } else if (precision === 'MOIS') {
-      // Navigation par mois : reculer de 12 mois (fenêtre glissante)
+      // Navigation par mois : reculer de 1 mois
       const monthStart = startOfMonth(dateDebut)
-      newDateDebut = subMonths(monthStart, 12)
+      newDateDebut = subMonths(monthStart, 1)
       newDateFin = endOfMonth(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
     } else {
       // Par défaut, navigation par semaine
@@ -1654,7 +1689,7 @@ export default function Planning2({
       newDateDebut = addDays(dateDebut, diffDays + 1)
       newDateFin = addDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
-      // Navigation par mois (puisque on affiche 1 mois en mode SEMAINE)
+      // Navigation par mois : avancer de 1 mois
       const dayOfWeek = dateDebut.getDay()
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
       const weekStart = new Date(dateDebut)
@@ -1667,9 +1702,9 @@ export default function Planning2({
       newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
       newDateFin = endOfMonth(newDateDebut)
     } else if (precision === 'MOIS') {
-      // Navigation par mois : avancer de 12 mois (fenêtre glissante)
+      // Navigation par mois : avancer de 1 mois
       const monthStart = startOfMonth(dateDebut)
-      newDateDebut = addMonths(monthStart, 12)
+      newDateDebut = addMonths(monthStart, 1)
       newDateFin = endOfMonth(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
     } else {
       // Par défaut, navigation par semaine
@@ -1904,7 +1939,7 @@ export default function Planning2({
               >
                 <ChevronLeft className="w-5 h-5" />
               </motion.button>
-                <div className="px-4 py-2 text-center min-w-[200px]">
+                <div className="px-4 py-2 text-center min-w-[200px] relative">
                   <div className="font-semibold text-gray-800">
                     {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
                   </div>
@@ -1912,6 +1947,38 @@ export default function Planning2({
                     <Calendar className="w-3 h-3" />
                     {formatSemaineISO(dateDebut)}
                   </div>
+                  {/* Input date caché pour permettre la sélection */}
+                  <input
+                    type="date"
+                    value={dateDebut.toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const newDateDebut = new Date(e.target.value)
+                        setDateDebut(newDateDebut)
+                        // Ajuster dateFin selon la précision
+                        let newDateFin: Date
+                        if (precision === 'SEMAINE') {
+                          const weekStart = new Date(newDateDebut)
+                          const dayOfWeek = weekStart.getDay() || 7
+                          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+                          weekStart.setDate(weekStart.getDate() - daysToMonday)
+                          newDateFin = endOfMonth(weekStart)
+                        } else if (precision === 'MOIS') {
+                          const monthStart = startOfMonth(newDateDebut)
+                          newDateFin = endOfMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1))
+                        } else {
+                          // Pour JOUR, garder la différence actuelle
+                          const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+                          newDateFin = new Date(newDateDebut.getTime() + diffDays * 24 * 60 * 60 * 1000)
+                        }
+                        setDateFin(newDateFin)
+                        if (onDateDebutChange) onDateDebutChange(newDateDebut)
+                        if (onDateFinChange) onDateFinChange(newDateFin)
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    title="Cliquez pour modifier la date de début"
+                  />
                 </div>
                 <motion.button
                   onClick={handleNextPeriod}
