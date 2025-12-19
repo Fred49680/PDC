@@ -71,6 +71,7 @@ export default function Planning2Page() {
     if (precision === 'SEMAINE') {
       // Pour SEMAINE, afficher 1 mois (environ 4-5 semaines)
       const weekStart = startOfWeek(dateDebut, { weekStartsOn: 1 })
+      // Calculer la fin du mois sans restriction d'année
       const monthEnd = endOfMonth(weekStart)
       setDateDebut(weekStart)
       setDateFin(monthEnd)

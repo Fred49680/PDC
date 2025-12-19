@@ -351,12 +351,14 @@ export default function Planning2({
         currentMonth.setMonth(monthStart.getMonth() + i)
         
         const monthShort = currentMonth.toLocaleDateString('fr-FR', { month: 'short' })
+        // Retirer le point final du mois court (ex: "janv." -> "janv")
+        const monthShortClean = monthShort.replace(/\.$/, '')
         const year = currentMonth.getFullYear()
         
         cols.push({
           date: currentMonth,
           label: currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
-          shortLabel: `${monthShort}.${year}`,
+          shortLabel: `${monthShortClean}.${year}`,
           isWeekend: false,
           isHoliday: false,
           semaineISO: formatSemaineISO(currentMonth),
@@ -1660,6 +1662,7 @@ export default function Planning2({
       const dayOfWeekNew = newDateDebut.getDay()
       const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
       newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+      // Calculer dateFin comme la fin du mois de newDateDebut (sans restriction d'année)
       newDateFin = endOfMonth(newDateDebut)
     } else if (precision === 'MOIS') {
       // Navigation par mois : reculer de 1 mois
@@ -1700,6 +1703,7 @@ export default function Planning2({
       const dayOfWeekNew = newDateDebut.getDay()
       const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
       newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+      // Calculer dateFin comme la fin du mois de newDateDebut (sans restriction d'année)
       newDateFin = endOfMonth(newDateDebut)
     } else if (precision === 'MOIS') {
       // Navigation par mois : avancer de 1 mois
@@ -1939,21 +1943,26 @@ export default function Planning2({
               >
                 <ChevronLeft className="w-5 h-5" />
               </motion.button>
-                <div className="px-4 py-2 text-center min-w-[200px] relative">
-                  <div className="font-semibold text-gray-800">
+                <div className="px-4 py-2 text-center min-w-[200px] relative group">
+                  <div className="font-semibold text-gray-800 pointer-events-none">
                     {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
                   </div>
-                  <div className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                  <div className="text-xs text-gray-500 flex items-center justify-center gap-1 pointer-events-none">
                     <Calendar className="w-3 h-3" />
                     {formatSemaineISO(dateDebut)}
                   </div>
-                  {/* Input date caché pour permettre la sélection */}
+                  {/* Input date pour permettre la sélection */}
                   <input
                     type="date"
                     value={dateDebut.toISOString().split('T')[0]}
                     onChange={(e) => {
                       if (e.target.value) {
-                        const newDateDebut = new Date(e.target.value)
+                        // Créer la date en UTC pour éviter les problèmes de fuseau horaire
+                        const dateStr = e.target.value
+                        const newDateDebut = new Date(dateStr + 'T12:00:00')
+                        // Vérifier que la date est valide
+                        if (isNaN(newDateDebut.getTime())) return
+                        
                         setDateDebut(newDateDebut)
                         // Ajuster dateFin selon la précision
                         let newDateFin: Date
@@ -1976,7 +1985,8 @@ export default function Planning2({
                         if (onDateFinChange) onDateFinChange(newDateFin)
                       }
                     }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    style={{ fontSize: '16px' }}
                     title="Cliquez pour modifier la date de début"
                   />
                 </div>
