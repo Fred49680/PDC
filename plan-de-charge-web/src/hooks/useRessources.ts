@@ -54,9 +54,9 @@ export function useRessources(options: UseRessourcesOptions = {}) {
       }
 
       if (options.type_contrat) {
-        // Pour Intérim, inclure aussi les anciennes valeurs ETT et Interim pour compatibilité
+        // Pour Intérim, filtrer par ETT (c'est la valeur stockée en base)
         if (options.type_contrat === 'Intérim') {
-          query = query.in('type_contrat', ['Intérim', 'ETT', 'Interim'])
+          query = query.eq('type_contrat', 'ETT')
         } else {
           query = query.eq('type_contrat', options.type_contrat)
         }

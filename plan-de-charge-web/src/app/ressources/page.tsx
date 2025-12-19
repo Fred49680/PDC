@@ -149,7 +149,7 @@ export default function RessourcesPage() {
       id: ressource.id,
       nom: ressource.nom,
       site: ressource.site,
-      type_contrat: ressource.type_contrat || '',
+      type_contrat: ressource.type_contrat === 'ETT' ? 'ETT' : (ressource.type_contrat || ''),
       responsable: ressource.responsable || '',
       date_debut_contrat: ressource.date_debut_contrat
         ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
@@ -178,7 +178,7 @@ export default function RessourcesPage() {
       id: ressource.id,
       nom: ressource.nom,
       site: ressource.site,
-      type_contrat: ressource.type_contrat || '',
+      type_contrat: ressource.type_contrat === 'ETT' ? 'ETT' : (ressource.type_contrat || ''),
       responsable: ressource.responsable || '',
       date_debut_contrat: ressource.date_debut_contrat
         ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
@@ -449,7 +449,7 @@ export default function RessourcesPage() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                Intérim ({allRessources.filter(r => r.type_contrat === 'Intérim' || r.type_contrat === 'ETT' || r.type_contrat === 'Interim').length})
+                Intérim ({allRessources.filter(r => r.type_contrat === 'ETT').length})
               </button>
               <button
                 onClick={() => setActiveCategoryTab('APP')}
@@ -605,7 +605,7 @@ export default function RessourcesPage() {
                     options={[
                       { value: '', label: 'Sélectionner...' },
                       { value: 'CDI', label: 'CDI' },
-                      { value: 'Intérim', label: 'Intérim' },
+                      { value: 'ETT', label: 'Intérim' },
                       { value: 'APP', label: 'APP' },
                       { value: 'Sous-traitance', label: 'Sous-traitance' }
                     ]}
@@ -937,7 +937,7 @@ export default function RessourcesPage() {
                           {ressource.site}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {ressource.type_contrat || '-'}
+                          {ressource.type_contrat === 'ETT' ? 'Intérim' : (ressource.type_contrat || '-')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {ressource.responsable || '-'}
