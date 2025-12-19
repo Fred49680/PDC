@@ -125,36 +125,39 @@ export default function SitesAdminPage() {
               <MapPin className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                 Administration des Sites
               </h1>
-              <p className="text-gray-600 mt-1">Gérez les sites et leurs régions</p>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">Gérez les sites et leurs régions</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <button
               onClick={handleInitialize}
               disabled={isInitializing}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl hover:from-cyan-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl hover:from-cyan-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
             >
               {isInitializing ? (
                 <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  Initialisation...
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                  <span className="hidden sm:inline">Initialisation...</span>
+                  <span className="sm:hidden">Init...</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-5 h-5" />
-                  Initialiser sites par défaut
+                  <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Initialiser sites par défaut</span>
+                  <span className="sm:hidden">Init. sites</span>
                 </>
               )}
             </button>
             <button
               onClick={handleNew}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+              className="px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2 text-xs sm:text-sm"
             >
-              <Plus className="w-5 h-5" />
-              Nouveau site
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Nouveau site</span>
+              <span className="sm:hidden">Nouveau</span>
             </button>
           </div>
         </div>
@@ -282,7 +285,7 @@ export default function SitesAdminPage() {
             <Search className="w-5 h-5 text-blue-600" />
             <h2 className="text-xl font-bold text-gray-800">Filtres</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -344,25 +347,25 @@ export default function SitesAdminPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gradient-to-r from-blue-50 to-cyan-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Site
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">
                       Site Key
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
                       Site Map
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">
                       Région
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
                       Centre Ouest
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Statut
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -383,43 +386,43 @@ export default function SitesAdminPage() {
                   ) : (
                     sites.map((site) => (
                       <tr key={site.id} className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
                           {site.site}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{site.site_key}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{site.site_map}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden md:table-cell">{site.site_key}</td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">{site.site_map}</td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden sm:table-cell">
                           {site.region || '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">
                           {site.centre_ouest || '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                           {site.actif ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            <span className="px-2 py-1 sm:px-3 sm:py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                               Active
                             </span>
                           ) : (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                            <span className="px-2 py-1 sm:px-3 sm:py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                               Inactive
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex items-center gap-2">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
                             <button
                               onClick={() => handleEdit(site)}
-                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2 font-medium"
+                              className="px-2 py-1.5 sm:px-4 sm:py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-1 sm:gap-2 font-medium text-xs sm:text-sm"
                             >
-                              <Edit2 className="w-4 h-4" />
-                              Modifier
+                              <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">Modifier</span>
                             </button>
                             <button
                               onClick={() => handleDelete(site.id)}
-                              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2 font-medium"
+                              className="px-2 py-1.5 sm:px-4 sm:py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-1 sm:gap-2 font-medium text-xs sm:text-sm"
                             >
-                              <Trash2 className="w-4 h-4" />
-                              Supprimer
+                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">Supprimer</span>
                             </button>
                           </div>
                         </td>

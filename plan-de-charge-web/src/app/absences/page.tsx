@@ -202,14 +202,15 @@ export default function AbsencesPage() {
               <Calendar className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
                 Gestion des Absences
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">Gérez les absences, formations et congés des ressources</p>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Gérez les absences, formations et congés des ressources</p>
             </div>
           </div>
-          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={handleNew} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
-            Nouvelle absence
+          <Button variant="primary" icon={<Plus className="w-4 h-4 sm:w-5 sm:h-5" />} onClick={handleNew} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-xs sm:text-sm px-3 sm:px-4 py-2">
+            <span className="hidden sm:inline">Nouvelle absence</span>
+            <span className="sm:hidden">Nouvelle</span>
           </Button>
         </div>
 
@@ -256,15 +257,15 @@ export default function AbsencesPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gradient-to-r from-purple-50 to-indigo-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ressource</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Site</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type arrêt</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Compétence</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Commentaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ressource</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Site</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Type</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Statut</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Type arrêt</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Compétence</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Commentaire</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -290,21 +291,21 @@ export default function AbsencesPage() {
                           className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
                           onClick={() => handleRowClick(absence)}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{ressourceNom}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.site}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{ressourceNom}</td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{absence.site}</td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                            <span className="px-2 py-1 sm:px-3 sm:py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
                               {absence.type}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                             {format(new Date(absence.date_debut), 'dd/MM/yyyy', { locale: fr })}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                             {format(new Date(absence.date_fin), 'dd/MM/yyyy', { locale: fr })}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap hidden md:table-cell">
+                            <span className={`px-2 py-1 sm:px-3 sm:py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                               absence.statut === 'Clôturé' 
                                 ? 'bg-gray-100 text-gray-700' 
                                 : 'bg-green-100 text-green-800'
@@ -312,15 +313,15 @@ export default function AbsencesPage() {
                               {absence.statut || 'Actif'}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">
                             {isArretMaladie && absence.type_arret_maladie ? (
                               <span className="px-2 py-1 inline-flex text-xs leading-5 font-medium rounded bg-blue-100 text-blue-800">
                                 {absence.type_arret_maladie}
                               </span>
                             ) : '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{absence.competence || '-'}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{absence.commentaire || '-'}</td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">{absence.competence || '-'}</td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-xs truncate hidden md:table-cell">{absence.commentaire || '-'}</td>
                         </tr>
                       )
                     })
@@ -352,7 +353,7 @@ export default function AbsencesPage() {
               })
             }}
           >
-            <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <Card className="max-w-3xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <CardHeader gradient="purple" className="mb-0">

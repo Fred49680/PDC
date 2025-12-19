@@ -108,7 +108,7 @@ export default function AlertesPage() {
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl shadow-xl p-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Alertes</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Alertes</h1>
               <p className="text-amber-100">
                 {alertesFiltrees.length} alerte(s) {filtrePriseEnCompte || filtreCourrierStatut ? 'filtrée(s)' : 'au total'}
               </p>
@@ -173,7 +173,7 @@ export default function AlertesPage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-gray-800 font-medium mb-2">{alerte.action}</p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600">
                         {alerte.site && (
                           <div className="flex items-center gap-2">
                             <Building2 className="w-4 h-4" />

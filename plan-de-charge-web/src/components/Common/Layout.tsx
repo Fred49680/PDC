@@ -47,10 +47,10 @@ export function Layout({ children }: LayoutProps) {
                 <BarChart3 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <div className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                <div className="text-lg sm:text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Plan de Charge
                 </div>
-                <div className="text-xs text-gray-500 font-medium">Gestion des ressources</div>
+                <div className="text-xs text-gray-500 font-medium hidden sm:block">Gestion des ressources</div>
               </div>
               </Link>
 

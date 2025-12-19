@@ -26,10 +26,10 @@ export default function ChargePage() {
             <BarChart3 className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Gestion de la Charge
             </h1>
-            <p className="text-gray-600 mt-1">Définissez les besoins en ressources par compétence</p>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">Définissez les besoins en ressources par compétence</p>
           </div>
         </div>
 
@@ -39,7 +39,7 @@ export default function ChargePage() {
             <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
             <h2 className="text-2xl font-bold text-gray-800">Paramètres de saisie</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">
                 Affaire ID

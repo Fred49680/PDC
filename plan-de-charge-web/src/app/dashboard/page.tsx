@@ -132,10 +132,10 @@ export default function DashboardPage() {
             <BarChart3 className="w-9 h-9 text-white" />
           </div>
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <p className="text-gray-600 mt-2 text-lg">Vue d'ensemble et statistiques en temps réel</p>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Vue d'ensemble et statistiques en temps réel</p>
           </div>
         </div>
 

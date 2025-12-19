@@ -408,18 +408,20 @@ export default function RessourcesPage() {
               <Users className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 Gestion des Ressources
               </h1>
               <p className="text-gray-600 mt-2 text-lg">Créez et gérez les ressources et leurs compétences</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" icon={<FileSpreadsheet className="w-5 h-5" />} onClick={() => setShowImport(!showImport)}>
-              {showImport ? 'Masquer import' : 'Importer Excel'}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <Button variant="secondary" icon={<FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />} onClick={() => setShowImport(!showImport)} className="text-xs sm:text-sm px-3 sm:px-4 py-2">
+              <span className="hidden sm:inline">{showImport ? 'Masquer import' : 'Importer Excel'}</span>
+              <span className="sm:hidden">Import</span>
             </Button>
-            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={handleNew} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
-              Nouvelle ressource
+            <Button variant="primary" icon={<Plus className="w-4 h-4 sm:w-5 sm:h-5" />} onClick={handleNew} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-xs sm:text-sm px-3 sm:px-4 py-2">
+              <span className="hidden sm:inline">Nouvelle ressource</span>
+              <span className="sm:hidden">Nouvelle</span>
             </Button>
           </div>
         </div>
@@ -444,7 +446,7 @@ export default function RessourcesPage() {
               {/* Boutons de catégories */}
               <button
                 onClick={() => setActiveCategoryTab('tous')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                   activeCategoryTab === 'tous'
                     ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -454,7 +456,7 @@ export default function RessourcesPage() {
               </button>
               <button
                 onClick={() => setActiveCategoryTab('CDI')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                   activeCategoryTab === 'CDI'
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -464,7 +466,7 @@ export default function RessourcesPage() {
               </button>
               <button
                 onClick={() => setActiveCategoryTab('Intérim')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                   activeCategoryTab === 'Intérim'
                     ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -474,7 +476,7 @@ export default function RessourcesPage() {
               </button>
               <button
                 onClick={() => setActiveCategoryTab('APP')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                   activeCategoryTab === 'APP'
                     ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -484,23 +486,24 @@ export default function RessourcesPage() {
               </button>
               <button
                 onClick={() => setActiveCategoryTab('Sous-traitance')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                   activeCategoryTab === 'Sous-traitance'
                     ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                Sous-traitance ({allRessources.filter(r => r.type_contrat === 'Sous-traitance').length})
+                <span className="hidden sm:inline">Sous-traitance</span>
+                <span className="sm:hidden">Sous-trait.</span> ({allRessources.filter(r => r.type_contrat === 'Sous-traitance').length})
               </button>
 
-              {/* Séparateur visuel */}
-              <div className="h-8 w-px bg-gray-300"></div>
+              {/* Séparateur visuel - masqué sur très petits écrans */}
+              <div className="hidden sm:block h-8 w-px bg-gray-300"></div>
 
               {/* Filtres */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium text-gray-600">Site:</span>
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-600">Site:</span>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -509,10 +512,10 @@ export default function RessourcesPage() {
                     value={filters.site}
                     onChange={(e) => setFilters({ ...filters, site: e.target.value })}
                     placeholder="Filtrer par site..."
-                    className="pl-8 pr-3 py-1.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 w-48"
+                    className="pl-8 pr-2 sm:pr-3 py-1.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 w-36 sm:w-48"
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <input
                     type="checkbox"
                     id="actifFilter"
@@ -521,7 +524,8 @@ export default function RessourcesPage() {
                     className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
                   />
                   <label htmlFor="actifFilter" className="text-xs text-gray-700 cursor-pointer whitespace-nowrap">
-                    Actives uniquement
+                    <span className="hidden sm:inline">Actives uniquement</span>
+                    <span className="sm:hidden">Actives</span>
                   </label>
                 </div>
               </div>
@@ -532,11 +536,11 @@ export default function RessourcesPage() {
         {/* Modal de création/modification */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <Card className="max-w-4xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <CardHeader gradient="green" className="mb-0">
-                    <h2 className="text-2xl font-bold text-gray-800">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
                       {isEditing ? 'Modifier la ressource' : 'Nouvelle ressource'}
                     </h2>
                   </CardHeader>
@@ -920,19 +924,19 @@ export default function RessourcesPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gradient-to-r from-green-50 to-emerald-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Nom
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">
                       Site
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Contrat
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">
                       Responsable
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
                       Actif
                     </th>
                   </tr>
@@ -940,7 +944,7 @@ export default function RessourcesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {ressources.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center">
+                      <td colSpan={5} className="px-3 py-8 sm:px-6 sm:py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Users className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune ressource trouvée</p>
@@ -954,25 +958,25 @@ export default function RessourcesPage() {
                         className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
                         onClick={() => handleRowClick(ressource)}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
                           {ressource.nom}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden sm:table-cell">
                           {ressource.site}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                           {ressource.type_contrat === 'ETT' ? 'Intérim' : (ressource.type_contrat || '-')}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden md:table-cell">
                           {ressource.responsable || '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap hidden lg:table-cell">
                           {ressource.actif ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            <span className="px-2 py-1 sm:px-3 sm:py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                               Active
                             </span>
                           ) : (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                            <span className="px-2 py-1 sm:px-3 sm:py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                               Inactive
                             </span>
                           )}

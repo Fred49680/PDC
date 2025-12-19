@@ -300,26 +300,30 @@ export default function AffairesPage() {
               <Building2 className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Gestion des Affaires
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">Créez et gérez les affaires et leurs sites</p>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Créez et gérez les affaires et leurs sites</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <Button
               variant="secondary"
-              icon={<FileSpreadsheet className="w-5 h-5" />}
+              icon={<FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />}
               onClick={() => setShowImport(!showImport)}
+              className="text-xs sm:text-sm px-3 sm:px-4 py-2"
             >
-              {showImport ? 'Masquer import' : 'Importer Excel'}
+              <span className="hidden sm:inline">{showImport ? 'Masquer import' : 'Importer Excel'}</span>
+              <span className="sm:hidden">Import</span>
             </Button>
             <Button
               variant="primary"
-              icon={<Plus className="w-5 h-5" />}
+              icon={<Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
               onClick={handleNew}
+              className="text-xs sm:text-sm px-3 sm:px-4 py-2"
             >
-              Nouvelle affaire
+              <span className="hidden sm:inline">Nouvelle affaire</span>
+              <span className="sm:hidden">Nouvelle</span>
             </Button>
           </div>
         </div>
@@ -352,7 +356,7 @@ export default function AffairesPage() {
             </div>
           </CardHeader>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Input
               label="Numéro de compte"
               value={numeroCompte}
@@ -417,15 +421,15 @@ export default function AffairesPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Site</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Responsable</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Libellé</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Tranche</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Compte</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RAF</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date maj RAF</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Site</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Responsable</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Libellé</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Tranche</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Compte</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Budget</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">RAF</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Date maj RAF</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -445,7 +449,7 @@ export default function AffairesPage() {
                         className="hover:bg-indigo-50/50 transition-colors duration-150"
                       >
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
                           onClick={() => handleCellEdit(affaire, 'site')}
                           title="Cliquez pour modifier"
                         >
@@ -471,7 +475,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden md:table-cell"
                           onClick={() => handleCellEdit(affaire, 'responsable')}
                           title="Cliquez pour modifier"
                         >
@@ -494,7 +498,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
                           onClick={() => handleCellEdit(affaire, 'libelle')}
                           title="Cliquez pour modifier"
                         >
@@ -517,7 +521,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden lg:table-cell"
                           onClick={() => handleCellEdit(affaire, 'tranche')}
                           title="Cliquez pour modifier"
                         >
@@ -543,7 +547,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden lg:table-cell"
                           onClick={() => handleCellEdit(affaire, 'compte')}
                           title="Cliquez pour modifier"
                         >
@@ -566,7 +570,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap hover:bg-indigo-100 transition-colors cursor-pointer"
                           onClick={() => handleCellEdit(affaire, 'statut')}
                           title="Cliquez pour modifier"
                         >
@@ -610,7 +614,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden sm:table-cell"
                           onClick={() => handleCellEdit(affaire, 'budget_heures')}
                           title="Cliquez pour modifier"
                         >
@@ -635,7 +639,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden sm:table-cell"
                           onClick={() => handleCellEdit(affaire, 'raf_heures')}
                           title="Cliquez pour modifier"
                         >
@@ -660,7 +664,7 @@ export default function AffairesPage() {
                         </td>
                         
                         <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden md:table-cell"
                           onClick={() => handleCellEdit(affaire, 'date_maj_raf')}
                           title="Cliquez pour modifier"
                         >
@@ -712,7 +716,7 @@ export default function AffairesPage() {
               })
             }}
           >
-            <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <Card className="max-w-3xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <CardHeader gradient="indigo" icon={<Plus className="w-6 h-6 text-indigo-600" />}>
                 <h2 className="text-2xl font-bold text-gray-800">Nouvelle affaire</h2>
               </CardHeader>
