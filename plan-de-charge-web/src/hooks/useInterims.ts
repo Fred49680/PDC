@@ -10,6 +10,7 @@ interface UseInterimsOptions {
   ressourceId?: string
   site?: string
   aRenouveler?: string
+  showArchived?: boolean
 }
 
 export function useInterims(options: UseInterimsOptions = {}) {
@@ -27,18 +28,15 @@ export function useInterims(options: UseInterimsOptions = {}) {
   const verifierEtMettreAJourRenouvellementsRef = useRef<(() => Promise<{ updated: number; alertsCreated: number; initialized: number }>) | null>(null)
   
   // Mémoriser les options pour éviter les recréations
-  const memoizedOptions = useMemo(() => options, [
-    options.ressourceId,
-    options.site,
-    options.aRenouveler,
-  ])
+  const memoizedOptions = useMemo(() => options, [options])
   
   // Créer une clé de cache pour les options
   const optionsKey = useMemo(() => 
     JSON.stringify({ 
       ressourceId: memoizedOptions.ressourceId || '', 
       site: memoizedOptions.site || '', 
-      aRenouveler: memoizedOptions.aRenouveler || '' 
+      aRenouveler: memoizedOptions.aRenouveler || '',
+      showArchived: memoizedOptions.showArchived || false
     }), 
     [memoizedOptions]
   )
@@ -97,6 +95,17 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       if (memoizedOptions.aRenouveler) {
         query = query.eq('a_renouveler', memoizedOptions.aRenouveler)
+      }
+
+      // Filtrer les archivés selon showArchived
+      if (memoizedOptions.showArchived === false) {
+        query = query.eq('archive_interim', false)
+      } else if (memoizedOptions.showArchived === true) {
+        // Si showArchived = true, on peut afficher tous ou seulement les archivés
+        // Pour l'instant, on affiche tous (pas de filtre)
+      } else {
+        // Par défaut, ne pas afficher les archivés
+        query = query.eq('archive_interim', false)
       }
 
       const { data, error: queryError } = await query
@@ -309,7 +318,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur verifierEtMettreAJourRenouvellements:', err)
       throw err
     }
-  }, [getSupabaseClient, createAlerte]) // Retirer loadInterims des dépendances pour éviter les boucles
+  }, [getSupabaseClient, createAlerte])
   
   // Mettre à jour la référence quand verifierEtMettreAJourRenouvellements change
   useEffect(() => {
@@ -586,7 +595,8 @@ export function useInterims(options: UseInterimsOptions = {}) {
   }, [getSupabaseClient, interims, supprimerAlertesRenouvellement]) // Retirer loadInterims et verifierEtMettreAJourRenouvellements pour éviter les boucles
 
   /**
-   * Supprime un intérim (réinitialise les colonnes d'intérim dans la ressource)
+   * Supprime ou archive un intérim selon le statut a_renouveler
+   * Si a_renouveler = "Non", archive l'intérim au lieu de le supprimer
    */
   const deleteInterim = useCallback(async (interimId: string) => {
     try {
@@ -594,26 +604,54 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       const supabase = getSupabaseClient()
 
-      // Réinitialiser les colonnes d'intérim (mais garder la ressource)
-      const { error: updateError } = await supabase
+      // Récupérer d'abord la ressource pour vérifier a_renouveler
+      const { data: ressource, error: fetchError } = await supabase
         .from('ressources')
-        .update({
-          a_renouveler: null,
-          date_mise_a_jour_interim: null,
-          commentaire_interim: null,
-        })
+        .select('a_renouveler')
         .eq('id', interimId)
+        .single()
 
-      if (updateError) throw updateError
+      if (fetchError) throw fetchError
 
-      // Recharger les intérims
-      await loadInterims(true)
+      // Si a_renouveler = "Non", archiver au lieu de supprimer
+      if (ressource?.a_renouveler === 'Non' || ressource?.a_renouveler === 'non') {
+        // Archiver l'intérim
+        const { error: updateError } = await supabase
+          .from('ressources')
+          .update({
+            archive_interim: true,
+            date_mise_a_jour_interim: new Date().toISOString(),
+          })
+          .eq('id', interimId)
+
+        if (updateError) throw updateError
+        console.log('[useInterims] Intérim archivé:', interimId)
+      } else {
+        // Sinon, réinitialiser les colonnes d'intérim (mais garder la ressource)
+        const { error: updateError } = await supabase
+          .from('ressources')
+          .update({
+            a_renouveler: null,
+            date_mise_a_jour_interim: null,
+            commentaire_interim: null,
+            archive_interim: false,
+          })
+          .eq('id', interimId)
+
+        if (updateError) throw updateError
+        console.log('[useInterims] Intérim supprimé:', interimId)
+      }
+
+      // Recharger les intérims (via ref pour éviter dépendance)
+      if (loadInterimsRef.current) {
+        await loadInterimsRef.current(true)
+      }
     } catch (err) {
       setError(err as Error)
       console.error('[useInterims] Erreur deleteInterim:', err)
       throw err
     }
-  }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
+  }, [getSupabaseClient])
 
   /**
    * Initialise les intérims depuis les ressources ETT
@@ -637,7 +675,10 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       if (!ressourcesETT || ressourcesETT.length === 0) {
         console.log('[useInterims] Aucune ressource ETT trouvée')
-        await loadInterims(true)
+        // Recharger les intérims (via ref pour éviter dépendance)
+        if (loadInterimsRef.current) {
+          await loadInterimsRef.current(true)
+        }
         return { created: 0, updated: 0 }
       }
 
@@ -698,7 +739,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
+  }, [getSupabaseClient])
 
   // Charger les intérims au montage et vérifier automatiquement les renouvellements
   // Utiliser optionsKey au lieu de loadInterims pour éviter les re-renders

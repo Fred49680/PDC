@@ -100,6 +100,7 @@ export default function RessourcesPage() {
   // ===== ÉTATS POUR LA GESTION DES INTÉRIMS (onglet Intérim) =====
   const [interimsFilters, setInterimsFilters] = useState({ site: '', aRenouveler: '' })
   const [interimsSearchTerm, setInterimsSearchTerm] = useState('')
+  const [showArchivedInterims, setShowArchivedInterims] = useState(false)
   const [isEditingInterim, setIsEditingInterim] = useState(false)
   const [showInterimModal, setShowInterimModal] = useState(false)
   const [interimFormData, setInterimFormData] = useState({
@@ -116,7 +117,8 @@ export default function RessourcesPage() {
   const interimsOptions = useMemo(() => ({
     site: interimsFilters.site || undefined,
     aRenouveler: interimsFilters.aRenouveler || undefined,
-  }), [interimsFilters.site, interimsFilters.aRenouveler])
+    showArchived: showArchivedInterims,
+  }), [interimsFilters.site, interimsFilters.aRenouveler, showArchivedInterims])
 
   // Mémoriser l'objet options final (avec condition activeCategoryTab)
   const finalInterimsOptions = useMemo(() => 
@@ -986,6 +988,8 @@ export default function RessourcesPage() {
             setFilters={setInterimsFilters}
             searchTerm={interimsSearchTerm}
             setSearchTerm={setInterimsSearchTerm}
+            showArchived={showArchivedInterims}
+            setShowArchived={setShowArchivedInterims}
             sitesList={sitesList}
             ressourcesETT={ressourcesETT}
             isEditing={isEditingInterim}
@@ -1150,6 +1154,8 @@ function InterimsManagement({
   setFilters,
   searchTerm,
   setSearchTerm,
+  showArchived,
+  setShowArchived,
   sitesList,
   ressourcesETT,
   isEditing,
@@ -1228,11 +1234,6 @@ function InterimsManagement({
       return
     }
     
-    if (!formData.site || formData.site.trim() === '') {
-      alert('Le site est requis')
-      return
-    }
-    
     if (!formData.date_debut_contrat || !formData.date_fin_contrat) {
       alert('Les dates de début et de fin sont requises')
       return
@@ -1246,10 +1247,34 @@ function InterimsManagement({
       return
     }
     
+    // Récupérer le site depuis la ressource sélectionnée si nécessaire
+    let siteToUse = formData.site.trim()
+    if (!siteToUse && formData.ressource_id) {
+      const selectedRessource = ressourcesETT.find(r => r.id === formData.ressource_id)
+      if (selectedRessource && selectedRessource.site) {
+        siteToUse = selectedRessource.site.trim()
+        // Normaliser le site
+        if (sitesList.length > 0) {
+          const matchingSite = sitesList.find(s => {
+            const siteFromList = s.site?.trim() || ''
+            return siteFromList.toLowerCase() === siteToUse.toLowerCase()
+          })
+          if (matchingSite) {
+            siteToUse = matchingSite.site.trim()
+          }
+        }
+      }
+    }
+    
+    if (!siteToUse) {
+      alert('Le site est requis. Veuillez sélectionner une ressource.')
+      return
+    }
+    
     try {
       if (isEditing) {
         await updateInterim(formData.id, {
-          site: formData.site.trim(),
+          site: siteToUse,
           date_debut_contrat: dateDebut,
           date_fin_contrat: dateFin,
           a_renouveler: formData.a_renouveler,
@@ -1258,7 +1283,7 @@ function InterimsManagement({
       } else {
         await createInterim({
           ressource_id: formData.ressource_id.trim(),
-          site: formData.site.trim(),
+          site: siteToUse,
           date_debut_contrat: dateDebut,
           date_fin_contrat: dateFin,
           a_renouveler: formData.a_renouveler,
@@ -1329,26 +1354,53 @@ function InterimsManagement({
     setShowModal(true)
   }
 
-  const handleDelete = async (interimId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet intérim ?')) {
-      try {
-        await deleteInterim(interimId)
-      } catch (err) {
-        console.error('[InterimsManagement] Erreur suppression:', err)
-        alert('Erreur lors de la suppression de l\'intérim')
+  const handleDelete = async (interimId: string, aRenouveler: string) => {
+    // Si a_renouveler = "Non", archiver au lieu de supprimer
+    if (aRenouveler === 'Non' || aRenouveler === 'non') {
+      if (confirm('Êtes-vous sûr de vouloir archiver cet intérim ?\n\nL\'intérim sera archivé et ne sera plus visible dans la liste principale.')) {
+        try {
+          await deleteInterim(interimId)
+        } catch (err) {
+          console.error('[InterimsManagement] Erreur archivage:', err)
+          alert('Erreur lors de l\'archivage de l\'intérim')
+        }
+      }
+    } else {
+      if (confirm('Êtes-vous sûr de vouloir supprimer cet intérim ?')) {
+        try {
+          await deleteInterim(interimId)
+        } catch (err) {
+          console.error('[InterimsManagement] Erreur suppression:', err)
+          alert('Erreur lors de la suppression de l\'intérim')
+        }
       }
     }
   }
 
   const handleRessourceChange = (selectedRessourceId: string) => {
-    const selectedRessource = ressourcesETT.find(r => r.id === selectedRessourceId)
-    if (selectedRessource) {
-      setFormData({
-        ...formData,
-        ressource_id: selectedRessourceId,
-        site: selectedRessource.site,
-      })
+    // Récupérer automatiquement le site depuis la ressource sélectionnée
+    let normalizedSite = ''
+    
+    if (selectedRessourceId) {
+      const selectedRessource = ressourcesETT.find(r => r.id === selectedRessourceId)
+      if (selectedRessource && selectedRessource.site) {
+        // Normaliser le site en cherchant dans sitesList
+        normalizedSite = selectedRessource.site.trim()
+        
+        if (sitesList.length > 0) {
+          const matchingSite = sitesList.find(s => {
+            const siteFromList = s.site?.trim() || ''
+            return siteFromList.toLowerCase() === normalizedSite.toLowerCase()
+          })
+          
+          if (matchingSite) {
+            normalizedSite = matchingSite.site.trim()
+          }
+        }
+      }
     }
+    
+    setFormData({ ...formData, ressource_id: selectedRessourceId, site: normalizedSite })
   }
 
   const getStatutColor = (aRenouveler: string): string => {
@@ -1521,7 +1573,18 @@ function InterimsManagement({
               ]}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <Button
+              onClick={() => setShowArchived(!showArchived)}
+              variant={showArchived ? "default" : "outline"}
+              className={showArchived 
+                ? "bg-orange-500 hover:bg-orange-600 text-white" 
+                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+              }
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              {showArchived ? 'Masquer archivés' : 'Afficher archivés'}
+            </Button>
             {interims.length === 0 && ressourcesETT.length > 0 && (
               <Button
                 onClick={handleInitialiserInterims}
@@ -1577,7 +1640,8 @@ function InterimsManagement({
             return (
               <div
                 key={interim.id}
-                className={`bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl transition-all duration-200 ${
+                onClick={() => handleEdit(interim)}
+                className={`bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl transition-all duration-200 cursor-pointer ${
                   estExpire ? 'border-red-300 bg-red-50/50' : 
                   expireBientot ? 'border-yellow-300 bg-yellow-50/50' : ''
                 }`}
@@ -1632,20 +1696,18 @@ function InterimsManagement({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(interim)}
-                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Modifier l'intérim"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(interim.id)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Supprimer l'intérim"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(interim.id, interim.a_renouveler || '')
+                        }}
+                        className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                        title="Archiver l'intérim"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1687,25 +1749,8 @@ function InterimsManagement({
                       .filter(r => r.type_contrat === 'ETT')
                       .map((ressource) => ({
                         value: ressource.id,
-                        label: `${ressource.nom} (${ressource.site})`,
+                        label: ressource.nom,
                       })),
-                  ]}
-                />
-              </div>
-
-              <div>
-                <Select
-                  label="Site *"
-                  value={formData.site}
-                  onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                  required
-                  className="w-full"
-                  options={[
-                    { value: '', label: 'Sélectionner un site' },
-                    ...sitesList.map((site) => ({
-                      value: site.site,
-                      label: site.site,
-                    })),
                   ]}
                 />
               </div>
