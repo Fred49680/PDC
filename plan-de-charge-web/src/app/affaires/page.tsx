@@ -35,7 +35,7 @@ export default function AffairesPage() {
   })
 
   const responsablesDisponibles = Array.from(
-    new Set(affairesActives.map((a) => a.responsable).filter(Boolean))
+    new Set(affairesActives.map((a) => a.responsable).filter((r): r is string => Boolean(r)))
   ).sort()
 
   const affairesFiltreesParResponsable = responsable
@@ -43,7 +43,7 @@ export default function AffairesPage() {
     : affairesActives
 
   const sitesDisponibles = Array.from(
-    new Set(affairesFiltreesParResponsable.map((a) => a.site).filter(Boolean))
+    new Set(affairesFiltreesParResponsable.map((a) => a.site).filter((s): s is string => Boolean(s)))
   ).sort()
 
   const affairesFiltreesParResponsableEtSite = site
