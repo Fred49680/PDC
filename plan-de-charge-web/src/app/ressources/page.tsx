@@ -501,27 +501,31 @@ export default function RessourcesPage() {
               <Filter className="w-5 h-5 text-green-600" />
               <h2 className="text-lg font-semibold text-gray-700">Filtres</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Site"
-                value={filters.site}
-                onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-                placeholder="Filtrer par site..."
-                icon={<Search className="w-4 h-4" />}
-              />
-              <div className="flex items-end gap-3">
-                <div className="flex items-center gap-3 h-full">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex-1 min-w-[180px]">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Site</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <input
-                    type="checkbox"
-                    id="actifFilter"
-                    checked={filters.actif}
-                    onChange={(e) => setFilters({ ...filters, actif: e.target.checked })}
-                    className="w-5 h-5 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
+                    type="text"
+                    value={filters.site}
+                    onChange={(e) => setFilters({ ...filters, site: e.target.value })}
+                    placeholder="Filtrer par site..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400"
                   />
-                  <label htmlFor="actifFilter" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                    Afficher uniquement les ressources actives
-                  </label>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="actifFilter"
+                  checked={filters.actif}
+                  onChange={(e) => setFilters({ ...filters, actif: e.target.checked })}
+                  className="w-4 h-4 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
+                />
+                <label htmlFor="actifFilter" className="text-xs text-gray-700 cursor-pointer whitespace-nowrap">
+                  Afficher uniquement les ressources actives
+                </label>
               </div>
             </div>
           </div>
