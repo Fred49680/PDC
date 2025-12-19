@@ -1652,18 +1652,17 @@ export default function Planning2({
       newDateFin = subDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
       // Navigation par mois : reculer de 1 mois
-      const dayOfWeek = dateDebut.getDay()
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      const weekStart = new Date(dateDebut)
-      weekStart.setDate(weekStart.getDate() - daysToMonday)
-      const monthStart = startOfMonth(weekStart)
-      newDateDebut = subMonths(monthStart, 1)
+      // Trouver le mois actuel à partir de dateDebut
+      const currentMonthStart = startOfMonth(dateDebut)
+      // Reculer de 1 mois
+      const previousMonthStart = subMonths(currentMonthStart, 1)
       // Trouver le lundi de la semaine contenant le début du mois précédent
-      const dayOfWeekNew = newDateDebut.getDay()
+      const dayOfWeekNew = previousMonthStart.getDay()
       const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+      newDateDebut = new Date(previousMonthStart)
       newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
-      // Calculer dateFin comme la fin du mois de newDateDebut (sans restriction d'année)
-      newDateFin = endOfMonth(newDateDebut)
+      // Calculer dateFin comme la fin du mois précédent (sans restriction d'année)
+      newDateFin = endOfMonth(previousMonthStart)
     } else if (precision === 'MOIS') {
       // Navigation par mois : reculer de 1 mois
       const monthStart = startOfMonth(dateDebut)
@@ -1693,18 +1692,17 @@ export default function Planning2({
       newDateFin = addDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
       // Navigation par mois : avancer de 1 mois
-      const dayOfWeek = dateDebut.getDay()
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      const weekStart = new Date(dateDebut)
-      weekStart.setDate(weekStart.getDate() - daysToMonday)
-      const monthStart = startOfMonth(weekStart)
-      newDateDebut = addMonths(monthStart, 1)
+      // Trouver le mois actuel à partir de dateDebut
+      const currentMonthStart = startOfMonth(dateDebut)
+      // Avancer de 1 mois
+      const nextMonthStart = addMonths(currentMonthStart, 1)
       // Trouver le lundi de la semaine contenant le début du mois suivant
-      const dayOfWeekNew = newDateDebut.getDay()
+      const dayOfWeekNew = nextMonthStart.getDay()
       const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+      newDateDebut = new Date(nextMonthStart)
       newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
-      // Calculer dateFin comme la fin du mois de newDateDebut (sans restriction d'année)
-      newDateFin = endOfMonth(newDateDebut)
+      // Calculer dateFin comme la fin du mois suivant (sans restriction d'année)
+      newDateFin = endOfMonth(nextMonthStart)
     } else if (precision === 'MOIS') {
       // Navigation par mois : avancer de 1 mois
       const monthStart = startOfMonth(dateDebut)
@@ -1967,11 +1965,16 @@ export default function Planning2({
                         // Ajuster dateFin selon la précision
                         let newDateFin: Date
                         if (precision === 'SEMAINE') {
-                          const weekStart = new Date(newDateDebut)
+                          // Pour SEMAINE, afficher 1 mois complet à partir du début du mois contenant newDateDebut
+                          const monthStart = startOfMonth(newDateDebut)
+                          const weekStart = new Date(monthStart)
                           const dayOfWeek = weekStart.getDay() || 7
                           const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
                           weekStart.setDate(weekStart.getDate() - daysToMonday)
-                          newDateFin = endOfMonth(weekStart)
+                          // Calculer la fin du mois (pas de la semaine)
+                          newDateFin = endOfMonth(monthStart)
+                          // Ajuster dateDebut pour commencer au lundi de la semaine contenant le début du mois
+                          setDateDebut(weekStart)
                         } else if (precision === 'MOIS') {
                           const monthStart = startOfMonth(newDateDebut)
                           newDateFin = endOfMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1))

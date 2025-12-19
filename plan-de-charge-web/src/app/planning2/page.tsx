@@ -69,10 +69,11 @@ export default function Planning2Page() {
   // Ajuster automatiquement la date de fin selon la précision (uniquement au changement de précision)
   useEffect(() => {
     if (precision === 'SEMAINE') {
-      // Pour SEMAINE, afficher 1 mois (environ 4-5 semaines)
-      const weekStart = startOfWeek(dateDebut, { weekStartsOn: 1 })
+      // Pour SEMAINE, afficher 1 mois complet à partir du début du mois contenant dateDebut
+      const monthStart = startOfMonth(dateDebut)
+      const weekStart = startOfWeek(monthStart, { weekStartsOn: 1 })
       // Calculer la fin du mois sans restriction d'année
-      const monthEnd = endOfMonth(weekStart)
+      const monthEnd = endOfMonth(monthStart)
       setDateDebut(weekStart)
       setDateFin(monthEnd)
     } else if (precision === 'MOIS') {
