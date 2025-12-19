@@ -775,7 +775,7 @@ export default function AffairesPage() {
                           )}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '-'}
+                          {affaire.total_planifie !== undefined && affaire.total_planifie !== null ? affaire.total_planifie.toFixed(2) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                           {affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}

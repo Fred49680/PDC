@@ -70,7 +70,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
           // Colonnes calculées automatiquement (remplies lors de l'enregistrement des charges)
           date_debut_demande: item.date_debut_demande ? new Date(item.date_debut_demande) : undefined,
           date_fin_demande: item.date_fin_demande ? new Date(item.date_fin_demande) : undefined,
-          total_planifie: item.total_planifie ? Number(item.total_planifie) : undefined,
+          total_planifie: item.total_planifie !== null && item.total_planifie !== undefined ? Number(item.total_planifie) : undefined,
         }))
       )
     } catch (err: any) {
@@ -261,7 +261,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
                 updated_by: newAffaire.updated_by,
                 date_debut_demande: newAffaire.date_debut_demande ? new Date(newAffaire.date_debut_demande) : undefined,
                 date_fin_demande: newAffaire.date_fin_demande ? new Date(newAffaire.date_fin_demande) : undefined,
-                total_planifie: newAffaire.total_planifie ? Number(newAffaire.total_planifie) : undefined,
+                total_planifie: newAffaire.total_planifie !== null && newAffaire.total_planifie !== undefined ? Number(newAffaire.total_planifie) : undefined,
               }
               return [...prev, transformed].sort((a, b) => {
                 const aId = a.affaire_id || ''
@@ -291,7 +291,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
                       updated_by: updatedAffaire.updated_by,
                       date_debut_demande: updatedAffaire.date_debut_demande ? new Date(updatedAffaire.date_debut_demande) : undefined,
                       date_fin_demande: updatedAffaire.date_fin_demande ? new Date(updatedAffaire.date_fin_demande) : undefined,
-                      total_planifie: updatedAffaire.total_planifie ? Number(updatedAffaire.total_planifie) : undefined,
+                      total_planifie: updatedAffaire.total_planifie !== null && updatedAffaire.total_planifie !== undefined ? Number(updatedAffaire.total_planifie) : undefined,
                     }
                   : a
               )
