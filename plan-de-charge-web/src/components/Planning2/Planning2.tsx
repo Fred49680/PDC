@@ -188,11 +188,14 @@ export default function Planning2({
   const [selectedCompetences, setSelectedCompetences] = useState<Set<string>>(new Set())
   const { addToast } = useToast()
   
-  // Synchroniser avec les props
+  // Synchroniser avec les props (uniquement si les props ont vraiment changé)
   useEffect(() => {
     if (propPrecision !== precision) setPrecision(propPrecision)
-    if (propDateDebut.getTime() !== dateDebut.getTime()) setDateDebut(propDateDebut)
-    if (propDateFin.getTime() !== dateFin.getTime()) setDateFin(propDateFin)
+    // Ne synchroniser les dates que si la différence est significative (> 1 jour) pour éviter les conflits avec la navigation
+    const dateDebutDiff = Math.abs(propDateDebut.getTime() - dateDebut.getTime())
+    const dateFinDiff = Math.abs(propDateFin.getTime() - dateFin.getTime())
+    if (dateDebutDiff > 24 * 60 * 60 * 1000) setDateDebut(propDateDebut) // Différence > 1 jour
+    if (dateFinDiff > 24 * 60 * 60 * 1000) setDateFin(propDateFin) // Différence > 1 jour
   }, [propPrecision, propDateDebut, propDateFin, precision, dateDebut, dateFin])
   
   // Chargement des données
@@ -1692,10 +1695,10 @@ export default function Planning2({
       newDateFin = addDays(dateFin, diffDays + 1)
     } else if (precision === 'SEMAINE') {
       // Navigation par mois : avancer de 1 mois
-      // Trouver le mois actuel à partir de dateDebut
-      const currentMonthStart = startOfMonth(dateDebut)
-      // Avancer de 1 mois
-      const nextMonthStart = addMonths(currentMonthStart, 1)
+      // Trouver le mois actuel à partir de dateFin (pour être sûr d'avancer depuis la fin actuelle)
+      const currentMonthEnd = endOfMonth(dateFin)
+      // Avancer de 1 mois à partir de la fin du mois actuel
+      const nextMonthStart = addMonths(startOfMonth(currentMonthEnd), 1)
       // Trouver le lundi de la semaine contenant le début du mois suivant
       const dayOfWeekNew = nextMonthStart.getDay()
       const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
@@ -1714,9 +1717,15 @@ export default function Planning2({
       newDateFin = addWeeks(dateFin, 1)
     }
     
+    // Vérifier que les dates sont valides avant de les appliquer
+    if (isNaN(newDateDebut.getTime()) || isNaN(newDateFin.getTime())) {
+      console.error('[handleNextPeriod] Dates invalides calculées', { newDateDebut, newDateFin })
+      return
+    }
+    
     setDateDebut(newDateDebut)
     setDateFin(newDateFin)
-    // Remonter les changements au parent
+    // Remonter les changements au parent (appeler AVANT setDate pour éviter les conflits)
     if (onDateDebutChange) onDateDebutChange(newDateDebut)
     if (onDateFinChange) onDateFinChange(newDateFin)
   }
