@@ -16,7 +16,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
   const [interims, setInterims] = useState<Interim[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const { createAlerte, deleteAlerte } = useAlertes()
+  const { createAlerte } = useAlertes()
 
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -67,7 +67,19 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.log('[useInterims] Données récupérées:', data?.length || 0, 'ressource(s) ETT')
 
       // Convertir les ressources ETT en format Interim
-      const interimsAvecDates = (data || []).map((ressource: any) => ({
+      const interimsAvecDates = (data || []).map((ressource: {
+        id: string
+        nom: string
+        site: string
+        date_debut_contrat: string | null
+        date_fin_contrat: string | null
+        a_renouveler: string | null
+        date_mise_a_jour_interim: string | null
+        commentaire_interim: string | null
+        actif: boolean | null
+        created_at: string | null
+        updated_at: string | null
+      }) => ({
         id: ressource.id, // L'id de l'intérim = l'id de la ressource
         ressource_id: ressource.id, // Pour compatibilité avec le type Interim
         site: ressource.site || '',
@@ -86,14 +98,14 @@ export function useInterims(options: UseInterimsOptions = {}) {
       })) as (Interim & { ressource: { id: string; nom: string; actif: boolean } | null })[]
 
       console.log('[useInterims] Intérims formatés:', interimsAvecDates.length)
-      setInterims(interimsAvecDates as any)
+      setInterims(interimsAvecDates)
     } catch (err) {
       setError(err as Error)
       console.error('[useInterims] Erreur:', err)
     } finally {
       setLoading(false)
     }
-  }, [options.ressourceId, options.site, options.aRenouveler, getSupabaseClient])
+  }, [options, getSupabaseClient])
 
   useEffect(() => {
     loadInterims()
@@ -295,7 +307,14 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       // Si ressource_id est fourni, mettre à jour la ressource existante
       if (interim.ressource_id) {
-        const updateData: any = {
+        const updateData: {
+          date_debut_contrat?: string
+          date_fin_contrat?: string
+          a_renouveler?: string
+          date_mise_a_jour_interim: string
+          commentaire_interim?: string | null
+          site?: string
+        } = {
           date_debut_contrat: interim.date_debut_contrat instanceof Date 
             ? interim.date_debut_contrat.toISOString().split('T')[0]
             : interim.date_debut_contrat,
@@ -359,7 +378,14 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       const supabase = getSupabaseClient()
 
-      const updateData: any = {
+      const updateData: {
+        date_mise_a_jour_interim: string
+        site?: string
+        date_debut_contrat?: string
+        date_fin_contrat?: string
+        a_renouveler?: string
+        commentaire_interim?: string | null
+      } = {
         date_mise_a_jour_interim: new Date().toISOString(),
       }
 
@@ -385,7 +411,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
         // Si le statut passe à "Oui" (renouvelé), supprimer les alertes
         if (updates.a_renouveler === 'Oui' || updates.a_renouveler === 'oui') {
           // Récupérer la ressource actuelle pour obtenir les informations nécessaires
-          const interim = interims.find((i: any) => i.id === interimId)
+          const interim = interims.find((i) => i.id === interimId)
           if (interim) {
             await supprimerAlertesRenouvellement(interim.ressource_id, interim.date_fin_contrat)
           } else {
