@@ -358,24 +358,25 @@ export default function InterimsPage() {
                 value={filters.site}
                 onChange={(e) => setFilters({ ...filters, site: e.target.value })}
                 className="w-full sm:w-48"
-              >
-                <option value="">Tous les sites</option>
-                {sitesList.map((site) => (
-                  <option key={site.id} value={site.site}>
-                    {site.site}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  { value: '', label: 'Tous les sites' },
+                  ...sitesList.map((site) => ({
+                    value: site.site,
+                    label: site.site,
+                  })),
+                ]}
+              />
               <Select
                 value={filters.aRenouveler}
                 onChange={(e) => setFilters({ ...filters, aRenouveler: e.target.value })}
                 className="w-full sm:w-48"
-              >
-                <option value="">Tous les statuts</option>
-                <option value="A renouveler">À renouveler</option>
-                <option value="Oui">Renouvelé</option>
-                <option value="Non">Non renouvelé</option>
-              </Select>
+                options={[
+                  { value: '', label: 'Tous les statuts' },
+                  { value: 'A renouveler', label: 'À renouveler' },
+                  { value: 'Oui', label: 'Renouvelé' },
+                  { value: 'Non', label: 'Non renouvelé' },
+                ]}
+              />
             </div>
             <div className="flex gap-2">
               <Button
@@ -522,43 +523,39 @@ export default function InterimsPage() {
 
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Ressource *
-                  </label>
                   <Select
+                    label="Ressource *"
                     value={formData.ressource_id}
                     onChange={(e) => handleRessourceChange(e.target.value)}
                     required
                     className="w-full"
-                  >
-                    <option value="">Sélectionner une ressource</option>
-                    {ressources
-                      .filter(r => r.type_contrat === 'ETT')
-                      .map((ressource) => (
-                        <option key={ressource.id} value={ressource.id}>
-                          {ressource.nom} ({ressource.site})
-                        </option>
-                      ))}
-                  </Select>
+                    options={[
+                      { value: '', label: 'Sélectionner une ressource' },
+                      ...ressources
+                        .filter(r => r.type_contrat === 'ETT')
+                        .map((ressource) => ({
+                          value: ressource.id,
+                          label: `${ressource.nom} (${ressource.site})`,
+                        })),
+                    ]}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Site *
-                  </label>
                   <Select
+                    label="Site *"
                     value={formData.site}
                     onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                     required
                     className="w-full"
-                  >
-                    <option value="">Sélectionner un site</option>
-                    {sitesList.map((site) => (
-                      <option key={site.id} value={site.site}>
-                        {site.site}
-                      </option>
-                    ))}
-                  </Select>
+                    options={[
+                      { value: '', label: 'Sélectionner un site' },
+                      ...sitesList.map((site) => ({
+                        value: site.site,
+                        label: site.site,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -590,18 +587,17 @@ export default function InterimsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Statut renouvellement
-                  </label>
                   <Select
+                    label="Statut renouvellement"
                     value={formData.a_renouveler}
                     onChange={(e) => setFormData({ ...formData, a_renouveler: e.target.value })}
                     className="w-full"
-                  >
-                    <option value="A renouveler">A renouveler</option>
-                    <option value="Oui">Oui</option>
-                    <option value="Non">Non</option>
-                  </Select>
+                    options={[
+                      { value: 'A renouveler', label: 'A renouveler' },
+                      { value: 'Oui', label: 'Oui' },
+                      { value: 'Non', label: 'Non' },
+                    ]}
+                  />
                 </div>
 
                 <div>
