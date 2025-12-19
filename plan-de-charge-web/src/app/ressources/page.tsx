@@ -1557,9 +1557,9 @@ function InterimsManagement({
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-4 flex-1">
-                    <div className={`px-3 py-1 rounded-lg border ${getStatutColor(interim.a_renouveler)}`}>
+                    <div className={`px-3 py-1 rounded-lg border ${getStatutColor(interim.a_renouveler || '')}`}>
                       <span className="text-xs font-semibold">
-                        {interim.a_renouveler || 'Non défini'}
+                        {interim.a_renouveler || 'En cours'}
                       </span>
                     </div>
                     <div className="flex-1">

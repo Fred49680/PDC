@@ -108,12 +108,19 @@ export function useInterims(options: UseInterimsOptions = {}) {
   }, [options, getSupabaseClient])
 
   useEffect(() => {
-    loadInterims()
-  }, [loadInterims])
+    loadInterims().then(() => {
+      // Vérifier automatiquement les renouvellements après chargement initial
+      // pour initialiser les statuts "Non défini"
+      verifierEtMettreAJourRenouvellements().catch(err => {
+        console.error('[useInterims] Erreur vérification automatique:', err)
+      })
+    })
+  }, [loadInterims, verifierEtMettreAJourRenouvellements])
 
   /**
    * Vérifie automatiquement les intérims et met à jour le statut "a_renouveler"
    * 10 jours ouvrés avant la date de fin
+   * Initialise aussi le statut pour les intérims qui n'ont pas encore de statut défini
    */
   const verifierEtMettreAJourRenouvellements = useCallback(async () => {
     try {
@@ -133,7 +140,18 @@ export function useInterims(options: UseInterimsOptions = {}) {
       const dateLimiteLarge = new Date(dateLimite)
       dateLimiteLarge.setDate(dateLimiteLarge.getDate() + 7) // Ajouter 7 jours calendaires
 
-      // Récupérer toutes les ressources ETT avec date_fin_contrat entre aujourd'hui et la date limite
+      // Récupérer TOUTES les ressources ETT avec date_fin_contrat (pas seulement celles proches)
+      // pour initialiser les statuts manquants
+      const { data: toutesRessourcesETT, error: queryErrorAll } = await supabase
+        .from('ressources')
+        .select('*')
+        .eq('type_contrat', 'ETT')
+        .not('date_fin_contrat', 'is', null)
+        .gte('date_fin_contrat', today.toISOString().split('T')[0])
+
+      if (queryErrorAll) throw queryErrorAll
+
+      // Récupérer aussi celles dans la fenêtre de renouvellement
       const { data: ressourcesETT, error: queryError } = await supabase
         .from('ressources')
         .select('*')
@@ -144,61 +162,100 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       if (queryError) throw queryError
 
-      if (!ressourcesETT || ressourcesETT.length === 0) {
-        return { updated: 0, alertsCreated: 0 }
-      }
-
       let updated = 0
       let alertsCreated = 0
+      let initialized = 0
 
-      for (const ressource of ressourcesETT) {
-        const dateFin = new Date(ressource.date_fin_contrat)
-        dateFin.setHours(0, 0, 0, 0)
+      // D'abord, initialiser les statuts manquants pour tous les intérims
+      if (toutesRessourcesETT && toutesRessourcesETT.length > 0) {
+        for (const ressource of toutesRessourcesETT) {
+          // Si le statut est NULL ou vide, l'initialiser selon la date de fin
+          if (!ressource.a_renouveler || ressource.a_renouveler.trim() === '') {
+            const dateFin = new Date(ressource.date_fin_contrat)
+            dateFin.setHours(0, 0, 0, 0)
+            const joursRestants = businessDaysBetween(today, dateFin)
 
-        // Calculer le nombre de jours ouvrés restants
-        const joursRestants = businessDaysBetween(today, dateFin)
+            let statutInitial = ''
+            if (joursRestants <= 10 && joursRestants >= 0) {
+              statutInitial = 'A renouveler'
+            } else if (joursRestants < 0) {
+              // Date passée mais pas encore désactivé
+              statutInitial = 'A renouveler'
+            } else {
+              // Plus de 10 jours, statut vide (sera mis à jour automatiquement plus tard)
+              statutInitial = ''
+            }
 
-        // Si on est dans les 10 jours ouvrés avant la fin ET que a_renouveler n'est pas déjà "A renouveler"
-        if (joursRestants <= 10 && joursRestants >= 0 && ressource.a_renouveler !== 'A renouveler') {
-          // Mettre à jour le statut directement dans ressources
-          const { error: updateError } = await supabase
-            .from('ressources')
-            .update({ 
-              a_renouveler: 'A renouveler',
-              date_mise_a_jour_interim: new Date().toISOString(),
-            })
-            .eq('id', ressource.id)
-
-          if (updateError) {
-            console.error(`[useInterims] Erreur mise à jour ressource ${ressource.id}:`, updateError)
-            continue
-          }
-
-          updated++
-
-          // Vérifier si une alerte existe déjà pour cette ressource
-          const { data: alertesExistantes } = await supabase
-            .from('alertes')
-            .select('id')
-            .eq('type_alerte', 'RENOUVELLEMENT_INTÉRIM')
-            .eq('ressource_id', ressource.id)
-            .eq('date_fin', ressource.date_fin_contrat)
-
-          // Créer l'alerte seulement si elle n'existe pas déjà
-          if (!alertesExistantes || alertesExistantes.length === 0) {
-            try {
-              await createAlerte({
-                type_alerte: 'RENOUVELLEMENT_INTÉRIM',
-                ressource_id: ressource.id,
-                site: ressource.site,
-                date_debut: dateFin,
-                date_fin: dateFin,
-                action: `Intérim de ${ressource.nom} à renouveler avant le ${dateFin.toLocaleDateString('fr-FR')} (${joursRestants} jour(s) ouvré(s) restant(s))`,
-                prise_en_compte: 'Non',
+            const { error: updateError } = await supabase
+              .from('ressources')
+              .update({ 
+                a_renouveler: statutInitial,
+                date_mise_a_jour_interim: new Date().toISOString(),
               })
-              alertsCreated++
-            } catch (alerteError) {
-              console.error(`[useInterims] Erreur création alerte pour ressource ${ressource.id}:`, alerteError)
+              .eq('id', ressource.id)
+
+            if (!updateError) {
+              initialized++
+              // Si on a mis "A renouveler", compter aussi comme updated
+              if (statutInitial === 'A renouveler') {
+                updated++
+              }
+            }
+          }
+        }
+      }
+
+      // Ensuite, traiter les intérims dans la fenêtre de renouvellement
+      if (ressourcesETT && ressourcesETT.length > 0) {
+        for (const ressource of ressourcesETT) {
+          const dateFin = new Date(ressource.date_fin_contrat)
+          dateFin.setHours(0, 0, 0, 0)
+
+          // Calculer le nombre de jours ouvrés restants
+          const joursRestants = businessDaysBetween(today, dateFin)
+
+          // Si on est dans les 10 jours ouvrés avant la fin ET que a_renouveler n'est pas déjà "A renouveler"
+          if (joursRestants <= 10 && joursRestants >= 0 && ressource.a_renouveler !== 'A renouveler') {
+            // Mettre à jour le statut directement dans ressources
+            const { error: updateError } = await supabase
+              .from('ressources')
+              .update({ 
+                a_renouveler: 'A renouveler',
+                date_mise_a_jour_interim: new Date().toISOString(),
+              })
+              .eq('id', ressource.id)
+
+            if (updateError) {
+              console.error(`[useInterims] Erreur mise à jour ressource ${ressource.id}:`, updateError)
+              continue
+            }
+
+            updated++
+
+            // Vérifier si une alerte existe déjà pour cette ressource
+            const { data: alertesExistantes } = await supabase
+              .from('alertes')
+              .select('id')
+              .eq('type_alerte', 'RENOUVELLEMENT_INTÉRIM')
+              .eq('ressource_id', ressource.id)
+              .eq('date_fin', ressource.date_fin_contrat)
+
+            // Créer l'alerte seulement si elle n'existe pas déjà
+            if (!alertesExistantes || alertesExistantes.length === 0) {
+              try {
+                await createAlerte({
+                  type_alerte: 'RENOUVELLEMENT_INTÉRIM',
+                  ressource_id: ressource.id,
+                  site: ressource.site,
+                  date_debut: dateFin,
+                  date_fin: dateFin,
+                  action: `Intérim de ${ressource.nom} à renouveler avant le ${dateFin.toLocaleDateString('fr-FR')} (${joursRestants} jour(s) ouvré(s) restant(s))`,
+                  prise_en_compte: 'Non',
+                })
+                alertsCreated++
+              } catch (alerteError) {
+                console.error(`[useInterims] Erreur création alerte pour ressource ${ressource.id}:`, alerteError)
+              }
             }
           }
         }
@@ -207,7 +264,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       // Recharger les intérims après mise à jour
       await loadInterims()
 
-      return { updated, alertsCreated }
+      return { updated, alertsCreated, initialized }
     } catch (err) {
       console.error('[useInterims] Erreur verifierEtMettreAJourRenouvellements:', err)
       throw err
@@ -528,14 +585,36 @@ export function useInterims(options: UseInterimsOptions = {}) {
       let nbMisesAJour = 0
 
       // Initialiser les colonnes d'intérim si elles sont vides
-      for (const ressource of ressourcesETT) {
-        const needsUpdate = !ressource.a_renouveler && !ressource.date_mise_a_jour_interim
+      // Calculer le statut initial selon la date de fin de contrat
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
 
-        if (needsUpdate) {
+      for (const ressource of ressourcesETT) {
+        const needsUpdate = !ressource.a_renouveler || ressource.a_renouveler.trim() === ''
+
+        if (needsUpdate && ressource.date_fin_contrat) {
+          const dateFin = new Date(ressource.date_fin_contrat)
+          dateFin.setHours(0, 0, 0, 0)
+          
+          // Calculer le nombre de jours ouvrés restants
+          const joursRestants = businessDaysBetween(today, dateFin)
+          
+          // Déterminer le statut initial
+          let statutInitial = ''
+          if (joursRestants <= 10 && joursRestants >= 0) {
+            statutInitial = 'A renouveler'
+          } else if (joursRestants < 0) {
+            // Date passée
+            statutInitial = 'A renouveler'
+          } else {
+            // Plus de 10 jours, laisser vide (sera mis à jour automatiquement plus tard)
+            statutInitial = ''
+          }
+
           const { error: updateError } = await supabase
             .from('ressources')
             .update({
-              a_renouveler: '',
+              a_renouveler: statutInitial,
               date_mise_a_jour_interim: new Date().toISOString(),
               commentaire_interim: `Initialisé depuis la ressource ${ressource.nom}`,
             })
