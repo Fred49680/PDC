@@ -46,6 +46,26 @@ export default function RessourcesPage() {
   // Charger les sites pour le select
   const { sites: sitesList, loading: sitesLoading } = useSites(sitesOptions)
 
+  // Normaliser la valeur du site dans formData une fois que les sites sont chargés
+  useEffect(() => {
+    if (!sitesLoading && sitesList.length > 0 && formData.site && isEditing) {
+      // Vérifier si la valeur du site correspond exactement à une des options
+      const siteValues = sitesList.map(s => s.site?.trim() || '')
+      const currentSite = formData.site.trim()
+      
+      // Si la valeur n'est pas dans la liste, chercher une correspondance (insensible à la casse)
+      if (!siteValues.includes(currentSite)) {
+        const matchingSite = sitesList.find(s => s.site?.trim().toLowerCase() === currentSite.toLowerCase())
+        if (matchingSite) {
+          setFormData(prev => ({ ...prev, site: matchingSite.site.trim() }))
+        }
+      } else if (formData.site !== currentSite) {
+        // Normaliser en enlevant les espaces si nécessaire
+        setFormData(prev => ({ ...prev, site: currentSite }))
+      }
+    }
+  }, [sitesLoading, sitesList, isEditing])
+
   const [formData, setFormData] = useState({
     id: '',
     nom: '',
@@ -148,7 +168,7 @@ export default function RessourcesPage() {
     setFormData({
       id: ressource.id,
       nom: ressource.nom,
-      site: ressource.site,
+      site: ressource.site ? ressource.site.trim() : '',
       type_contrat: ressource.type_contrat === 'ETT' ? 'ETT' : (ressource.type_contrat || ''),
       responsable: ressource.responsable || '',
       date_debut_contrat: ressource.date_debut_contrat
@@ -177,7 +197,7 @@ export default function RessourcesPage() {
     setFormData({
       id: ressource.id,
       nom: ressource.nom,
-      site: ressource.site,
+      site: ressource.site ? ressource.site.trim() : '',
       type_contrat: ressource.type_contrat === 'ETT' ? 'ETT' : (ressource.type_contrat || ''),
       responsable: ressource.responsable || '',
       date_debut_contrat: ressource.date_debut_contrat
@@ -591,7 +611,7 @@ export default function RessourcesPage() {
                     disabled={sitesLoading}
                     options={[
                       { value: '', label: 'Sélectionner un site...' },
-                      ...sitesList.map((site) => ({ value: site.site, label: site.site }))
+                      ...sitesList.map((site) => ({ value: site.site?.trim() || '', label: site.site?.trim() || '' }))
                     ]}
                   />
                 </div>
