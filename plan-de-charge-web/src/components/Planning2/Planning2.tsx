@@ -547,13 +547,17 @@ export default function Planning2({
     competence: string
     dateDebut: Date | null
     dateFinInput: string
+    dateFin: Date | null
     nbRessourcesInput: string
+    isGenerating: boolean
   }>({
     isOpen: false,
     competence: '',
     dateDebut: null,
     dateFinInput: '',
-    nbRessourcesInput: '1'
+    dateFin: null,
+    nbRessourcesInput: '1',
+    isGenerating: false
   })
 
   const pendingChargeMasseResolver = useRef<((value: { dateFin: Date; nbRessources: number } | null) => void) | null>(null)
@@ -564,34 +568,41 @@ export default function Planning2({
   ): Promise<{ dateFin: Date; nbRessources: number } | null> => {
     return new Promise((resolve) => {
       pendingChargeMasseResolver.current = resolve
+      // Initialiser avec dateFin par défaut (dateFin globale ou dateDebut + 7 jours)
+      const defaultDateFin = dateFin > dateDebut ? dateFin : new Date(dateDebut.getTime() + 7 * 24 * 60 * 60 * 1000)
       setChargeMasseModal({
         isOpen: true,
         competence,
         dateDebut,
-        dateFinInput: dateFin.toLocaleDateString('fr-FR'),
-        nbRessourcesInput: '1'
+        dateFinInput: defaultDateFin.toISOString().split('T')[0], // Format YYYY-MM-DD pour input date
+        dateFin: defaultDateFin,
+        nbRessourcesInput: '1',
+        isGenerating: false
       })
     })
   }, [dateFin])
 
   const handleChargeMasseModalConfirm = useCallback(() => {
-    if (!chargeMasseModal.dateDebut) {
-      if (pendingChargeMasseResolver.current) {
-        pendingChargeMasseResolver.current(null)
-        pendingChargeMasseResolver.current = null
+    if (!chargeMasseModal.dateDebut || chargeMasseModal.isGenerating) {
+      return
+    }
+
+    // Parser la date de fin depuis l'input date (format YYYY-MM-DD)
+    let dateFin: Date
+    if (chargeMasseModal.dateFin) {
+      dateFin = chargeMasseModal.dateFin
+    } else if (chargeMasseModal.dateFinInput) {
+      // Si format YYYY-MM-DD (input date)
+      dateFin = normalizeDateToUTC(new Date(chargeMasseModal.dateFinInput + 'T00:00:00'))
+    } else {
+      // Fallback : parser format JJ/MM/AAAA
+      const [jour, mois, annee] = chargeMasseModal.dateFinInput.split('/').map(Number)
+      if (!jour || !mois || !annee || isNaN(jour) || isNaN(mois) || isNaN(annee)) {
+        addToast('Format de date invalide. Utilisez le calendrier ou JJ/MM/AAAA', 'error', 5000)
+        return
       }
-      setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
-      return
+      dateFin = normalizeDateToUTC(new Date(annee, mois - 1, jour))
     }
-
-    // Parser la date de fin
-    const [jour, mois, annee] = chargeMasseModal.dateFinInput.split('/').map(Number)
-    if (!jour || !mois || !annee || isNaN(jour) || isNaN(mois) || isNaN(annee)) {
-      addToast('Format de date invalide. Utilisez JJ/MM/AAAA', 'error', 5000)
-      return
-    }
-
-    const dateFin = normalizeDateToUTC(new Date(annee, mois - 1, jour))
     
     if (dateFin < chargeMasseModal.dateDebut) {
       addToast('La date de fin doit être postérieure à la date de début', 'error', 5000)
@@ -605,23 +616,33 @@ export default function Planning2({
       return
     }
 
+    // Ne pas fermer le modal ici - il sera fermé après la génération réussie
+    // Juste résoudre la promesse pour déclencher handleChargeMasse
     if (pendingChargeMasseResolver.current) {
       pendingChargeMasseResolver.current({ dateFin, nbRessources })
       pendingChargeMasseResolver.current = null
     }
-    setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
+    // Le modal reste ouvert avec isGenerating = true pendant la génération
   }, [chargeMasseModal, addToast])
 
   const handleChargeMasseModalCancel = useCallback(() => {
+    if (chargeMasseModal.isGenerating) {
+      return // Empêcher la fermeture pendant la génération
+    }
     if (pendingChargeMasseResolver.current) {
       pendingChargeMasseResolver.current(null)
       pendingChargeMasseResolver.current = null
     }
-    setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
-  }, [])
+    setChargeMasseModal(prev => ({ ...prev, isOpen: false, isGenerating: false }))
+  }, [chargeMasseModal.isGenerating])
 
   // Handlers
   const handleChargeChange = useCallback(async (competence: string, colIndex: number, value: number) => {
+    // Désactiver l'enregistrement automatique pendant la génération de masse
+    if (chargeMasseModal.isGenerating) {
+      return
+    }
+    
     const col = colonnes[colIndex]
     if (!col) return
 
@@ -722,7 +743,7 @@ export default function Planning2({
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, colonnes, confirmAsync])
+  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, colonnes, confirmAsync, chargeMasseModal.isGenerating])
 
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, colIndex: number, checked: boolean) => {
     const col = colonnes[colIndex]
@@ -1018,23 +1039,35 @@ export default function Planning2({
       
       if (!confirme) return
 
-      // Désactiver temporairement l'auto-refresh pour éviter les scintillements pendant le batch
+      // Désactiver temporairement l'auto-refresh et l'enregistrement auto pour éviter les scintillements
       const autoRefreshAvant = autoRefresh
       setAutoRefresh(false)
+      
+      // Marquer le modal comme en cours de génération pour éviter les interactions
+      // Le modal reste ouvert pendant la génération pour montrer la progression
+      setChargeMasseModal(prev => ({ ...prev, isGenerating: true }))
 
       try {
-        // Enregistrer toutes les périodes d'un coup (batch)
+        // Enregistrer toutes les périodes d'un coup (batch) sans re-render intermédiaire
         let nbPeriodesCreees = 0
-        for (const periode of periodesACreer) {
-          try {
-            await savePeriode(periode)
-            nbPeriodesCreees++
-          } catch (err) {
-            console.error(`[Planning2] Erreur création période ${periode.date_debut.toLocaleDateString('fr-FR')}:`, err)
-          }
+        const batchSize = 20 // Traiter par lots plus grands pour être plus rapide
+        
+        // Traitement par lots avec feedback visuel
+        for (let i = 0; i < periodesACreer.length; i += batchSize) {
+          const batch = periodesACreer.slice(i, i + batchSize)
+          await Promise.all(
+            batch.map(async (periode) => {
+              try {
+                await savePeriode(periode)
+                nbPeriodesCreees++
+              } catch (err) {
+                console.error(`[Planning2] Erreur création période ${periode.date_debut.toLocaleDateString('fr-FR')}:`, err)
+              }
+            })
+          )
         }
         
-        // Recharger les données après toutes les créations (refresh unique)
+        // Recharger les données UNE SEULE FOIS après toutes les créations (refresh unique)
         if (nbPeriodesCreees > 0) {
           // Recharger les périodes
           await refreshCharge()
@@ -1045,11 +1078,27 @@ export default function Planning2({
           }
         }
 
+        // Afficher le message de succès
         addToast(
           `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s)`,
           'success',
           5000
         )
+        
+        // Fermer le modal après succès
+        if (pendingChargeMasseResolver.current) {
+          pendingChargeMasseResolver.current({ dateFin: dateFinMasse, nbRessources })
+          pendingChargeMasseResolver.current = null
+        }
+        setChargeMasseModal(prev => ({ ...prev, isOpen: false, isGenerating: false }))
+      } catch (err) {
+        console.error('[Planning2] Erreur lors de la génération de masse:', err)
+        addToast(
+          'Erreur lors de la création des périodes. Veuillez réessayer.',
+          'error',
+          5000
+        )
+        setChargeMasseModal(prev => ({ ...prev, isGenerating: false }))
       } finally {
         // Réactiver l'auto-refresh à son état précédent
         setAutoRefresh(autoRefreshAvant)
@@ -1845,7 +1894,8 @@ export default function Planning2({
           {/* Overlay avec backdrop blur */}
           <div 
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={handleChargeMasseModalCancel}
+            onClick={chargeMasseModal.isGenerating ? undefined : handleChargeMasseModalCancel}
+            style={{ cursor: chargeMasseModal.isGenerating ? 'not-allowed' : 'pointer' }}
           />
           
           {/* Modal */}
@@ -1870,24 +1920,38 @@ export default function Planning2({
 
             {/* Champs de saisie */}
             <div className="space-y-4 mb-6">
-              {/* Date de fin */}
+              {/* Date de fin avec calendrier */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date de fin <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={chargeMasseModal.dateFinInput}
-                  onChange={(e) => setChargeMasseModal(prev => ({ ...prev, dateFinInput: e.target.value }))}
-                  placeholder="JJ/MM/AAAA"
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleChargeMasseModalConfirm()
-                    }
-                  }}
-                />
-                <p className="text-xs text-gray-500 mt-1">Format : JJ/MM/AAAA (ex: 15/03/2026)</p>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={chargeMasseModal.dateFinInput}
+                    onChange={(e) => {
+                      const newDate = e.target.value ? new Date(e.target.value + 'T00:00:00') : null
+                      setChargeMasseModal(prev => ({ 
+                        ...prev, 
+                        dateFinInput: e.target.value,
+                        dateFin: newDate
+                      }))
+                    }}
+                    min={chargeMasseModal.dateDebut ? chargeMasseModal.dateDebut.toISOString().split('T')[0] : undefined}
+                    max={dateFin.toISOString().split('T')[0]}
+                    disabled={chargeMasseModal.isGenerating}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !chargeMasseModal.isGenerating) {
+                        handleChargeMasseModalConfirm()
+                      }
+                    }}
+                  />
+                  <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Cliquez sur l'icône calendrier ou utilisez le format YYYY-MM-DD
+                </p>
               </div>
 
               {/* Nombre de ressources */}
@@ -1901,30 +1965,48 @@ export default function Planning2({
                   value={chargeMasseModal.nbRessourcesInput}
                   onChange={(e) => setChargeMasseModal(prev => ({ ...prev, nbRessourcesInput: e.target.value }))}
                   placeholder="1"
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  disabled={chargeMasseModal.isGenerating}
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !chargeMasseModal.isGenerating) {
                       handleChargeMasseModalConfirm()
                     }
                   }}
                 />
                 <p className="text-xs text-gray-500 mt-1">Uniquement jours ouvrés (lundi-vendredi, hors fériés)</p>
               </div>
+              
+              {/* Indicateur de génération */}
+              {chargeMasseModal.isGenerating && (
+                <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Génération en cours... Veuillez patienter</span>
+                </div>
+              )}
             </div>
 
             {/* Boutons */}
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={handleChargeMasseModalCancel}
-                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 hover:shadow-md"
+                disabled={chargeMasseModal.isGenerating}
+                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Annuler
               </button>
               <button
                 onClick={handleChargeMasseModalConfirm}
-                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm text-white bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-lg hover:shadow-xl"
+                disabled={chargeMasseModal.isGenerating}
+                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm text-white bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Créer
+                {chargeMasseModal.isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Génération...
+                  </>
+                ) : (
+                  'Créer'
+                )}
               </button>
             </div>
           </div>

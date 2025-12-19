@@ -50,6 +50,16 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Filtrer les requêtes non supportées (chrome-extension, chrome:, etc.)
+  const url = new URL(event.request.url)
+  if (url.protocol === 'chrome-extension:' || 
+      url.protocol === 'chrome:' || 
+      url.protocol === 'moz-extension:' ||
+      url.protocol === 'edge:' ||
+      !url.protocol.startsWith('http')) {
+    return // Ignorer ces requêtes
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -61,8 +71,14 @@ self.addEventListener('fetch', (event) => {
         // Cloner la réponse
         const responseToCache = response.clone()
 
+        // Mettre en cache seulement les requêtes HTTP/HTTPS valides
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache)
+          try {
+            cache.put(event.request, responseToCache)
+          } catch (err) {
+            // Ignorer les erreurs de cache (ex: chrome-extension)
+            console.warn('[SW] Erreur mise en cache (ignorée):', err.message)
+          }
         })
 
         return response
