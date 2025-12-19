@@ -540,25 +540,6 @@ export default function Planning2({
     []
   )
 
-  const showAlert = useCallback(
-    (
-      title: string,
-      message: string,
-      type: 'error' | 'info' = 'error'
-    ) => {
-      setConfirmDialog({
-        isOpen: true,
-        title,
-        message,
-        onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
-        onCancel: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
-        confirmText: 'Compris',
-        cancelText: '',
-        type
-      })
-    },
-    []
-  )
 
   // Modal de charge de masse
   const [chargeMasseModal, setChargeMasseModal] = useState<{
@@ -606,21 +587,21 @@ export default function Planning2({
     // Parser la date de fin
     const [jour, mois, annee] = chargeMasseModal.dateFinInput.split('/').map(Number)
     if (!jour || !mois || !annee || isNaN(jour) || isNaN(mois) || isNaN(annee)) {
-      showAlert('Erreur', 'Format de date invalide. Utilisez JJ/MM/AAAA', 'error')
+      addToast('Format de date invalide. Utilisez JJ/MM/AAAA', 'error', 5000)
       return
     }
 
     const dateFin = normalizeDateToUTC(new Date(annee, mois - 1, jour))
     
     if (dateFin < chargeMasseModal.dateDebut) {
-      showAlert('Erreur', 'La date de fin doit être postérieure à la date de début', 'error')
+      addToast('La date de fin doit être postérieure à la date de début', 'error', 5000)
       return
     }
 
     // Parser le nombre de ressources
     const nbRessources = parseInt(chargeMasseModal.nbRessourcesInput, 10)
     if (isNaN(nbRessources) || nbRessources < 0) {
-      showAlert('Erreur', 'Le nombre de ressources doit être un nombre positif', 'error')
+      addToast('Le nombre de ressources doit être un nombre positif', 'error', 5000)
       return
     }
 
@@ -629,7 +610,7 @@ export default function Planning2({
       pendingChargeMasseResolver.current = null
     }
     setChargeMasseModal(prev => ({ ...prev, isOpen: false }))
-  }, [chargeMasseModal, showAlert])
+  }, [chargeMasseModal, addToast])
 
   const handleChargeMasseModalCancel = useCallback(() => {
     if (pendingChargeMasseResolver.current) {
@@ -809,10 +790,10 @@ export default function Planning2({
             ? absenceConflit.date_fin
             : new Date(absenceConflit.date_fin)
           
-          showAlert(
-            'Affectation impossible',
+          addToast(
             `Impossible d'affecter : la ressource est absente (${absenceConflit.type}) du ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`,
-            'error'
+            'error',
+            5000
           )
           return
         }
@@ -842,10 +823,10 @@ export default function Planning2({
             )
           })
           
-          showAlert(
-            'Affectation impossible',
-            `Impossible d'affecter : la ressource est déjà affectée sur cette période :\n\n${details.join('\n')}\n\nUne ressource ne peut pas être affectée à plusieurs affaires en même temps.`,
-            'error'
+          addToast(
+            `Impossible d'affecter : la ressource est déjà affectée sur cette période. Une ressource ne peut pas être affectée à plusieurs affaires en même temps.`,
+            'error',
+            5000
           )
           return
         }
@@ -881,7 +862,7 @@ export default function Planning2({
     } catch (err) {
       console.error('[Planning2] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, showAlert, autoRefresh])
+  }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, addToast, autoRefresh])
 
   // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
@@ -1020,10 +1001,10 @@ export default function Planning2({
       }
 
       if (periodesACreer.length === 0) {
-        showAlert(
-          'Information',
+        addToast(
           'Aucune période de jours ouvrés trouvée entre ces dates.',
-          'info'
+          'info',
+          5000
         )
         return
       }
@@ -1169,10 +1150,10 @@ export default function Planning2({
       })
 
       if (affectationsACreer.length === 0) {
-        showAlert(
-          'Information',
+        addToast(
           'Aucune période de jours ouvrés avec besoin disponible pour cette ressource.',
-          'info'
+          'info',
+          5000
         )
         return
       }
@@ -1252,10 +1233,10 @@ export default function Planning2({
         }
 
         if (affectationsValides.length === 0) {
-          showAlert(
-            'Information',
+          addToast(
             'Aucune affectation valide (toutes bloquées par absences ou conflits).',
-            'info'
+            'info',
+            5000
           )
           return
         }

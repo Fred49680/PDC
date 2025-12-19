@@ -281,11 +281,6 @@ export default function Planning2Page() {
             dateDebut={dateDebut}
             dateFin={dateFin}
             precision={precision}
-            affaires={affairesActives}
-            onDateChange={(newDateDebut, newDateFin) => {
-              setDateDebut(newDateDebut)
-              setDateFin(newDateFin)
-            }}
             onPrecisionChange={(newPrecision) => {
               setPrecision(newPrecision)
             }}
