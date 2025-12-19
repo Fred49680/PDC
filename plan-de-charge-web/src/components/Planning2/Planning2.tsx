@@ -716,8 +716,108 @@ export default function Planning2({
         )
         
         if (nbRessources === 0 && periodeExistante) {
-          await deletePeriode(periodeExistante.id)
+          // En mode JOUR, découper la période au lieu de la supprimer entièrement
+          if (precision === 'JOUR') {
+            const pDateDebut = normalizeDateToUTC(new Date(periodeExistante.date_debut))
+            const pDateFin = normalizeDateToUTC(new Date(periodeExistante.date_fin))
+            
+            // Si la période ne couvre qu'un seul jour, la supprimer complètement
+            if (pDateDebut.getTime() === pDateFin.getTime() && 
+                pDateDebut.getTime() === dateDebutPeriode.getTime()) {
+              await deletePeriode(periodeExistante.id)
+            } else {
+              // Découper la période : recréer toutes les périodes pour tous les jours SAUF celui à supprimer
+              // Supprimer la période existante
+              await deletePeriode(periodeExistante.id)
+              
+              // Recréer des périodes pour tous les jours de l'ancienne période SAUF le jour à supprimer
+              const currentDate = new Date(pDateDebut)
+              while (currentDate <= pDateFin) {
+                const currentDateUTC = normalizeDateToUTC(currentDate)
+                
+                // Ignorer le jour à supprimer
+                if (currentDateUTC.getTime() !== dateDebutPeriode.getTime()) {
+                  // Si force_weekend_ferie était activé, recréer tous les jours (y compris week-ends/fériés)
+                  // Sinon, recréer seulement les jours ouvrés
+                  if (isBusinessDay(currentDate) || periodeExistante.force_weekend_ferie) {
+                    await savePeriode({
+                      competence,
+                      date_debut: currentDateUTC,
+                      date_fin: currentDateUTC,
+                      nb_ressources: periodeExistante.nb_ressources,
+                      force_weekend_ferie: periodeExistante.force_weekend_ferie || false
+                    })
+                  }
+                }
+                
+                currentDate.setDate(currentDate.getDate() + 1)
+              }
+              
+              // Consolider après découpage pour regrouper les jours consécutifs
+              if (autoRefresh) {
+                setTimeout(() => {
+                  consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
+                }, 1000)
+              }
+            }
+          } else {
+            // Pour SEMAINE/MOIS, supprimer la période entière
+            await deletePeriode(periodeExistante.id)
+          }
         } else if (nbRessources > 0) {
+          // En mode JOUR, si on modifie une journée dans une période multi-jours, découper d'abord
+          if (precision === 'JOUR' && periodeExistante) {
+            const pDateDebut = normalizeDateToUTC(new Date(periodeExistante.date_debut))
+            const pDateFin = normalizeDateToUTC(new Date(periodeExistante.date_fin))
+            
+            // Si la période couvre plusieurs jours et qu'on modifie un jour spécifique
+            if (pDateDebut.getTime() !== pDateFin.getTime()) {
+              // Découper la période : supprimer l'ancienne et créer des périodes pour chaque jour
+              await deletePeriode(periodeExistante.id)
+              
+              // Recréer les périodes pour tous les jours de l'ancienne période
+              const currentDate = new Date(pDateDebut)
+              while (currentDate <= pDateFin) {
+                const currentDateUTC = normalizeDateToUTC(currentDate)
+                
+                if (currentDateUTC.getTime() === dateDebutPeriode.getTime()) {
+                  // Jour modifié : créer avec la nouvelle valeur
+                  await savePeriode({
+                    competence,
+                    date_debut: currentDateUTC,
+                    date_fin: currentDateUTC,
+                    nb_ressources: nbRessources,
+                    force_weekend_ferie: forceWeekendFerie
+                  })
+                } else {
+                  // Autres jours : recréer avec l'ancienne valeur
+                  // Si force_weekend_ferie était activé, recréer tous les jours (y compris week-ends/fériés)
+                  // Sinon, recréer seulement les jours ouvrés
+                  if (isBusinessDay(currentDate) || periodeExistante.force_weekend_ferie) {
+                    await savePeriode({
+                      competence,
+                      date_debut: currentDateUTC,
+                      date_fin: currentDateUTC,
+                      nb_ressources: periodeExistante.nb_ressources,
+                      force_weekend_ferie: periodeExistante.force_weekend_ferie || false
+                    })
+                  }
+                }
+                
+                currentDate.setDate(currentDate.getDate() + 1)
+              }
+              
+              // Consolider après découpage
+              if (autoRefresh) {
+                setTimeout(() => {
+                  consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
+                }, 1000)
+              }
+              return // Sortir car on a déjà géré la création
+            }
+          }
+          
+          // Cas normal : créer/mettre à jour la période
           await savePeriode({
             id: periodeExistante?.id,
             competence,
@@ -875,6 +975,7 @@ export default function Planning2({
           }, 1000)
         }
       } else {
+        // Décocher : supprimer l'affectation pour cette période
         const affectationASupprimer = affectations.find(a => {
           const aDateDebut = normalizeDateToUTC(new Date(a.date_debut))
           const aDateFin = normalizeDateToUTC(new Date(a.date_fin))
@@ -885,7 +986,54 @@ export default function Planning2({
         })
         
         if (affectationASupprimer?.id) {
-          await deleteAffectation(affectationASupprimer.id)
+          // En mode JOUR, découper la période au lieu de la supprimer entièrement
+          if (precision === 'JOUR') {
+            const aDateDebut = normalizeDateToUTC(new Date(affectationASupprimer.date_debut))
+            const aDateFin = normalizeDateToUTC(new Date(affectationASupprimer.date_fin))
+            
+            // Si la période ne couvre qu'un seul jour, la supprimer complètement
+            if (aDateDebut.getTime() === aDateFin.getTime() && 
+                aDateDebut.getTime() === dateDebutAffectation.getTime()) {
+              await deleteAffectation(affectationASupprimer.id)
+            } else {
+              // Découper la période : créer des affectations pour les jours avant et après
+              // Supprimer la période existante
+              await deleteAffectation(affectationASupprimer.id)
+              
+              // Créer des affectations pour tous les jours de l'ancienne période sauf celui à supprimer
+              const currentDate = new Date(aDateDebut)
+              while (currentDate <= aDateFin) {
+                const currentDateUTC = normalizeDateToUTC(currentDate)
+                
+                // Ignorer le jour à supprimer
+                if (currentDateUTC.getTime() !== dateDebutAffectation.getTime()) {
+                  // Vérifier si c'est un jour ouvré ou si force_weekend_ferie était activé
+                  if (isBusinessDay(currentDate) || affectationASupprimer.force_weekend_ferie) {
+                    await saveAffectation({
+                      ressource_id: ressourceId,
+                      competence,
+                      date_debut: currentDateUTC,
+                      date_fin: currentDateUTC,
+                      charge: affectationASupprimer.charge || 1,
+                      force_weekend_ferie: affectationASupprimer.force_weekend_ferie || false,
+                    })
+                  }
+                }
+                
+                currentDate.setDate(currentDate.getDate() + 1)
+              }
+              
+              // Consolider après découpage
+              if (autoRefresh) {
+                setTimeout(() => {
+                  consolidateAffectations(competence).catch(err => console.error('[Planning2] Erreur consolidation affectations:', err))
+                }, 1000)
+              }
+            }
+          } else {
+            // Pour SEMAINE/MOIS, supprimer la période entière
+            await deleteAffectation(affectationASupprimer.id)
+          }
         }
       }
     } catch (err) {

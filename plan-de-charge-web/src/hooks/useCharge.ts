@@ -211,15 +211,81 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           : periode.date_fin,
       }
 
-      const { data, error: upsertError } = await supabase
-        .from('periodes_charge')
-        .upsert(periodeData, {
-          onConflict: 'affaire_id,site,competence,date_debut,date_fin',
-        })
-        .select()
-        .single()
+      // Essayer d'abord un upsert
+      let data: any
+      let upsertError: any
+      
+      // Si on a un ID, essayer un UPDATE direct
+      if (periodeData.id) {
+        const { data: updateData, error: updateError } = await supabase
+          .from('periodes_charge')
+          .update(periodeData)
+          .eq('id', periodeData.id)
+          .select()
+          .single()
+        
+        if (!updateError) {
+          data = updateData
+        } else {
+          // Si l'UPDATE échoue, essayer l'upsert
+          const { data: upsertData, error: upsertErr } = await supabase
+            .from('periodes_charge')
+            .upsert(periodeData, {
+              onConflict: 'affaire_id,site,competence,date_debut,date_fin',
+            })
+            .select()
+            .single()
+          
+          data = upsertData
+          upsertError = upsertErr
+        }
+      } else {
+        // Pas d'ID, essayer l'upsert directement
+        const { data: upsertData, error: upsertErr } = await supabase
+          .from('periodes_charge')
+          .upsert(periodeData, {
+            onConflict: 'affaire_id,site,competence,date_debut,date_fin',
+          })
+          .select()
+          .single()
+        
+        data = upsertData
+        upsertError = upsertErr
+      }
 
-      if (upsertError) throw upsertError
+      // Si erreur 409 (conflict), essayer de récupérer la période existante et la mettre à jour
+      if (upsertError && (upsertError.code === '23505' || upsertError.code === 'PGRST116')) {
+        // Erreur de contrainte unique : chercher la période existante
+        const { data: existingData, error: findError } = await supabase
+          .from('periodes_charge')
+          .select('*')
+          .eq('affaire_id', periodeData.affaire_id)
+          .eq('site', periodeData.site)
+          .eq('competence', periodeData.competence)
+          .eq('date_debut', periodeData.date_debut)
+          .eq('date_fin', periodeData.date_fin)
+          .single()
+        
+        if (!findError && existingData) {
+          // Mettre à jour la période existante
+          const { data: updateData, error: updateError } = await supabase
+            .from('periodes_charge')
+            .update({
+              nb_ressources: periodeData.nb_ressources,
+              force_weekend_ferie: periodeData.force_weekend_ferie,
+            })
+            .eq('id', existingData.id)
+            .select()
+            .single()
+          
+          if (updateError) throw updateError
+          data = updateData
+        } else {
+          throw upsertError
+        }
+      } else if (upsertError) {
+        throw upsertError
+      }
 
       // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
       // Cela évite que le rechargement écrase les valeurs en cours de saisie
