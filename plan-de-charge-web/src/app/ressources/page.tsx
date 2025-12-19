@@ -118,6 +118,12 @@ export default function RessourcesPage() {
     aRenouveler: interimsFilters.aRenouveler || undefined,
   }), [interimsFilters.site, interimsFilters.aRenouveler])
 
+  // Mémoriser l'objet options final (avec condition activeCategoryTab)
+  const finalInterimsOptions = useMemo(() => 
+    activeCategoryTab === 'Intérim' ? interimsOptions : { site: undefined, aRenouveler: undefined },
+    [activeCategoryTab, interimsOptions]
+  )
+
   // Charger les intérims uniquement si l'onglet Intérim est actif
   const { 
     interims, 
@@ -130,7 +136,7 @@ export default function RessourcesPage() {
     verifierEtMettreAJourRenouvellements,
     desactiverInterimsExpires,
     initialiserInterims,
-  } = useInterims(activeCategoryTab === 'Intérim' ? interimsOptions : { site: undefined, aRenouveler: undefined })
+  } = useInterims(finalInterimsOptions)
 
   // Charger toutes les ressources ETT pour la liste déroulante (seulement si onglet Intérim actif)
   const { ressources: ressourcesETT } = useRessources(

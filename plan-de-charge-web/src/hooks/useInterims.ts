@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Interim } from '@/types/interims'
 import { businessDaysBetween, nextBusinessDay } from '@/utils/calendar'
@@ -18,6 +18,31 @@ export function useInterims(options: UseInterimsOptions = {}) {
   const [error, setError] = useState<Error | null>(null)
   const { createAlerte } = useAlertes()
 
+  // Cache pour éviter les appels multiples
+  const loadingRef = useRef(false)
+  const lastOptionsRef = useRef<string>('')
+  
+  // Références stables pour les fonctions (évite les re-renders)
+  const loadInterimsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null)
+  const verifierEtMettreAJourRenouvellementsRef = useRef<(() => Promise<{ updated: number; alertsCreated: number; initialized: number }>) | null>(null)
+  
+  // Mémoriser les options pour éviter les recréations
+  const memoizedOptions = useMemo(() => options, [
+    options.ressourceId,
+    options.site,
+    options.aRenouveler,
+  ])
+  
+  // Créer une clé de cache pour les options
+  const optionsKey = useMemo(() => 
+    JSON.stringify({ 
+      ressourceId: memoizedOptions.ressourceId || '', 
+      site: memoizedOptions.site || '', 
+      aRenouveler: memoizedOptions.aRenouveler || '' 
+    }), 
+    [memoizedOptions]
+  )
+
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
       throw new Error('Supabase client can only be created on the client side')
@@ -27,16 +52,33 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
   /**
    * Charge les intérims depuis la table ressources (type_contrat='ETT')
+   * Optimisé avec cache pour éviter les appels multiples
    */
-  const loadInterims = useCallback(async () => {
+  const loadInterims = useCallback(async (forceRefresh: boolean = false) => {
+    // Éviter les appels multiples simultanés
+    if (loadingRef.current && !forceRefresh) {
+      console.log('[useInterims] loadInterims déjà en cours, ignoré')
+      return
+    }
+
+    // Vérifier si les options ont changé
+    if (lastOptionsRef.current === optionsKey && !forceRefresh) {
+      console.log('[useInterims] Options identiques, chargement ignoré (cache)')
+      return
+    }
+
     try {
+      loadingRef.current = true
       setLoading(true)
       setError(null)
 
       const supabase = getSupabaseClient()
 
-      // Log des options pour débogage
-      console.log('[useInterims] loadInterims appelé avec options:', options)
+      // Log des options pour débogage (seulement si changement)
+      if (lastOptionsRef.current !== optionsKey) {
+        console.log('[useInterims] loadInterims appelé avec options:', memoizedOptions)
+        lastOptionsRef.current = optionsKey
+      }
 
       // Charger directement depuis ressources avec type_contrat='ETT'
       let query = supabase
@@ -45,16 +87,16 @@ export function useInterims(options: UseInterimsOptions = {}) {
         .eq('type_contrat', 'ETT')
         .order('date_fin_contrat', { ascending: true, nullsFirst: false })
 
-      if (options.ressourceId) {
-        query = query.eq('id', options.ressourceId)
+      if (memoizedOptions.ressourceId) {
+        query = query.eq('id', memoizedOptions.ressourceId)
       }
 
-      if (options.site) {
-        query = query.eq('site', options.site)
+      if (memoizedOptions.site) {
+        query = query.eq('site', memoizedOptions.site)
       }
 
-      if (options.aRenouveler) {
-        query = query.eq('a_renouveler', options.aRenouveler)
+      if (memoizedOptions.aRenouveler) {
+        query = query.eq('a_renouveler', memoizedOptions.aRenouveler)
       }
 
       const { data, error: queryError } = await query
@@ -104,8 +146,14 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur:', err)
     } finally {
       setLoading(false)
+      loadingRef.current = false
     }
-  }, [options, getSupabaseClient])
+  }, [memoizedOptions, optionsKey, getSupabaseClient])
+  
+  // Mettre à jour la référence quand loadInterims change
+  useEffect(() => {
+    loadInterimsRef.current = loadInterims
+  }, [loadInterims])
 
   /**
    * Vérifie automatiquement les intérims et met à jour le statut "a_renouveler"
@@ -251,15 +299,22 @@ export function useInterims(options: UseInterimsOptions = {}) {
         }
       }
 
-      // Recharger les intérims après mise à jour
-      await loadInterims()
+      // Recharger les intérims après mise à jour (via ref pour éviter dépendance)
+      if (loadInterimsRef.current) {
+        await loadInterimsRef.current(true)
+      }
 
       return { updated, alertsCreated, initialized }
     } catch (err) {
       console.error('[useInterims] Erreur verifierEtMettreAJourRenouvellements:', err)
       throw err
     }
-  }, [getSupabaseClient, createAlerte, loadInterims])
+  }, [getSupabaseClient, createAlerte]) // Retirer loadInterims des dépendances pour éviter les boucles
+  
+  // Mettre à jour la référence quand verifierEtMettreAJourRenouvellements change
+  useEffect(() => {
+    verifierEtMettreAJourRenouvellementsRef.current = verifierEtMettreAJourRenouvellements
+  }, [verifierEtMettreAJourRenouvellements])
 
   /**
    * Désactive les intérims non renouvelés après la date de fin
@@ -305,15 +360,17 @@ export function useInterims(options: UseInterimsOptions = {}) {
         }
       }
 
-      // Recharger les intérims après désactivation
-      await loadInterims()
+      // Recharger les intérims après désactivation (via ref pour éviter dépendance)
+      if (loadInterimsRef.current) {
+        await loadInterimsRef.current(true)
+      }
 
       return { desactivated }
     } catch (err) {
       console.error('[useInterims] Erreur desactiverInterimsExpires:', err)
       throw err
     }
-  }, [getSupabaseClient, loadInterims])
+  }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
 
   /**
    * Supprime les alertes de renouvellement quand un intérim est renouvelé
@@ -387,11 +444,17 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
         if (updateError) throw updateError
 
-        // Vérifier automatiquement les renouvellements après mise à jour
-        await verifierEtMettreAJourRenouvellements()
-
-        // Recharger les intérims
-        await loadInterims()
+        // Vérifier automatiquement les renouvellements après mise à jour (via ref)
+        if (verifierEtMettreAJourRenouvellementsRef.current) {
+          verifierEtMettreAJourRenouvellementsRef.current().catch(err => {
+            console.error('[useInterims] Erreur vérification après création:', err)
+          })
+        }
+        
+        // Recharger les intérims (forcer le refresh via ref)
+        if (loadInterimsRef.current) {
+          await loadInterimsRef.current(true)
+        }
 
         // Convertir en format Interim
         return {
@@ -414,7 +477,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur createInterim:', err)
       throw err
     }
-  }, [getSupabaseClient, loadInterims, verifierEtMettreAJourRenouvellements])
+  }, [getSupabaseClient]) // Retirer loadInterims et verifierEtMettreAJourRenouvellements pour éviter les boucles
 
   /**
    * Met à jour un intérim (met à jour directement la ressource)
@@ -490,11 +553,17 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       if (updateError) throw updateError
 
-      // Vérifier automatiquement les renouvellements après mise à jour
-      await verifierEtMettreAJourRenouvellements()
-
-      // Recharger les intérims
-      await loadInterims()
+      // Vérifier automatiquement les renouvellements après mise à jour (via ref)
+      if (verifierEtMettreAJourRenouvellementsRef.current) {
+        verifierEtMettreAJourRenouvellementsRef.current().catch(err => {
+          console.error('[useInterims] Erreur vérification après mise à jour:', err)
+        })
+      }
+      
+      // Recharger les intérims (forcer le refresh via ref)
+      if (loadInterimsRef.current) {
+        await loadInterimsRef.current(true)
+      }
 
       // Convertir en format Interim
       return {
@@ -514,7 +583,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
       console.error('[useInterims] Erreur updateInterim:', err)
       throw err
     }
-  }, [getSupabaseClient, loadInterims, interims, supprimerAlertesRenouvellement, verifierEtMettreAJourRenouvellements])
+  }, [getSupabaseClient, interims, supprimerAlertesRenouvellement]) // Retirer loadInterims et verifierEtMettreAJourRenouvellements pour éviter les boucles
 
   /**
    * Supprime un intérim (réinitialise les colonnes d'intérim dans la ressource)
@@ -538,13 +607,13 @@ export function useInterims(options: UseInterimsOptions = {}) {
       if (updateError) throw updateError
 
       // Recharger les intérims
-      await loadInterims()
+      await loadInterims(true)
     } catch (err) {
       setError(err as Error)
       console.error('[useInterims] Erreur deleteInterim:', err)
       throw err
     }
-  }, [getSupabaseClient, loadInterims])
+  }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
 
   /**
    * Initialise les intérims depuis les ressources ETT
@@ -568,7 +637,7 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       if (!ressourcesETT || ressourcesETT.length === 0) {
         console.log('[useInterims] Aucune ressource ETT trouvée')
-        await loadInterims()
+        await loadInterims(true)
         return { created: 0, updated: 0 }
       }
 
@@ -616,8 +685,10 @@ export function useInterims(options: UseInterimsOptions = {}) {
         }
       }
 
-      // Recharger les intérims
-      await loadInterims()
+      // Recharger les intérims (forcer le refresh via ref)
+      if (loadInterimsRef.current) {
+        await loadInterimsRef.current(true)
+      }
 
       return { created: 0, updated: nbMisesAJour }
     } catch (err) {
@@ -627,18 +698,43 @@ export function useInterims(options: UseInterimsOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [getSupabaseClient, loadInterims])
+  }, [getSupabaseClient]) // Retirer loadInterims pour éviter les boucles
 
   // Charger les intérims au montage et vérifier automatiquement les renouvellements
+  // Utiliser optionsKey au lieu de loadInterims pour éviter les re-renders
   useEffect(() => {
-    loadInterims().then(() => {
+    let isMounted = true
+    let verificationInProgress = false
+    
+    const loadAndVerify = async () => {
+      // Charger les intérims (via ref)
+      if (loadInterimsRef.current) {
+        await loadInterimsRef.current(true)
+      }
+      
+      if (!isMounted) return
+      
       // Vérifier automatiquement les renouvellements après chargement initial
       // pour initialiser les statuts "Non défini"
-      verifierEtMettreAJourRenouvellements().catch(err => {
-        console.error('[useInterims] Erreur vérification automatique:', err)
-      })
-    })
-  }, [loadInterims, verifierEtMettreAJourRenouvellements])
+      // Utiliser un flag pour éviter les appels multiples simultanés
+      if (!verificationInProgress && verifierEtMettreAJourRenouvellementsRef.current) {
+        verificationInProgress = true
+        try {
+          await verifierEtMettreAJourRenouvellementsRef.current()
+        } catch (err) {
+          console.error('[useInterims] Erreur vérification automatique:', err)
+        } finally {
+          verificationInProgress = false
+        }
+      }
+    }
+    
+    loadAndVerify()
+    
+    return () => {
+      isMounted = false
+    }
+  }, [optionsKey]) // Utiliser optionsKey au lieu de loadInterims pour éviter les boucles
 
   return {
     interims,
