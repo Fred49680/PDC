@@ -120,11 +120,6 @@ const startOfWeek = (date: Date): Date => {
   return new Date(date.setDate(diff))
 }
 
-const endOfWeek = (date: Date): Date => {
-  const start = startOfWeek(date)
-  return addDays(start, 6)
-}
-
 // ========================================
 // COMPOSANT PRINCIPAL
 // ========================================
@@ -1613,7 +1608,6 @@ export default function Planning2({
     } else if (precision === 'MOIS') {
       // Navigation par mois
       const monthStart = startOfMonth(dateDebut)
-      const monthEnd = endOfMonth(dateDebut)
       const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
       const diffMonths = Math.ceil(diffDays / 30)
       
@@ -1648,7 +1642,6 @@ export default function Planning2({
     } else if (precision === 'MOIS') {
       // Navigation par mois
       const monthStart = startOfMonth(dateDebut)
-      const monthEnd = endOfMonth(dateDebut)
       const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
       const diffMonths = Math.ceil(diffDays / 30)
       
