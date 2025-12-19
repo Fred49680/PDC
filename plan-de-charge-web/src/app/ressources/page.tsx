@@ -146,13 +146,28 @@ export default function RessourcesPage() {
         const matchingSite = sitesList.find(s => s.site?.trim().toLowerCase() === currentSite.toLowerCase())
         if (matchingSite) {
           setFormData(prev => ({ ...prev, site: matchingSite.site.trim() }))
+        } else {
+          // Si toujours pas de correspondance, essayer de trouver via la ressource
+          if (formData.ressource_id) {
+            const ressource = ressourcesETT.find(r => r.id === formData.ressource_id)
+            if (ressource && ressource.site) {
+              const matchingSiteFromRessource = sitesList.find(s => {
+                const siteFromList = s.site?.trim() || ''
+                const siteFromRessource = ressource.site.trim()
+                return siteFromList.toLowerCase() === siteFromRessource.toLowerCase()
+              })
+              if (matchingSiteFromRessource) {
+                setFormData(prev => ({ ...prev, site: matchingSiteFromRessource.site.trim() }))
+              }
+            }
+          }
         }
       } else if (formData.site !== currentSite) {
         // Normaliser en enlevant les espaces si nécessaire
         setFormData(prev => ({ ...prev, site: currentSite }))
       }
     }
-  }, [sitesLoading, sitesList, isEditing, formData.site])
+  }, [sitesLoading, sitesList, isEditing, formData.site, formData.ressource_id, ressourcesETT])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
