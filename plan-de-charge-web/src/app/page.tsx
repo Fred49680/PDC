@@ -224,7 +224,7 @@ export default function Home() {
               <h3 className="font-bold text-gray-800 mb-2">Planning avancé</h3>
               <p className="text-sm text-gray-600">Visualisez et gérez la charge et les affectations</p>
             </div>
-          </div>
+            </div>
         </Card>
       </div>
     </Layout>

@@ -1,16 +1,14 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar, 
   Users, 
   CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
   Filter,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Target,
   TrendingUp,
   TrendingDown,
@@ -21,7 +19,6 @@ import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import type { Precision } from '@/types/charge'
-import type { Affaire } from '@/types/charge'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
@@ -29,6 +26,7 @@ import { useAbsences } from '@/hooks/useAbsences'
 import type { Absence } from '@/types/absences'
 import { createClient } from '@/lib/supabase/client'
 import type { Affectation } from '@/types/affectations'
+import { useToast } from '@/components/UI/Toast'
 
 interface Planning2Props {
   affaireId: string
@@ -36,8 +34,6 @@ interface Planning2Props {
   dateDebut: Date
   dateFin: Date
   precision: Precision
-  affaires: Affaire[]
-  onDateChange?: (newDateDebut: Date, newDateFin: Date) => void
   onPrecisionChange?: (newPrecision: Precision) => void
 }
 
@@ -102,8 +98,6 @@ export default function Planning2({
   dateDebut: propDateDebut,
   dateFin: propDateFin,
   precision: propPrecision,
-  affaires,
-  onDateChange,
   onPrecisionChange,
 }: Planning2Props) {
   const [precision, setPrecision] = useState<Precision>(propPrecision)
@@ -111,14 +105,14 @@ export default function Planning2({
   const [dateFin, setDateFin] = useState(propDateFin)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [selectedCompetences, setSelectedCompetences] = useState<Set<string>>(new Set())
-  const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid')
+  const { addToast } = useToast()
   
   // Synchroniser avec les props
   useEffect(() => {
     if (propPrecision !== precision) setPrecision(propPrecision)
     if (propDateDebut.getTime() !== dateDebut.getTime()) setDateDebut(propDateDebut)
     if (propDateFin.getTime() !== dateFin.getTime()) setDateFin(propDateFin)
-  }, [propPrecision, propDateDebut, propDateFin])
+  }, [propPrecision, propDateDebut, propDateFin, precision, dateDebut, dateFin])
   
   // Chargement des données
   const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate, refresh: refreshCharge } = useCharge({
@@ -164,7 +158,25 @@ export default function Planning2({
         const affairesMap = new Map<string, { affaire_id: string; site: string; libelle: string }>()
 
         if (data) {
-          data.forEach((a: any) => {
+          data.forEach((a: {
+            ressource_id: string
+            affaire_id: string
+            site: string
+            competence: string
+            date_debut: string
+            date_fin: string
+            charge: number
+            id: string
+            created_at: string
+            updated_at: string
+            created_by: string | null
+            updated_by: string | null
+            affaires?: {
+              affaire_id: string
+              site: string
+              libelle: string
+            }
+          }) => {
             const ressourceId = a.ressource_id
             if (!affectationsMap.has(ressourceId)) {
               affectationsMap.set(ressourceId, [])
@@ -189,8 +201,8 @@ export default function Planning2({
               charge: a.charge,
               created_at: new Date(a.created_at),
               updated_at: new Date(a.updated_at),
-              created_by: a.created_by,
-              updated_by: a.updated_by,
+              created_by: a.created_by ?? undefined,
+              updated_by: a.updated_by ?? undefined,
             }
             
             affectationsMap.get(ressourceId)!.push(affectation)
@@ -227,7 +239,7 @@ export default function Planning2({
         })
       })
     } else if (precision === 'SEMAINE') {
-      let currentDate = new Date(dateDebut)
+      const currentDate = new Date(dateDebut)
       const dayOfWeek = currentDate.getDay()
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
       currentDate.setDate(currentDate.getDate() - daysToMonday)
@@ -249,7 +261,7 @@ export default function Planning2({
         currentDate.setDate(currentDate.getDate() + 7)
       }
     } else if (precision === 'MOIS') {
-      let currentDate = new Date(dateDebut)
+      const currentDate = new Date(dateDebut)
       currentDate.setDate(1)
       
       while (currentDate <= dateFin) {
@@ -911,7 +923,7 @@ export default function Planning2({
       
       if (precision === 'JOUR') {
         // Créer une période uniquement pour les jours ouvrés (lundi-vendredi, pas fériés)
-        let currentDate = new Date(dateDebutMasse)
+        const currentDate = new Date(dateDebutMasse)
         while (currentDate <= dateFinMasse) {
           // Vérifier si c'est un jour ouvré (exclut week-ends et fériés)
           if (isBusinessDay(currentDate)) {
@@ -929,7 +941,7 @@ export default function Planning2({
       } else if (precision === 'SEMAINE') {
         // Pour SEMAINE, créer des périodes mais seulement pour les semaines contenant au moins un jour ouvré
         // On crée la période complète (lundi-dimanche) mais avec uniquement les jours ouvrés comptés
-        let currentDate = new Date(dateDebutMasse)
+        const currentDate = new Date(dateDebutMasse)
         while (currentDate <= dateFinMasse) {
           const weekStart = new Date(currentDate)
           let weekEnd = new Date(weekStart)
@@ -942,7 +954,7 @@ export default function Planning2({
           
           // Vérifier qu'il y a au moins un jour ouvré dans cette semaine
           let hasBusinessDay = false
-          let checkDate = new Date(weekStart)
+          const checkDate = new Date(weekStart)
           while (checkDate <= weekEnd) {
             if (isBusinessDay(checkDate)) {
               hasBusinessDay = true
@@ -968,7 +980,7 @@ export default function Planning2({
         }
       } else if (precision === 'MOIS') {
         // Pour MOIS, créer des périodes pour chaque mois contenant au moins un jour ouvré
-        let currentDate = new Date(dateDebutMasse)
+        const currentDate = new Date(dateDebutMasse)
         while (currentDate <= dateFinMasse) {
           const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
           let monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -980,7 +992,7 @@ export default function Planning2({
           
           // Vérifier qu'il y a au moins un jour ouvré dans ce mois
           let hasBusinessDay = false
-          let checkDate = new Date(monthStart)
+          const checkDate = new Date(monthStart)
           while (checkDate <= monthEnd) {
             if (isBusinessDay(checkDate)) {
               hasBusinessDay = true
@@ -1052,24 +1064,24 @@ export default function Planning2({
           }
         }
 
-        showAlert(
-          'Charge de masse terminée',
-          `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s).\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\n(Uniquement jours ouvrés)`,
-          'info'
+        addToast(
+          `${nbPeriodesCreees} période(s) créée(s) avec ${nbRessources} ressource(s) nécessaire(s)`,
+          'success',
+          5000
         )
       } finally {
         // Réactiver l'auto-refresh à son état précédent
         setAutoRefresh(autoRefreshAvant)
       }
-    } catch (err) {
-      console.error('[Planning2] Erreur charge de masse:', err)
-      showAlert(
-        'Erreur',
-        `Erreur lors de la création de la charge de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
-        'error'
-      )
-    }
-  }, [colonnes, precision, dateFin, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, showAlert, autoRefresh, setAutoRefresh])
+      } catch (err) {
+        console.error('[Planning2] Erreur charge de masse:', err)
+        addToast(
+          `Erreur lors de la création de la charge de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+          'error',
+          5000
+        )
+      }
+    }, [colonnes, precision, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
@@ -1111,7 +1123,7 @@ export default function Planning2({
                   weekEnd.setDate(weekEnd.getDate() + 6)
                   
                   let hasBusinessDay = false
-                  let checkDate = new Date(weekStart)
+                  const checkDate = new Date(weekStart)
                   while (checkDate <= weekEnd) {
                     if (isBusinessDay(checkDate)) {
                       hasBusinessDay = true
@@ -1133,7 +1145,7 @@ export default function Planning2({
                   const monthEnd = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
                   
                   let hasBusinessDay = false
-                  let checkDate = new Date(monthStart)
+                  const checkDate = new Date(monthStart)
                   while (checkDate <= monthEnd) {
                     if (isBusinessDay(checkDate)) {
                       hasBusinessDay = true
@@ -1274,24 +1286,24 @@ export default function Planning2({
           ? `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n${nbBloquees} période(s) ont été bloquées (absences ou conflits).`
           : `${nbAffectationsCreees} affectation(s) créée(s) sur ${affectationsACreer.length} période(s) de jours ouvrés.\n\n(Uniquement jours ouvrés : lundi-vendredi, hors fériés)`
 
-        showAlert(
-          'Affectation de masse terminée',
-          messageFinal,
-          'info'
+        addToast(
+          messageFinal.replace(/\n/g, ' '),
+          'success',
+          5000
         )
       } finally {
         // Réactiver l'auto-refresh à son état précédent
         setAutoRefresh(autoRefreshAvant)
       }
-    } catch (err) {
-      console.error('[Planning2] Erreur affectation de masse:', err)
-      showAlert(
-        'Erreur',
-        `Erreur lors de l'affectation de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
-        'error'
-      )
-    }
-  }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, showAlert, autoRefresh, setAutoRefresh])
+      } catch (err) {
+        console.error('[Planning2] Erreur affectation de masse:', err)
+        addToast(
+          `Erreur lors de l'affectation de masse : ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+          'error',
+          5000
+        )
+      }
+    }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Navigation
   const handlePreviousPeriod = () => {
@@ -1516,12 +1528,14 @@ export default function Planning2({
             <div className="flex items-center gap-3">
               {/* Navigation */}
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur rounded-xl p-1 shadow-md">
-                <button
-                  onClick={handlePreviousPeriod}
-                  className="p-2 hover:bg-indigo-100 rounded-lg transition-all text-indigo-600"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
+              <motion.button
+                onClick={handlePreviousPeriod}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="p-2 hover:bg-indigo-100 rounded-lg transition-all text-indigo-600"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </motion.button>
                 <div className="px-4 py-2 text-center min-w-[200px]">
                   <div className="font-semibold text-gray-800">
                     {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
@@ -1531,23 +1545,27 @@ export default function Planning2({
                     {formatSemaineISO(dateDebut)}
                   </div>
                 </div>
-                <button
+                <motion.button
                   onClick={handleNextPeriod}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   className="p-2 hover:bg-indigo-100 rounded-lg transition-all text-indigo-600"
                 >
                   <ChevronRight className="w-5 h-5" />
-                </button>
+                </motion.button>
               </div>
 
               {/* Précision */}
               <div className="flex items-center gap-1 bg-white/60 backdrop-blur rounded-xl p-1 shadow-md">
                 {(['JOUR', 'SEMAINE', 'MOIS'] as Precision[]).map((prec) => (
-                  <button
+                  <motion.button
                     key={prec}
                     onClick={() => {
                       setPrecision(prec)
                       if (onPrecisionChange) onPrecisionChange(prec)
                     }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       precision === prec
                         ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
@@ -1555,13 +1573,15 @@ export default function Planning2({
                     }`}
                   >
                     {prec.charAt(0) + prec.slice(1).toLowerCase()}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
 
               {/* Auto-refresh */}
-              <button
+              <motion.button
                 onClick={() => setAutoRefresh(!autoRefresh)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 className={`px-4 py-2 rounded-xl font-medium text-sm shadow-md transition-all ${
                   autoRefresh 
                     ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' 
@@ -1569,7 +1589,7 @@ export default function Planning2({
                 }`}
               >
                 {autoRefresh ? '🔄 Auto' : '⏸️ Manuel'}
-              </button>
+              </motion.button>
             </div>
           </div>
 
@@ -1602,20 +1622,26 @@ export default function Planning2({
                                affectations.some(a => a.competence === comp)
                 
                 return (
-                  <button
+                  <motion.button
                     key={comp}
                     onClick={() => toggleCompetence(comp)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       isSelected
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md scale-105'
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
                         : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 hover:shadow-sm'
                     }`}
                   >
                     {comp}
                     {hasData && (
-                      <span className={`ml-2 w-2 h-2 rounded-full inline-block ${isSelected ? 'bg-yellow-300' : 'bg-indigo-500'}`} />
+                      <motion.span 
+                        className={`ml-2 w-2 h-2 rounded-full inline-block ${isSelected ? 'bg-yellow-300' : 'bg-indigo-500'}`}
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      />
                     )}
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>
@@ -1643,16 +1669,26 @@ export default function Planning2({
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {competencesData.map((compData) => {
+          <motion.div 
+            className="space-y-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <AnimatePresence mode="popLayout">
+              {competencesData.map((compData, index) => {
               const totalAffecte = compData.totalAffecte
               const totalBesoin = compData.totalBesoin
               const isSurAffecte = totalAffecte > totalBesoin
               const isSousAffecte = totalAffecte < totalBesoin && totalBesoin > 0
               
               return (
-                <div
+                <motion.div
                   key={compData.competence}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
                   className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 overflow-hidden"
                 >
                   {/* En-tête de compétence */}
@@ -1814,10 +1850,11 @@ export default function Planning2({
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )
             })}
-          </div>
+            </AnimatePresence>
+          </motion.div>
         )}
       </div>
 

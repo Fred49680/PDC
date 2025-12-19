@@ -15,6 +15,6 @@ export default function PlanningPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Loading message="Redirection vers Planning 2.0..." />
-    </div>
+      </div>
   )
 }

@@ -280,166 +280,39 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
     setResult(null)
 
     try {
-      const supabase = createClient()
-      const errors: Array<{ row: number; message: string; data: any }> = []
-      let successCount = 0
-      let skippedCount = 0
+      // Préparer les données pour l'API route (validation serveur)
+      const ressourcesToSend = preview.map((ressource) => ({
+        nom: ressource.nom,
+        site: ressource.site,
+        type_contrat: ressource.type_contrat,
+        responsable: ressource.responsable,
+        actif: ressource.actif,
+        date_fin_contrat: ressource.date_fin_contrat
+          ? ressource.date_fin_contrat.toISOString().split('T')[0]
+          : null,
+        competences: ressource.competences,
+      }))
 
-      // Taille des batches pour l'import
-      const batchSize = 50
+      // Appeler l'API route pour l'import (validation serveur)
+      const response = await fetch('/api/import/ressources', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ressources: ressourcesToSend }),
+      })
 
-      // Traiter chaque ressource
-      for (let i = 0; i < preview.length; i++) {
-        const ressource = preview[i]
-
-        try {
-          // Vérifier si la ressource existe déjà (même nom + site)
-          const { data: existingRessources, error: selectError } = await supabase
-            .from('ressources')
-            .select('id')
-            .eq('nom', ressource.nom)
-            .eq('site', ressource.site)
-            .limit(1)
-
-          if (selectError) {
-            errors.push({
-              row: i + 1,
-              message: `Erreur lors de la vérification : ${selectError.message}`,
-              data: ressource,
-            })
-            continue
-          }
-
-          let ressourceId: string
-
-          if (existingRessources && existingRessources.length > 0) {
-            // Ressource existe déjà, mettre à jour
-            ressourceId = existingRessources[0].id
-
-            const { error: updateError } = await supabase
-              .from('ressources')
-              .update({
-                type_contrat: ressource.type_contrat,
-                responsable: ressource.responsable,
-                actif: ressource.actif,
-                date_fin_contrat: ressource.date_fin_contrat
-                  ? ressource.date_fin_contrat.toISOString().split('T')[0]
-                  : null,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', ressourceId)
-
-            if (updateError) {
-              errors.push({
-                row: i + 1,
-                message: `Erreur lors de la mise à jour : ${updateError.message}`,
-                data: ressource,
-              })
-              continue
-            }
-          } else {
-            // Créer une nouvelle ressource
-            const { data: newRessource, error: insertError } = await supabase
-              .from('ressources')
-              .insert({
-                nom: ressource.nom,
-                site: ressource.site,
-                type_contrat: ressource.type_contrat,
-                responsable: ressource.responsable,
-                actif: ressource.actif,
-                date_fin_contrat: ressource.date_fin_contrat
-                  ? ressource.date_fin_contrat.toISOString().split('T')[0]
-                  : null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .select('id')
-              .single()
-
-            if (insertError) {
-              errors.push({
-                row: i + 1,
-                message: `Erreur lors de la création : ${insertError.message}`,
-                data: ressource,
-              })
-              continue
-            }
-
-            if (!newRessource || !newRessource.id) {
-              errors.push({
-                row: i + 1,
-                message: 'Erreur : La ressource a été créée mais aucun ID n\'a été retourné',
-                data: ressource,
-              })
-              continue
-            }
-
-            ressourceId = newRessource.id
-          }
-
-          // Supprimer toutes les compétences existantes pour cette ressource
-          const { error: deleteError } = await supabase
-            .from('ressources_competences')
-            .delete()
-            .eq('ressource_id', ressourceId)
-
-          if (deleteError) {
-            console.warn(`[ImportExcel] Erreur lors de la suppression des compétences existantes pour ${ressource.nom}:`, deleteError)
-            // Ne pas bloquer, continuer quand même
-          }
-
-          // Insérer les nouvelles compétences si la liste n'est pas vide
-          if (ressource.competences.length > 0) {
-            // Vérifier qu'il n'y a qu'une seule compétence principale
-            const principales = ressource.competences.filter(c => c.type_comp === 'P')
-            if (principales.length > 1) {
-              // Si plusieurs principales, garder seulement la première et mettre les autres en secondaire
-              console.warn(`[ImportExcel] Plusieurs compétences principales pour ${ressource.nom}, seule la première sera conservée comme principale`)
-              let firstPrincipale = true
-              ressource.competences.forEach(c => {
-                if (c.type_comp === 'P' && !firstPrincipale) {
-                  c.type_comp = 'S'
-                } else if (c.type_comp === 'P' && firstPrincipale) {
-                  firstPrincipale = false
-                }
-              })
-            }
-
-            const competencesToInsert = ressource.competences.map(c => ({
-              ressource_id: ressourceId,
-              competence: c.competence,
-              type_comp: c.type_comp || 'S',
-              niveau: null, // Le niveau n'est pas dans le fichier Excel
-            }))
-
-            const { error: competencesError } = await supabase
-              .from('ressources_competences')
-              .insert(competencesToInsert)
-
-            if (competencesError) {
-              errors.push({
-                row: i + 1,
-                message: `Erreur lors de l'insertion des compétences : ${competencesError.message}`,
-                data: ressource,
-              })
-              continue
-            }
-          }
-
-          successCount++
-        } catch (err: any) {
-          errors.push({
-            row: i + 1,
-            message: err.message || 'Erreur inconnue',
-            data: ressource,
-          })
-        }
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Erreur lors de l\'import')
       }
 
+      const resultData = await response.json()
+
       setResult({
-        success: successCount,
-        errors,
-        skipped: skippedCount,
+        success: resultData.success || 0,
+        errors: resultData.errors || [],
+        skipped: resultData.skipped || 0,
       })
 
       if (onImportComplete) {
@@ -718,5 +591,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
     </div>
   )
 }
+
+
 
 

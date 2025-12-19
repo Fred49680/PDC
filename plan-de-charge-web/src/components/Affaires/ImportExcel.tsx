@@ -295,221 +295,41 @@ export function ImportExcel({ onImportComplete }: { onImportComplete?: () => voi
     setResult(null)
 
     try {
-      const supabase = createClient()
-      const errors: Array<{ row: number; message: string; data: any }> = []
-      let successCount = 0
-      let skippedCount = 0
+      // Préparer les données pour l'API route (validation serveur)
+      const rowsToSend = preview.map((row) => ({
+        affaire_id: row.affaire_id,
+        site: row.site,
+        libelle: row.libelle,
+        tranche: row.tranche,
+        statut: row.statut || 'Ouverte',
+        budget_heures: row.budget_heures,
+        raf_heures: row.raf_heures,
+        date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
+        responsable: row.responsable,
+        compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : undefined,
+        actif: row.actif ?? true,
+      }))
 
-      // Séparer les lignes avec affaire_id et sans affaire_id
-      // Les lignes avec affaire_id nécessitent une vérification manuelle (l'index unique partiel n'est pas reconnu par Supabase pour onConflict)
-      // Les lignes sans affaire_id doivent être insérées normalement
-      const rowsWithId = preview.filter((row) => row.affaire_id !== null && row.affaire_id.trim() !== '')
-      const rowsWithoutId = preview.filter((row) => row.affaire_id === null || row.affaire_id.trim() === '')
+      // Appeler l'API route pour l'import (validation serveur)
+      const response = await fetch('/api/import/affaires', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rows: rowsToSend }),
+      })
 
-      // Taille des batches pour l'import
-      const batchSize = 50
-
-      // Pour les lignes avec affaire_id : vérifier d'abord quelles existent déjà
-      if (rowsWithId.length > 0) {
-        // Récupérer tous les affaire_id existants en une seule requête
-        const affaireIds = rowsWithId.map((row) => row.affaire_id).filter((id): id is string => id !== null && id.trim() !== '')
-        
-        const { data: existingAffaires, error: selectError } = await supabase
-          .from('affaires')
-          .select('affaire_id')
-          .in('affaire_id', affaireIds)
-
-        if (selectError) {
-          console.error('[ImportExcel] Erreur lors de la vérification des affaires existantes:', selectError)
-        }
-
-        // Créer un Set des affaire_id existants pour recherche rapide
-        const existingIds = new Set<string>()
-        if (existingAffaires) {
-          existingAffaires.forEach((affaire: any) => {
-            if (affaire.affaire_id) {
-              existingIds.add(affaire.affaire_id)
-            }
-          })
-        }
-
-        // Séparer en lignes à insérer et lignes à mettre à jour
-        const rowsToInsert: MappedRow[] = []
-        const rowsToUpdate: MappedRow[] = []
-
-        rowsWithId.forEach((row) => {
-          if (row.affaire_id && existingIds.has(row.affaire_id)) {
-            rowsToUpdate.push(row)
-          } else {
-            rowsToInsert.push(row)
-          }
-        })
-
-        // Traiter les INSERT par batch
-        for (let i = 0; i < rowsToInsert.length; i += batchSize) {
-          const batch = rowsToInsert.slice(i, i + batchSize)
-
-          const dataToInsert = batch.map((row) => ({
-            affaire_id: row.affaire_id,
-            site: row.site,
-            libelle: row.libelle,
-            tranche: row.tranche,
-            statut: row.statut || 'Ouverte',
-            budget_heures: row.budget_heures,
-            raf_heures: row.raf_heures,
-            date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
-            responsable: row.responsable,
-            compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : null,
-            actif: row.actif ?? true,
-            date_creation: new Date().toISOString(),
-            date_modification: new Date().toISOString(),
-          }))
-
-          const { error: insertError } = await supabase
-            .from('affaires')
-            .insert(dataToInsert)
-
-          if (insertError) {
-            console.error('[ImportExcel] Erreur batch INSERT:', insertError)
-            
-            // Essayer ligne par ligne pour identifier les problèmes
-            for (let j = 0; j < batch.length; j++) {
-              const row = batch[j]
-              const rowData = dataToInsert[j]
-              
-              try {
-                const { error: rowError } = await supabase
-                  .from('affaires')
-                  .insert([rowData])
-
-                if (rowError) {
-                  errors.push({
-                    row: preview.indexOf(row) + 1,
-                    message: rowError.message || 'Erreur inconnue',
-                    data: row,
-                  })
-                } else {
-                  successCount++
-                }
-              } catch (err: any) {
-                errors.push({
-                  row: preview.indexOf(row) + 1,
-                  message: err.message || 'Erreur inconnue',
-                  data: row,
-                })
-              }
-            }
-          } else {
-            successCount += batch.length
-          }
-        }
-
-        // Traiter les UPDATE par batch
-        for (let i = 0; i < rowsToUpdate.length; i += batchSize) {
-          const batch = rowsToUpdate.slice(i, i + batchSize)
-
-          // Pour chaque ligne, faire un UPDATE individuel (Supabase ne supporte pas UPDATE batch avec WHERE différent)
-          for (const row of batch) {
-            if (!row.affaire_id) continue
-
-            const dataToUpdate = {
-              site: row.site,
-              libelle: row.libelle,
-              tranche: row.tranche,
-              statut: row.statut || 'Ouverte',
-              budget_heures: row.budget_heures,
-              raf_heures: row.raf_heures,
-              date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
-              responsable: row.responsable,
-              compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : null,
-              actif: row.actif ?? true,
-              date_modification: new Date().toISOString(),
-            }
-
-            const { error: updateError } = await supabase
-              .from('affaires')
-              .update(dataToUpdate)
-              .eq('affaire_id', row.affaire_id)
-
-            if (updateError) {
-              errors.push({
-                row: preview.indexOf(row) + 1,
-                message: updateError.message || 'Erreur lors de la mise à jour',
-                data: row,
-              })
-            } else {
-              successCount++
-            }
-          }
-        }
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Erreur lors de l\'import')
       }
 
-      // Importer les lignes sans affaire_id par batch (insert simple)
-      for (let i = 0; i < rowsWithoutId.length; i += batchSize) {
-        const batch = rowsWithoutId.slice(i, i + batchSize)
-
-        // Préparer les données pour l'insertion
-        const dataToInsert = batch.map((row) => ({
-          affaire_id: null, // Explicitement NULL
-          site: row.site,
-          libelle: row.libelle,
-          tranche: row.tranche,
-          statut: row.statut || 'Ouverte',
-          budget_heures: row.budget_heures,
-          raf_heures: row.raf_heures,
-          date_maj_raf: row.date_maj_raf ? row.date_maj_raf.toISOString().split('T')[0] : null,
-          responsable: row.responsable,
-          compte: row.compte && row.compte.trim() !== '' ? row.compte.trim() : null,
-          actif: row.actif ?? true,
-          date_creation: new Date().toISOString(),
-          date_modification: new Date().toISOString(),
-        }))
-
-        // Insert simple (pas d'upsert car affaire_id est NULL)
-        const { data, error } = await supabase
-          .from('affaires')
-          .insert(dataToInsert)
-          .select()
-
-        if (error) {
-          // Si erreur globale, essayer ligne par ligne
-          console.error('[ImportExcel] Erreur batch (sans ID):', error)
-          
-          for (let j = 0; j < batch.length; j++) {
-            const row = batch[j]
-            const rowData = dataToInsert[j]
-            
-            try {
-              const { error: rowError } = await supabase
-                .from('affaires')
-                .insert([rowData])
-
-              if (rowError) {
-                errors.push({
-                  row: preview.indexOf(row) + 1,
-                  message: rowError.message || 'Erreur inconnue',
-                  data: row,
-                })
-              } else {
-                successCount++
-              }
-            } catch (err: any) {
-              errors.push({
-                row: preview.indexOf(row) + 1,
-                message: err.message || 'Erreur inconnue',
-                data: row,
-              })
-            }
-          }
-        } else {
-          successCount += data?.length || 0
-        }
-      }
+      const resultData = await response.json()
 
       setResult({
-        success: successCount,
-        errors,
-        skipped: skippedCount,
+        success: resultData.success || 0,
+        errors: resultData.errors || [],
+        skipped: resultData.skipped || 0,
       })
 
       if (onImportComplete) {

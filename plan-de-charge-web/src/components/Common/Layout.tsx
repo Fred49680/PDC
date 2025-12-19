@@ -7,6 +7,7 @@ import {
   BarChart3, Users, Calendar, LayoutDashboard, Home, Building2, 
   MapPin, Target, AlertCircle, Menu, X, Sparkles 
 } from 'lucide-react'
+import { InstallPWA } from '@/components/UI/InstallPWA'
 
 interface LayoutProps {
   children: ReactNode
@@ -47,11 +48,11 @@ export function Layout({ children }: LayoutProps) {
               </div>
               <div>
                 <div className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  Plan de Charge
+                Plan de Charge
                 </div>
                 <div className="text-xs text-gray-500 font-medium">Gestion des ressources</div>
               </div>
-            </Link>
+              </Link>
 
             {/* Navigation desktop */}
             <div className="hidden lg:flex items-center space-x-2">
@@ -116,7 +117,7 @@ export function Layout({ children }: LayoutProps) {
                   </Link>
                 )
               })}
-            </div>
+          </div>
           )}
         </div>
       </nav>
@@ -131,8 +132,8 @@ export function Layout({ children }: LayoutProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-gray-600 font-medium">
-              © 2025 Plan de Charge - Application de gestion des ressources
-            </p>
+            © 2025 Plan de Charge - Application de gestion des ressources
+          </p>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span>Système opérationnel</span>
@@ -140,6 +141,9 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
       </footer>
+
+      {/* Bannière d'installation PWA */}
+      <InstallPWA />
     </div>
   )
 }
