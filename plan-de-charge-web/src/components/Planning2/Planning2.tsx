@@ -115,13 +115,13 @@ export default function Planning2({
   }, [propPrecision, propDateDebut, propDateFin, precision, dateDebut, dateFin])
   
   // Chargement des données
-  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate, refresh: refreshCharge } = useCharge({
+  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, refresh: refreshCharge } = useCharge({
     affaireId,
     site,
     autoRefresh,
   })
 
-  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, consolidate: consolidateAffectations, refresh: refreshAffectations } = useAffectations({
+  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, refresh: refreshAffectations } = useAffectations({
     affaireId,
     site,
     autoRefresh,
@@ -753,12 +753,8 @@ export default function Planning2({
                 currentDate.setDate(currentDate.getDate() + 1)
               }
               
-              // Consolider après découpage pour regrouper les jours consécutifs
-              if (autoRefresh) {
-                setTimeout(() => {
-                  consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
-                }, 1000)
-              }
+              // La consolidation se fait automatiquement via le trigger PostgreSQL
+              // Plus besoin d'appeler consolidate() manuellement
             }
           } else {
             // Pour SEMAINE/MOIS, supprimer la période entière
@@ -807,12 +803,8 @@ export default function Planning2({
                 currentDate.setDate(currentDate.getDate() + 1)
               }
               
-              // Consolider après découpage
-              if (autoRefresh) {
-                setTimeout(() => {
-                  consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
-                }, 1000)
-              }
+              // La consolidation se fait automatiquement via le trigger PostgreSQL
+              // Plus besoin d'appeler consolidate() manuellement
               return // Sortir car on a déjà géré la création
             }
           }
@@ -827,11 +819,8 @@ export default function Planning2({
             force_weekend_ferie: forceWeekendFerie
           })
           
-          if (precision === 'JOUR' && autoRefresh) {
-            setTimeout(() => {
-              consolidate(competence).catch(err => console.error('[Planning2] Erreur consolidation:', err))
-            }, 1000)
-          }
+          // La consolidation se fait automatiquement via le trigger PostgreSQL
+          // Plus besoin d'appeler consolidate() manuellement
         }
       } catch (err) {
         console.error('[Planning2] Erreur savePeriode:', err)
@@ -846,7 +835,7 @@ export default function Planning2({
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, deletePeriode, consolidate, precision, autoRefresh, dateFin, colonnes, confirmAsync, chargeMasseModal.isGenerating])
+  }, [periodes, savePeriode, deletePeriode, precision, dateFin, colonnes, confirmAsync, chargeMasseModal.isGenerating])
 
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, colIndex: number, checked: boolean) => {
     // Désactiver l'enregistrement automatique pendant la génération de masse d'affectations
@@ -969,11 +958,8 @@ export default function Planning2({
           force_weekend_ferie: forceWeekendFerie,
         })
         
-        if (precision === 'JOUR' && autoRefresh) {
-          setTimeout(() => {
-            consolidateAffectations(competence).catch(err => console.error('[Planning2] Erreur consolidation affectations:', err))
-          }, 1000)
-        }
+        // La consolidation se fait automatiquement via le trigger PostgreSQL
+        // Plus besoin d'appeler consolidateAffectations() manuellement
       } else {
         // Décocher : supprimer l'affectation pour cette période
         const affectationASupprimer = affectations.find(a => {
@@ -1023,12 +1009,8 @@ export default function Planning2({
                 currentDate.setDate(currentDate.getDate() + 1)
               }
               
-              // Consolider après découpage
-              if (autoRefresh) {
-                setTimeout(() => {
-                  consolidateAffectations(competence).catch(err => console.error('[Planning2] Erreur consolidation affectations:', err))
-                }, 1000)
-              }
+              // La consolidation se fait automatiquement via le trigger PostgreSQL
+              // Plus besoin d'appeler consolidateAffectations() manuellement
             }
           } else {
             // Pour SEMAINE/MOIS, supprimer la période entière
@@ -1039,7 +1021,7 @@ export default function Planning2({
     } catch (err) {
       console.error('[Planning2] Erreur saveAffectation/deleteAffectation:', err)
     }
-  }, [affectations, saveAffectation, deleteAffectation, consolidateAffectations, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, addToast, autoRefresh, isGeneratingAffectations])
+  }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, addToast, isGeneratingAffectations])
 
   // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
@@ -1230,7 +1212,8 @@ export default function Planning2({
           
           // Consolider si précision JOUR
           if (precision === 'JOUR') {
-            await consolidate(competence)
+            // La consolidation se fait automatiquement via le trigger PostgreSQL
+            // Plus besoin d'appeler consolidate() manuellement
           }
         }
 
@@ -1267,7 +1250,7 @@ export default function Planning2({
           5000
         )
       }
-    }, [colonnes, precision, savePeriode, consolidate, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
+    }, [colonnes, precision, savePeriode, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
@@ -1474,7 +1457,8 @@ export default function Planning2({
           
           // Consolider si précision JOUR
           if (precision === 'JOUR') {
-            await consolidateAffectations(competence)
+            // La consolidation se fait automatiquement via le trigger PostgreSQL
+            // Plus besoin d'appeler consolidateAffectations() manuellement
           }
         }
 
@@ -1509,7 +1493,7 @@ export default function Planning2({
         )
         setIsGeneratingAffectations(false)
       }
-    }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, consolidateAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
+    }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Navigation
   const handlePreviousPeriod = () => {
