@@ -319,17 +319,18 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
 
       console.log(`[useAffectations] ${affectationIds.length} affectation(s) retirée(s) automatiquement pour conflit avec absence`)
 
-      // Recharger les affectations
-      if (autoRefresh) {
+      // Mise à jour optimiste : supprimer de l'état local immédiatement
+      setAffectations((prev) => prev.filter((a) => !affectationIds.includes(a.id)))
+
+      // Recharger les affectations seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
         await loadAffectations()
-      } else {
-        // Mise à jour optimiste : supprimer de l'état local
-        setAffectations((prev) => prev.filter((a) => !affectationIds.includes(a.id)))
       }
     } catch (err) {
       console.error('[useAffectations] Erreur removeConflictingAffectations:', err)
     }
-  }, [affaireId, site, autoRefresh, loadAffectations, getSupabaseClient])
+  }, [affaireId, site, autoRefresh, enableRealtime, loadAffectations, getSupabaseClient])
 
   const saveAffectation = useCallback(async (affectation: Partial<Affectation>) => {
     try {
@@ -458,7 +459,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur saveAffectation:', err)
       throw err
     }
-  }, [affaireId, site, loadAffectations, autoRefresh])
+  }, [affaireId, site, loadAffectations, autoRefresh, enableRealtime])
 
   const deleteAffectation = useCallback(async (affectationId: string) => {
     try {
@@ -473,19 +474,20 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
 
       if (deleteError) throw deleteError
 
-      // Recharger les affectations seulement si autoRefresh est activé
-      if (autoRefresh) {
+      // Mise à jour optimiste : supprimer de l'état local immédiatement
+      setAffectations((prev) => prev.filter((a) => a.id !== affectationId))
+
+      // Recharger les affectations seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
         await loadAffectations()
-      } else {
-        // Mise à jour optimiste : supprimer de l'état local
-        setAffectations((prev) => prev.filter((a) => a.id !== affectationId))
       }
     } catch (err) {
       setError(err as Error)
       console.error('[useAffectations] Erreur deleteAffectation:', err)
       throw err
     }
-  }, [loadAffectations])
+  }, [loadAffectations, autoRefresh, enableRealtime])
 
   // Fonction de consolidation des affectations (similaire à celle des périodes de charge)
   const consolidate = useCallback(async (competence?: string) => {
@@ -681,7 +683,9 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         }
       }
 
-      // Recharger les affectations après consolidation
+      // Recharger les affectations après consolidation (même avec Realtime, car consolidation = opération complexe DELETE puis INSERT)
+      // Realtime gère les INSERT individuels, mais pour la consolidation qui modifie beaucoup de lignes,
+      // un refresh unique est plus efficace qu'un grand nombre d'événements Realtime
       await loadAffectations()
     } catch (err) {
       setError(err as Error)

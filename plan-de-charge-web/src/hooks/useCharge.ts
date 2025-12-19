@@ -319,8 +319,9 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         return newPeriodes
       })
 
-      // Recharger les périodes seulement si autoRefresh est activé
-      if (autoRefresh) {
+      // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
         await loadPeriodes()
       }
 
@@ -330,7 +331,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       console.error('[useCharge] Erreur savePeriode:', err)
       throw err
     }
-  }, [affaireId, site, loadPeriodes, autoRefresh])
+  }, [affaireId, site, loadPeriodes, autoRefresh, enableRealtime])
 
   const deletePeriode = useCallback(async (periodeId: string) => {
     try {
@@ -349,8 +350,9 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Supprimer la période de l'état local immédiatement
       setPeriodes((prev) => prev.filter((p) => p.id !== periodeId))
 
-      // Recharger les périodes seulement si autoRefresh est activé
-      if (autoRefresh) {
+      // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
         await loadPeriodes()
       }
     } catch (err) {
@@ -358,7 +360,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       console.error('[useCharge] Erreur deletePeriode:', err)
       throw err
     }
-  }, [loadPeriodes, autoRefresh])
+  }, [loadPeriodes, autoRefresh, enableRealtime])
 
   const consolidate = useCallback(async (competence?: string) => {
     try {
@@ -545,8 +547,10 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         }
       }
 
-      // Recharger les périodes après consolidation
-    await loadPeriodes()
+      // Recharger les périodes après consolidation (même avec Realtime, car consolidation = opération complexe DELETE puis INSERT)
+      // Realtime gère les INSERT individuels, mais pour la consolidation qui modifie beaucoup de lignes,
+      // un refresh unique est plus efficace qu'un grand nombre d'événements Realtime
+      await loadPeriodes()
     } catch (err) {
       setError(err as Error)
       console.error('[useCharge] Erreur consolidate:', err)
