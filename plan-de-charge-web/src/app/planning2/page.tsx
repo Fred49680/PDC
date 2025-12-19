@@ -66,7 +66,7 @@ export default function Planning2Page() {
       )
     : affairesFiltreesParTranche
 
-  // Ajuster automatiquement la date de fin selon la précision
+  // Ajuster automatiquement la date de fin selon la précision (uniquement au changement de précision)
   useEffect(() => {
     if (precision === 'SEMAINE') {
       const weekStart = startOfWeek(dateDebut, { weekStartsOn: 1 })
@@ -77,6 +77,7 @@ export default function Planning2Page() {
       setDateDebut(startOfMonth(dateDebut))
       setDateFin(endOfMonth(dateDebut))
     }
+    // Note: Pour JOUR, on garde les dates telles quelles (pas de réinitialisation)
   }, [precision])
 
   // Réinitialiser les filtres en cascade quand on change le responsable
@@ -283,6 +284,12 @@ export default function Planning2Page() {
             precision={precision}
             onPrecisionChange={(newPrecision) => {
               setPrecision(newPrecision)
+            }}
+            onDateDebutChange={(newDateDebut) => {
+              setDateDebut(newDateDebut)
+            }}
+            onDateFinChange={(newDateFin) => {
+              setDateFin(newDateFin)
             }}
           />
         ) : (

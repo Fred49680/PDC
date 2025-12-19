@@ -35,6 +35,8 @@ interface Planning2Props {
   dateFin: Date
   precision: Precision
   onPrecisionChange?: (newPrecision: Precision) => void
+  onDateDebutChange?: (newDateDebut: Date) => void
+  onDateFinChange?: (newDateFin: Date) => void
 }
 
 interface ColonneDate {
@@ -88,6 +90,41 @@ const addWeeks = (date: Date, weeks: number): Date => {
 
 const subWeeks = (date: Date, weeks: number): Date => addWeeks(date, -weeks)
 
+const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
+}
+
+const subDays = (date: Date, days: number): Date => addDays(date, -days)
+
+const addMonths = (date: Date, months: number): Date => {
+  const result = new Date(date)
+  result.setMonth(result.getMonth() + months)
+  return result
+}
+
+const subMonths = (date: Date, months: number): Date => addMonths(date, -months)
+
+const startOfMonth = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+const endOfMonth = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0)
+}
+
+const startOfWeek = (date: Date): Date => {
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Ajuster pour lundi = 1
+  return new Date(date.setDate(diff))
+}
+
+const endOfWeek = (date: Date): Date => {
+  const start = startOfWeek(date)
+  return addDays(start, 6)
+}
+
 // ========================================
 // COMPOSANT PRINCIPAL
 // ========================================
@@ -99,6 +136,8 @@ export default function Planning2({
   dateFin: propDateFin,
   precision: propPrecision,
   onPrecisionChange,
+  onDateDebutChange,
+  onDateFinChange,
 }: Planning2Props) {
   const [precision, setPrecision] = useState<Precision>(propPrecision)
   const [dateDebut, setDateDebut] = useState(propDateDebut)
@@ -1557,15 +1596,75 @@ export default function Planning2({
       }
     }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, consolidateAffectations, refreshAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
-  // Navigation
+  // Navigation (adaptée selon la précision)
   const handlePreviousPeriod = () => {
-    setDateDebut(prev => subWeeks(prev, 1))
-    setDateFin(prev => subWeeks(prev, 1))
+    let newDateDebut: Date
+    let newDateFin: Date
+    
+    if (precision === 'JOUR') {
+      // Navigation par semaine pour le mode JOUR (plus pratique)
+      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+      newDateDebut = subDays(dateDebut, diffDays + 1)
+      newDateFin = subDays(dateFin, diffDays + 1)
+    } else if (precision === 'SEMAINE') {
+      // Navigation par semaine
+      newDateDebut = subWeeks(dateDebut, 1)
+      newDateFin = subWeeks(dateFin, 1)
+    } else if (precision === 'MOIS') {
+      // Navigation par mois
+      const monthStart = startOfMonth(dateDebut)
+      const monthEnd = endOfMonth(dateDebut)
+      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+      const diffMonths = Math.ceil(diffDays / 30)
+      
+      newDateDebut = subMonths(monthStart, diffMonths)
+      newDateFin = endOfMonth(newDateDebut)
+    } else {
+      // Par défaut, navigation par semaine
+      newDateDebut = subWeeks(dateDebut, 1)
+      newDateFin = subWeeks(dateFin, 1)
+    }
+    
+    setDateDebut(newDateDebut)
+    setDateFin(newDateFin)
+    // Remonter les changements au parent
+    if (onDateDebutChange) onDateDebutChange(newDateDebut)
+    if (onDateFinChange) onDateFinChange(newDateFin)
   }
 
   const handleNextPeriod = () => {
-    setDateDebut(prev => addWeeks(prev, 1))
-    setDateFin(prev => addWeeks(prev, 1))
+    let newDateDebut: Date
+    let newDateFin: Date
+    
+    if (precision === 'JOUR') {
+      // Navigation par semaine pour le mode JOUR (plus pratique)
+      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+      newDateDebut = addDays(dateDebut, diffDays + 1)
+      newDateFin = addDays(dateFin, diffDays + 1)
+    } else if (precision === 'SEMAINE') {
+      // Navigation par semaine
+      newDateDebut = addWeeks(dateDebut, 1)
+      newDateFin = addWeeks(dateFin, 1)
+    } else if (precision === 'MOIS') {
+      // Navigation par mois
+      const monthStart = startOfMonth(dateDebut)
+      const monthEnd = endOfMonth(dateDebut)
+      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+      const diffMonths = Math.ceil(diffDays / 30)
+      
+      newDateDebut = addMonths(monthStart, diffMonths)
+      newDateFin = endOfMonth(newDateDebut)
+    } else {
+      // Par défaut, navigation par semaine
+      newDateDebut = addWeeks(dateDebut, 1)
+      newDateFin = addWeeks(dateFin, 1)
+    }
+    
+    setDateDebut(newDateDebut)
+    setDateFin(newDateFin)
+    // Remonter les changements au parent
+    if (onDateDebutChange) onDateDebutChange(newDateDebut)
+    if (onDateFinChange) onDateFinChange(newDateFin)
   }
 
   const toggleCompetence = useCallback((comp: string) => {
