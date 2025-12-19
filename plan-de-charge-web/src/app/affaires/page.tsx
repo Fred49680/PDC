@@ -51,7 +51,7 @@ export default function AffairesPage() {
     : affairesFiltreesParResponsable
 
   const tranchesDisponibles = Array.from(
-    new Set(affairesFiltreesParResponsableEtSite.map((a) => a.tranche).filter(Boolean))
+    new Set(affairesFiltreesParResponsableEtSite.map((a) => a.tranche).filter((t): t is string => Boolean(t)))
   ).sort()
 
   const affairesFiltreesParTranche = tranche
