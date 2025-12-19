@@ -107,16 +107,6 @@ export function useInterims(options: UseInterimsOptions = {}) {
     }
   }, [options, getSupabaseClient])
 
-  useEffect(() => {
-    loadInterims().then(() => {
-      // Vérifier automatiquement les renouvellements après chargement initial
-      // pour initialiser les statuts "Non défini"
-      verifierEtMettreAJourRenouvellements().catch(err => {
-        console.error('[useInterims] Erreur vérification automatique:', err)
-      })
-    })
-  }, [loadInterims, verifierEtMettreAJourRenouvellements])
-
   /**
    * Vérifie automatiquement les intérims et met à jour le statut "a_renouveler"
    * 10 jours ouvrés avant la date de fin
@@ -638,6 +628,17 @@ export function useInterims(options: UseInterimsOptions = {}) {
       setLoading(false)
     }
   }, [getSupabaseClient, loadInterims])
+
+  // Charger les intérims au montage et vérifier automatiquement les renouvellements
+  useEffect(() => {
+    loadInterims().then(() => {
+      // Vérifier automatiquement les renouvellements après chargement initial
+      // pour initialiser les statuts "Non défini"
+      verifierEtMettreAJourRenouvellements().catch(err => {
+        console.error('[useInterims] Erreur vérification automatique:', err)
+      })
+    })
+  }, [loadInterims, verifierEtMettreAJourRenouvellements])
 
   return {
     interims,
