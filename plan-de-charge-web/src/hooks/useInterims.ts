@@ -436,12 +436,11 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       const supabase = getSupabaseClient()
 
-      // 1. Récupérer toutes les ressources ETT actives
+      // 1. Récupérer toutes les ressources ETT (actives et inactives)
       const { data: ressourcesETT, error: ressourcesError } = await supabase
         .from('ressources')
         .select('id, nom, site, date_fin_contrat, actif')
         .eq('type_contrat', 'ETT')
-        .eq('actif', true)
 
       if (ressourcesError) throw ressourcesError
 
