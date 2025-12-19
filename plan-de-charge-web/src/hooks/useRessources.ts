@@ -9,6 +9,7 @@ interface UseRessourcesOptions {
   ressourceId?: string
   site?: string
   actif?: boolean
+  type_contrat?: string
   enableRealtime?: boolean // Option pour activer/désactiver Realtime
 }
 
@@ -50,6 +51,15 @@ export function useRessources(options: UseRessourcesOptions = {}) {
 
       if (options.actif !== undefined) {
         query = query.eq('actif', options.actif)
+      }
+
+      if (options.type_contrat) {
+        // Pour Intérim, inclure aussi les anciennes valeurs ETT et Interim pour compatibilité
+        if (options.type_contrat === 'Intérim') {
+          query = query.in('type_contrat', ['Intérim', 'ETT', 'Interim'])
+        } else {
+          query = query.eq('type_contrat', options.type_contrat)
+        }
       }
 
       const { data, error: queryError } = await query
@@ -106,7 +116,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options.ressourceId, options.site, options.actif, getSupabaseClient])
+  }, [options.ressourceId, options.site, options.actif, options.type_contrat, getSupabaseClient])
 
   const saveRessource = useCallback(
     async (ressource: Partial<Ressource> & { nom: string; site: string }) => {
@@ -290,6 +300,12 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     if (options.actif !== undefined) {
       filter = filter ? `${filter}&actif=eq.${options.actif}` : `actif=eq.${options.actif}`
     }
+    if (options.type_contrat) {
+      // Pour Intérim, on ne peut pas filtrer en Realtime avec IN, donc on laisse vide (rechargement complet)
+      if (options.type_contrat !== 'Intérim') {
+        filter = filter ? `${filter}&type_contrat=eq.${options.type_contrat}` : `type_contrat=eq.${options.type_contrat}`
+      }
+    }
 
     const channel = supabase
       .channel(channelName)
@@ -322,7 +338,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         channelRef.current = null
       }
     }
-  }, [enableRealtime, options.ressourceId, options.site, options.actif, getSupabaseClient, loadRessources])
+  }, [enableRealtime, options.ressourceId, options.site, options.actif, options.type_contrat, getSupabaseClient, loadRessources])
 
   // Abonnement Realtime pour les compétences
   useEffect(() => {

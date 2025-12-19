@@ -19,17 +19,26 @@ import { Select } from '@/components/UI/Select'
 export const dynamic = 'force-dynamic'
 
 export default function RessourcesPage() {
-  const [filters, setFilters] = useState({ site: '', actif: true })
+  const [filters, setFilters] = useState({ site: '', actif: true, type_contrat: '' })
   const [showImport, setShowImport] = useState(false)
+  const [activeCategoryTab, setActiveCategoryTab] = useState<'tous' | 'CDI' | 'Intérim' | 'APP' | 'Sous-traitance'>('tous')
   
   // Mémoriser l'objet options pour useRessources
   const ressourcesOptions = useMemo(() => ({
     site: filters.site || undefined,
     actif: filters.actif,
-  }), [filters.site, filters.actif])
+    type_contrat: activeCategoryTab !== 'tous' ? activeCategoryTab : undefined,
+  }), [filters.site, filters.actif, activeCategoryTab])
   
   const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch, loadRessources } =
     useRessources(ressourcesOptions)
+  
+  // Charger toutes les ressources pour le comptage (sans filtre type_contrat)
+  const { ressources: allRessources } = useRessources({ 
+    actif: filters.actif, 
+    site: filters.site || undefined,
+    enableRealtime: false // Pas besoin de Realtime pour le comptage
+  })
   
   // Mémoriser l'objet options pour useSites
   const sitesOptions = useMemo(() => ({ actif: true }), [])
@@ -407,6 +416,65 @@ export default function RessourcesPage() {
           </Card>
         )}
 
+        {/* Onglets par catégorie */}
+        <Card>
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">Catégories de ressources</h2>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveCategoryTab('tous')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  activeCategoryTab === 'tous'
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Tous ({allRessources.length})
+              </button>
+              <button
+                onClick={() => setActiveCategoryTab('CDI')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  activeCategoryTab === 'CDI'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                CDI ({allRessources.filter(r => r.type_contrat === 'CDI').length})
+              </button>
+              <button
+                onClick={() => setActiveCategoryTab('Intérim')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  activeCategoryTab === 'Intérim'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Intérim ({allRessources.filter(r => r.type_contrat === 'Intérim' || r.type_contrat === 'ETT' || r.type_contrat === 'Interim').length})
+              </button>
+              <button
+                onClick={() => setActiveCategoryTab('APP')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  activeCategoryTab === 'APP'
+                    ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                APP ({allRessources.filter(r => r.type_contrat === 'APP').length})
+              </button>
+              <button
+                onClick={() => setActiveCategoryTab('Sous-traitance')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  activeCategoryTab === 'Sous-traitance'
+                    ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Sous-traitance ({allRessources.filter(r => r.type_contrat === 'Sous-traitance').length})
+              </button>
+            </div>
+          </div>
+        </Card>
+
         {/* Filtres modernes */}
         <Card>
           <CardHeader gradient="green" icon={<Filter className="w-6 h-6 text-green-600" />}>
@@ -537,9 +605,9 @@ export default function RessourcesPage() {
                     options={[
                       { value: '', label: 'Sélectionner...' },
                       { value: 'CDI', label: 'CDI' },
-                      { value: 'CDD', label: 'CDD' },
-                      { value: 'ETT', label: 'ETT' },
-                      { value: 'Interim', label: 'Intérim' }
+                      { value: 'Intérim', label: 'Intérim' },
+                      { value: 'APP', label: 'APP' },
+                      { value: 'Sous-traitance', label: 'Sous-traitance' }
                     ]}
                   />
                   <Input
@@ -798,7 +866,14 @@ export default function RessourcesPage() {
         <Card>
           <CardHeader gradient="green" icon={<Users className="w-6 h-6 text-green-600" />}>
             <div className="flex items-center justify-between w-full">
-              <h2 className="text-2xl font-bold text-gray-800">Liste des ressources</h2>
+              <h2 className="text-2xl font-bold text-gray-800">
+                Liste des ressources
+                {activeCategoryTab !== 'tous' && (
+                  <span className="ml-3 text-lg font-normal text-gray-600">
+                    ({activeCategoryTab})
+                  </span>
+                )}
+              </h2>
               <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
                 {ressources.length}
               </span>
