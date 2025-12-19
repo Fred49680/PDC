@@ -59,6 +59,9 @@ export default function RessourcesPage() {
     date_debut_contrat: '',
     date_fin_contrat: '',
     actif: true,
+    ressource_id: '',
+    a_renouveler: '',
+    commentaire: '',
   })
 
   // Liste prédéfinie des compétences
@@ -211,6 +214,9 @@ export default function RessourcesPage() {
             date_debut_contrat: '',
             date_fin_contrat: '',
             actif: true,
+            ressource_id: '',
+            a_renouveler: '',
+            commentaire: '',
           })
           setIsEditing(false)
           setShowModal(false)
@@ -235,6 +241,9 @@ export default function RessourcesPage() {
         : '',
       date_fin_contrat: ressource.date_fin_contrat ? format(ressource.date_fin_contrat, 'yyyy-MM-dd') : '',
       actif: ressource.actif,
+      ressource_id: '',
+      a_renouveler: '',
+      commentaire: '',
     })
     setIsEditing(true)
     setShowModal(true)
@@ -264,6 +273,9 @@ export default function RessourcesPage() {
         : '',
       date_fin_contrat: ressource.date_fin_contrat ? format(ressource.date_fin_contrat, 'yyyy-MM-dd') : '',
       actif: ressource.actif,
+      ressource_id: '',
+      a_renouveler: '',
+      commentaire: '',
     })
     setIsEditing(true)
     setShowModal(true)
@@ -284,6 +296,9 @@ export default function RessourcesPage() {
       date_debut_contrat: '',
       date_fin_contrat: '',
       actif: true,
+      ressource_id: '',
+      a_renouveler: '',
+      commentaire: '',
     })
     setIsEditing(false)
     setShowModal(true)
