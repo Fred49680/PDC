@@ -1639,121 +1639,107 @@ function InterimsManagement({
                 }`}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    {/* Section principale : Nom et informations */}
-                    <div className="flex-1 space-y-4">
-                      {/* Nom de la ressource */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
-                          {interim.ressource?.nom?.charAt(0) || '?'}
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900">
-                            {interim.ressource?.nom || 'Ressource inconnue'}
-                          </h3>
-                          <div className="flex items-center gap-4 mt-1">
-                            <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                              <Building2 className="w-4 h-4 text-gray-400" />
-                              <span className="font-medium">{interim.site}</span>
-                            </div>
-                            {interim.ressource && (
-                              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                interim.ressource.actif 
-                                  ? 'bg-green-100 text-green-700 border border-green-200' 
-                                  : 'bg-red-100 text-red-700 border border-red-200'
-                              }`}>
-                                <User className="w-3 h-3" />
-                                <span>{interim.ressource.actif ? 'Actif' : 'Inactif'}</span>
-                              </div>
-                            )}
-                          </div>
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Colonne 1: Avatar et Nom */}
+                    <div className="flex items-center gap-3 min-w-[200px]">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        {interim.ressource?.nom?.charAt(0) || '?'}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-gray-900 truncate">
+                          {interim.ressource?.nom || 'Ressource inconnue'}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-600 truncate">{interim.site}</span>
                         </div>
                       </div>
-
-                      {/* Informations du contrat */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-blue-50">
-                            <Calendar className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium mb-0.5">Période du contrat</p>
-                            <p className="text-sm font-semibold text-gray-900">
-                              {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${
-                            estExpire 
-                              ? 'bg-red-50' 
-                              : expireBientot 
-                              ? 'bg-yellow-50' 
-                              : 'bg-gray-50'
-                          }`}>
-                            <Clock className={`w-4 h-4 ${
-                              estExpire 
-                                ? 'text-red-600' 
-                                : expireBientot 
-                                ? 'text-yellow-600' 
-                                : 'text-gray-600'
-                            }`} />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium mb-0.5">Jours restants</p>
-                            <p className={`text-sm font-bold ${
-                              estExpire 
-                                ? 'text-red-600' 
-                                : expireBientot 
-                                ? 'text-yellow-600' 
-                                : 'text-gray-900'
-                            }`}>
-                              {estExpire 
-                                ? `Expiré depuis ${Math.abs(joursRestants)} jour(s) ouvré(s)`
-                                : `${joursRestants} jour(s) ouvré(s) restant(s)`
-                              }
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Statut de renouvellement */}
-                      <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 font-medium">Statut :</span>
-                          <div className={`px-3 py-1.5 rounded-lg border font-semibold text-xs ${getStatutColor(interim.a_renouveler || '')}`}>
-                            {interim.a_renouveler || 'En cours'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Commentaire si présent */}
-                      {interim.commentaire && (
-                        <div className="pt-2 border-t border-gray-100">
-                          <p className="text-sm text-gray-600 italic bg-gray-50 p-3 rounded-lg">
-                            {interim.commentaire}
-                          </p>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Actions (bouton archiver) */}
-                    <div className="flex items-start gap-2 ml-4">
+                    {/* Colonne 2: Statut Actif */}
+                    {interim.ressource && (
+                      <div className="flex items-center min-w-[100px]">
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          interim.ressource.actif 
+                            ? 'bg-green-100 text-green-700 border border-green-200' 
+                            : 'bg-red-100 text-red-700 border border-red-200'
+                        }`}>
+                          <User className="w-3 h-3" />
+                          <span>{interim.ressource.actif ? 'Actif' : 'Inactif'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Colonne 3: Période du contrat */}
+                    <div className="flex items-center gap-2 min-w-[220px]">
+                      <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 font-medium">Période</p>
+                        <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                          {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Colonne 4: Jours restants */}
+                    <div className="flex items-center gap-2 min-w-[180px]">
+                      <Clock className={`w-4 h-4 flex-shrink-0 ${
+                        estExpire 
+                          ? 'text-red-600' 
+                          : expireBientot 
+                          ? 'text-yellow-600' 
+                          : 'text-gray-600'
+                      }`} />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 font-medium">Jours restants</p>
+                        <p className={`text-sm font-bold whitespace-nowrap ${
+                          estExpire 
+                            ? 'text-red-600' 
+                            : expireBientot 
+                            ? 'text-yellow-600' 
+                            : 'text-gray-900'
+                        }`}>
+                          {estExpire 
+                            ? `Expiré ${Math.abs(joursRestants)}j`
+                            : `${joursRestants} jour(s)`
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Colonne 5: Statut de renouvellement */}
+                    <div className="flex items-center gap-2 min-w-[140px]">
+                      <span className="text-xs text-gray-500 font-medium">Statut:</span>
+                      <div className={`px-2.5 py-1 rounded-lg border font-semibold text-xs whitespace-nowrap ${getStatutColor(interim.a_renouveler || '')}`}>
+                        {interim.a_renouveler || 'En cours'}
+                      </div>
+                    </div>
+
+                    {/* Colonne 6: Actions (bouton archiver) */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleDelete(interim.id, interim.a_renouveler || '')
                           }}
-                          className="p-2.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200 hover:border-orange-300"
+                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200 hover:border-orange-300"
                           title="Archiver l'intérim"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   </div>
+
+                  {/* Commentaire si présent (sous la ligne principale) */}
+                  {interim.commentaire && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-sm text-gray-600 italic">
+                        {interim.commentaire}
+                      </p>
+                    </div>
+                  )}
                 </CardHeader>
               </Card>
             )
