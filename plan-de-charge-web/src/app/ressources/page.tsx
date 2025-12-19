@@ -7,9 +7,13 @@ import { useSites } from '@/hooks/useSites'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet } from 'lucide-react'
+import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ImportExcel } from '@/components/Ressources/ImportExcel'
+import { Card, CardHeader } from '@/components/UI/Card'
+import { Button } from '@/components/UI/Button'
+import { Input } from '@/components/UI/Input'
+import { Select } from '@/components/UI/Select'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -368,114 +372,100 @@ export default function RessourcesPage() {
   return (
     <Layout>
       <div className="space-y-8">
-        {/* En-tête avec icône */}
-        <div className="flex items-center justify-between">
+        {/* En-tête moderne */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-              <Users className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-xl">
+              <Users className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 Gestion des Ressources
               </h1>
-              <p className="text-gray-600 mt-1">Créez et gérez les ressources et leurs compétences</p>
+              <p className="text-gray-600 mt-2 text-lg">Créez et gérez les ressources et leurs compétences</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowImport(!showImport)}
-              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-            >
-              <FileSpreadsheet className="w-5 h-5" />
+            <Button variant="secondary" icon={<FileSpreadsheet className="w-5 h-5" />} onClick={() => setShowImport(!showImport)}>
               {showImport ? 'Masquer import' : 'Importer Excel'}
-            </button>
-            <button
-              onClick={handleNew}
-              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
+            </Button>
+            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={handleNew} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
               Nouvelle ressource
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* Composant d'import Excel */}
+        {/* Import Excel */}
         {showImport && (
-          <ImportExcel
-            onImportComplete={() => {
-              loadRessources()
-              setShowImport(false)
-            }}
-          />
+          <Card>
+            <ImportExcel
+              onImportComplete={() => {
+                loadRessources()
+                setShowImport(false)
+              }}
+            />
+          </Card>
         )}
 
-        {/* Filtres - Design moderne */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-4">
-            <Search className="w-5 h-5 text-green-600" />
-            <h2 className="text-xl font-bold text-gray-800">Filtres</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={filters.site}
-                onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-500"
-                placeholder="Filtrer par site..."
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="actifFilter"
-                checked={filters.actif}
-                onChange={(e) => setFilters({ ...filters, actif: e.target.checked })}
-                className="w-5 h-5 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
-              />
-              <label htmlFor="actifFilter" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                Afficher uniquement les ressources actives
-              </label>
+        {/* Filtres modernes */}
+        <Card>
+          <CardHeader gradient="green" icon={<Filter className="w-6 h-6 text-green-600" />}>
+            <h2 className="text-2xl font-bold text-gray-800">Filtres</h2>
+          </CardHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Site"
+              value={filters.site}
+              onChange={(e) => setFilters({ ...filters, site: e.target.value })}
+              placeholder="Filtrer par site..."
+              icon={<Search className="w-4 h-4" />}
+            />
+            <div className="flex items-end gap-3">
+              <div className="flex items-center gap-3 h-full">
+                <input
+                  type="checkbox"
+                  id="actifFilter"
+                  checked={filters.actif}
+                  onChange={(e) => setFilters({ ...filters, actif: e.target.checked })}
+                  className="w-5 h-5 rounded border-2 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
+                />
+                <label htmlFor="actifFilter" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                  Afficher uniquement les ressources actives
+                </label>
+              </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Modal de création/modification */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-                    <h2 className="text-xl font-bold text-gray-800">
+                  <CardHeader gradient="green" className="mb-0">
+                    <h2 className="text-2xl font-bold text-gray-800">
                       {isEditing ? 'Modifier la ressource' : 'Nouvelle ressource'}
                     </h2>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowModal(false)
-                      setIsEditing(false)
-                      setActiveTab('informations')
-                      setFormData({
-                        id: '',
-                        nom: '',
-                        site: '',
-                        type_contrat: '',
-                        responsable: '',
-                        date_debut_contrat: '',
-                        date_fin_contrat: '',
-                        actif: true,
-                      })
-                      setCompetencesSelection(new Map())
-                      setCompetencesPersonnalisees([{ nom: '', principale: false }])
-                      setCompetenceFormRessourceId(null)
-                    }}
-                    className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-600" />
-                  </button>
+                  </CardHeader>
+                  <Button variant="ghost" size="sm" icon={<X className="w-5 h-5" />} onClick={() => {
+                    setShowModal(false)
+                    setIsEditing(false)
+                    setActiveTab('informations')
+                    setFormData({
+                      id: '',
+                      nom: '',
+                      site: '',
+                      type_contrat: '',
+                      responsable: '',
+                      date_debut_contrat: '',
+                      date_fin_contrat: '',
+                      actif: true,
+                    })
+                    setCompetencesSelection(new Map())
+                    setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                    setCompetenceFormRessourceId(null)
+                  }} />
                 </div>
               </div>
 
@@ -518,87 +508,63 @@ export default function RessourcesPage() {
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
                 {/* Première ligne : Nom et Site */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Nom <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.nom}
-                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Site <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.site}
-                      onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
-                      required
-                      disabled={sitesLoading}
-                    >
-                      <option value="">Sélectionner un site...</option>
-                      {sitesList.map((site) => (
-                        <option key={site.id} value={site.site}>
-                          {site.site}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Input
+                    label="Nom"
+                    type="text"
+                    value={formData.nom}
+                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                    required
+                  />
+                  <Select
+                    label="Site"
+                    value={formData.site}
+                    onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                    required
+                    disabled={sitesLoading}
+                    options={[
+                      { value: '', label: 'Sélectionner un site...' },
+                      ...sitesList.map((site) => ({ value: site.site, label: site.site }))
+                    ]}
+                  />
                 </div>
 
                 {/* Deuxième ligne : Type contrat et Responsable */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">Type de contrat</label>
-                    <select
-                      value={formData.type_contrat}
-                      onChange={(e) => setFormData({ ...formData, type_contrat: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
-                    >
-                      <option value="">Sélectionner...</option>
-                      <option value="CDI">CDI</option>
-                      <option value="CDD">CDD</option>
-                      <option value="ETT">ETT</option>
-                      <option value="Interim">Intérim</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">Responsable</label>
-                    <input
-                      type="text"
-                      value={formData.responsable}
-                      onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
-                      placeholder="Nom du responsable"
-                    />
-                  </div>
+                  <Select
+                    label="Type de contrat"
+                    value={formData.type_contrat}
+                    onChange={(e) => setFormData({ ...formData, type_contrat: e.target.value })}
+                    options={[
+                      { value: '', label: 'Sélectionner...' },
+                      { value: 'CDI', label: 'CDI' },
+                      { value: 'CDD', label: 'CDD' },
+                      { value: 'ETT', label: 'ETT' },
+                      { value: 'Interim', label: 'Intérim' }
+                    ]}
+                  />
+                  <Input
+                    label="Responsable"
+                    type="text"
+                    value={formData.responsable}
+                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                    placeholder="Nom du responsable"
+                  />
                 </div>
 
                 {/* Troisième ligne : Dates */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">Date début contrat</label>
-                    <input
-                      type="date"
-                      value={formData.date_debut_contrat}
-                      onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">Date fin contrat</label>
-                    <input
-                      type="date"
-                      value={formData.date_fin_contrat}
-                      onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm"
-                    />
-                  </div>
+                  <Input
+                    label="Date début contrat"
+                    type="date"
+                    value={formData.date_debut_contrat}
+                    onChange={(e) => setFormData({ ...formData, date_debut_contrat: e.target.value })}
+                  />
+                  <Input
+                    label="Date fin contrat"
+                    type="date"
+                    value={formData.date_fin_contrat}
+                    onChange={(e) => setFormData({ ...formData, date_fin_contrat: e.target.value })}
+                  />
                 </div>
 
                 {/* Quatrième ligne : Actif avec date de fin conditionnelle */}
@@ -646,48 +612,35 @@ export default function RessourcesPage() {
                   <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                     <div className="flex items-center gap-3">
                       {isEditing && (
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(formData.id)}
-                          className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 font-medium text-sm flex items-center gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                        <Button variant="danger" size="sm" icon={<Trash2 className="w-4 h-4" />} onClick={() => handleDelete(formData.id)}>
                           Supprimer
-                        </button>
+                        </Button>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowModal(false)
-                          setIsEditing(false)
-                          setActiveTab('informations')
-                          setFormData({
-                            id: '',
-                            nom: '',
-                            site: '',
-                            type_contrat: '',
-                            responsable: '',
-                            date_debut_contrat: '',
-                            date_fin_contrat: '',
-                            actif: true,
-                          })
-                          setCompetencesSelection(new Map())
-                          setCompetencesPersonnalisees([{ nom: '', principale: false }])
-                          setCompetenceFormRessourceId(null)
-                        }}
-                        className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setShowModal(false)
+                        setIsEditing(false)
+                        setActiveTab('informations')
+                        setFormData({
+                          id: '',
+                          nom: '',
+                          site: '',
+                          type_contrat: '',
+                          responsable: '',
+                          date_debut_contrat: '',
+                          date_fin_contrat: '',
+                          actif: true,
+                        })
+                        setCompetencesSelection(new Map())
+                        setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                        setCompetenceFormRessourceId(null)
+                      }}>
                         Annuler
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
+                      </Button>
+                      <Button variant="primary" size="sm" icon={<CheckCircle2 className="w-4 h-4" />} type="submit" className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
                         {isEditing ? 'Enregistrer' : 'Créer'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </form>
@@ -815,32 +768,23 @@ export default function RessourcesPage() {
 
                       {/* Boutons d'action compétences */}
                       <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCompetencesSelection(new Map())
-                            setCompetencesPersonnalisees([{ nom: '', principale: false }])
-                            setCompetenceFormRessourceId(null)
-                            setActiveTab('informations')
-                          }}
-                          className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setCompetencesSelection(new Map())
+                          setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                          setCompetenceFormRessourceId(null)
+                          setActiveTab('informations')
+                        }}>
                           Annuler
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!competenceFormRessourceId && formData.id) {
-                              setCompetenceFormRessourceId(formData.id)
-                            }
-                            await handleSubmitCompetences()
-                            setActiveTab('informations')
-                          }}
-                          className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
-                        >
-                          <Award className="w-4 h-4" />
+                        </Button>
+                        <Button variant="primary" size="sm" icon={<Award className="w-4 h-4" />} onClick={async () => {
+                          if (!competenceFormRessourceId && formData.id) {
+                            setCompetenceFormRessourceId(formData.id)
+                          }
+                          await handleSubmitCompetences()
+                          setActiveTab('informations')
+                        }} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
                           Enregistrer les compétences
-                        </button>
+                        </Button>
                       </div>
                     </>
                   )}
@@ -851,24 +795,27 @@ export default function RessourcesPage() {
         )}
 
         {/* Liste des ressources */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-            <h2 className="text-2xl font-bold text-gray-800">Liste des ressources</h2>
-            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-              {ressources.length}
-            </span>
-          </div>
+        <Card>
+          <CardHeader gradient="green" icon={<Users className="w-6 h-6 text-green-600" />}>
+            <div className="flex items-center justify-between w-full">
+              <h2 className="text-2xl font-bold text-gray-800">Liste des ressources</h2>
+              <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                {ressources.length}
+              </span>
+            </div>
+          </CardHeader>
 
           {loading ? (
             <Loading message="Chargement des ressources..." />
           ) : error ? (
-            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl p-6 shadow-lg">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-                <p className="text-red-800 font-medium">Erreur: {error.message}</p>
+            <Card>
+              <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                  <p className="text-red-800 font-semibold">Erreur: {error.message}</p>
+                </div>
               </div>
-            </div>
+            </Card>
           ) : (
             <div className="overflow-x-auto rounded-xl border-2 border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
@@ -938,7 +885,7 @@ export default function RessourcesPage() {
               </table>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </Layout>
   )

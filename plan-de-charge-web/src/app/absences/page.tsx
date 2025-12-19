@@ -7,8 +7,12 @@ import { useRessources } from '@/hooks/useRessources'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Calendar, Plus, Trash2, Search, AlertCircle, X, CheckCircle2 } from 'lucide-react'
+import { Calendar, Plus, Trash2, Search, AlertCircle, X, CheckCircle2, Filter } from 'lucide-react'
 import type { Absence } from '@/types/absences'
+import { Card, CardHeader } from '@/components/UI/Card'
+import { Button } from '@/components/UI/Button'
+import { Input } from '@/components/UI/Input'
+import { Select } from '@/components/UI/Select'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -191,68 +195,60 @@ export default function AbsencesPage() {
   return (
     <Layout>
       <div className="space-y-8">
-        {/* En-tête avec icône */}
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-            <Calendar className="w-8 h-8 text-white" />
+        {/* En-tête moderne */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-xl">
+              <Calendar className="w-9 h-9 text-white" />
+            </div>
+            <div>
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                Gestion des Absences
+              </h1>
+              <p className="text-gray-600 mt-2 text-lg">Gérez les absences, formations et congés des ressources</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-              Gestion des Absences
-            </h1>
-            <p className="text-gray-600 mt-1">Gérez les absences, formations et congés des ressources</p>
-          </div>
+          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={handleNew} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
+            Nouvelle absence
+          </Button>
         </div>
 
-        {/* Bouton Nouvelle absence */}
-        <div className="flex items-center justify-end">
-          <button
-            onClick={handleNew}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Nouvelle absence
-          </button>
-        </div>
+        {/* Filtres modernes */}
+        <Card>
+          <CardHeader gradient="purple" icon={<Filter className="w-6 h-6 text-purple-600" />}>
+            <h2 className="text-2xl font-bold text-gray-800">Filtres</h2>
+          </CardHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Ressource"
+              value={ressourceId}
+              onChange={(e) => setRessourceId(e.target.value)}
+              placeholder="Filtrer par ressource ID..."
+              icon={<Search className="w-4 h-4" />}
+            />
+            <Input
+              label="Site"
+              value={site}
+              onChange={(e) => setSite(e.target.value)}
+              placeholder="Filtrer par site..."
+              icon={<Search className="w-4 h-4" />}
+            />
+          </div>
+        </Card>
 
         {/* Liste des absences */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-purple-500 to-indigo-600 rounded-full"></div>
+        <Card>
+          <CardHeader gradient="purple" icon={<Calendar className="w-6 h-6 text-purple-600" />}>
             <h2 className="text-2xl font-bold text-gray-800">Liste des absences</h2>
-          </div>
-          
-          {/* Filtres - Design amélioré */}
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={ressourceId}
-                onChange={(e) => setRessourceId(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                placeholder="Filtrer par ressource ID..."
-              />
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={site}
-                onChange={(e) => setSite(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                placeholder="Filtrer par site..."
-              />
-            </div>
-          </div>
+          </CardHeader>
 
           {loading ? (
-            <Loading />
+            <Loading message="Chargement des absences..." />
           ) : error ? (
-            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl p-6 shadow-lg">
+            <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl">
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-6 h-6 text-red-600" />
-                <p className="text-red-800 font-medium">Erreur: {error.message}</p>
+                <p className="text-red-800 font-semibold">Erreur: {error.message}</p>
               </div>
             </div>
           ) : (
@@ -333,7 +329,7 @@ export default function AbsencesPage() {
               </table>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Modal de création/modification */}
         {showModal && (
@@ -356,19 +352,15 @@ export default function AbsencesPage() {
               })
             }}
           >
-            <div 
-              className="bg-white rounded-xl shadow-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" 
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-indigo-600 rounded-full"></div>
-                  <h2 className="text-xl font-bold text-gray-800">
-                    {isEditing ? 'Modifier une absence' : 'Nouvelle absence'}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => {
+            <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <CardHeader gradient="purple" className="mb-0">
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      {isEditing ? 'Modifier une absence' : 'Nouvelle absence'}
+                    </h2>
+                  </CardHeader>
+                  <Button variant="ghost" size="sm" icon={<X className="w-5 h-5" />} onClick={() => {
                     setShowModal(false)
                     setIsEditing(false)
                     setFormData({
@@ -383,230 +375,171 @@ export default function AbsencesPage() {
                       statut: 'Actif',
                       type_arret_maladie: '',
                     })
-                  }}
-                  className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
+                  }} />
+                </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="p-6 space-y-5">
                 {/* Première ligne : Ressource et Type */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Ressource <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.ressource_id}
-                      onChange={(e) => handleRessourceChange(e.target.value)}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
-                      required
-                    >
-                      <option value="">Sélectionner une ressource...</option>
-                      {ressources.map((ressource) => (
-                        <option key={ressource.id} value={ressource.id}>
-                          {ressource.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Type <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => {
-                        const newType = e.target.value
-                        const isArretMaladie = newType.toLowerCase().includes('maladie') || newType.toLowerCase().includes('arrêt')
-                        setFormData({ 
-                          ...formData, 
-                          type: newType,
-                          // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
-                          type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
-                        })
-                      }}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm font-medium"
-                      required
-                    >
-                      <option value="Formation">Formation</option>
-                      <option value="Congés payés">Congés payés</option>
-                      <option value="Maladie">Maladie</option>
-                      <option value="Paternité">Paternité</option>
-                      <option value="Maternité">Maternité</option>
-                      <option value="Parental">Parental</option>
-                      <option value="Autre">Autre</option>
-                    </select>
-                  </div>
+                  <Select
+                    label="Ressource"
+                    value={formData.ressource_id}
+                    onChange={(e) => handleRessourceChange(e.target.value)}
+                    required
+                    options={[
+                      { value: '', label: 'Sélectionner une ressource...' },
+                      ...ressources.map((ressource) => ({ value: ressource.id, label: ressource.nom }))
+                    ]}
+                  />
+                  <Select
+                    label="Type"
+                    value={formData.type}
+                    onChange={(e) => {
+                      const newType = e.target.value
+                      const isArretMaladie = newType.toLowerCase().includes('maladie') || newType.toLowerCase().includes('arrêt')
+                      setFormData({ 
+                        ...formData, 
+                        type: newType,
+                        // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
+                        type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
+                      })
+                    }}
+                    required
+                    options={[
+                      { value: 'Formation', label: 'Formation' },
+                      { value: 'Congés payés', label: 'Congés payés' },
+                      { value: 'Maladie', label: 'Maladie' },
+                      { value: 'Paternité', label: 'Paternité' },
+                      { value: 'Maternité', label: 'Maternité' },
+                      { value: 'Parental', label: 'Parental' },
+                      { value: 'Autre', label: 'Autre' }
+                    ]}
+                  />
                 </div>
 
                 {/* Deuxième ligne : Site et Compétence (automatiques) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Site <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.site}
-                      readOnly
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600 cursor-not-allowed"
-                      required
-                    />
-                    <p className="text-xs text-gray-500">Rempli automatiquement selon la ressource</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Compétence
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.competence}
-                      readOnly
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-500">Compétence principale de la ressource</p>
-                  </div>
+                  <Input
+                    label="Site"
+                    type="text"
+                    value={formData.site}
+                    readOnly
+                    required
+                    className="bg-gray-50 cursor-not-allowed"
+                  />
+                  <Input
+                    label="Compétence"
+                    type="text"
+                    value={formData.competence}
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
+                  />
                 </div>
 
                 {/* Troisième ligne : Dates */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Date début <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.date_debut}
-                      onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Date fin <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.date_fin}
-                      onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
-                      required
-                    />
-                  </div>
+                  <Input
+                    label="Date début"
+                    type="date"
+                    value={formData.date_debut}
+                    onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Date fin"
+                    type="date"
+                    value={formData.date_fin}
+                    onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
+                    required
+                  />
                 </div>
 
                 {/* Quatrième ligne : Statut et Type arrêt maladie (si maladie) */}
                 {(formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="block text-sm font-semibold text-gray-700">
-                        Type d'arrêt maladie
-                      </label>
-                      <select
-                        value={formData.type_arret_maladie}
-                        onChange={(e) => setFormData({ ...formData, type_arret_maladie: e.target.value as 'Initial' | 'Prolongation' | '' })}
-                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
-                      >
-                        <option value="">Sélectionner...</option>
-                        <option value="Initial">Initial</option>
-                        <option value="Prolongation">Prolongation</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-sm font-semibold text-gray-700">
-                        Statut
-                      </label>
-                      <select
-                        value={formData.statut}
-                        onChange={(e) => setFormData({ ...formData, statut: e.target.value as 'Actif' | 'Clôturé' })}
-                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
-                      >
-                        <option value="Actif">Actif</option>
-                        <option value="Clôturé">Clôturé</option>
-                      </select>
-                    </div>
+                    <Select
+                      label="Type d'arrêt maladie"
+                      value={formData.type_arret_maladie}
+                      onChange={(e) => setFormData({ ...formData, type_arret_maladie: e.target.value as 'Initial' | 'Prolongation' | '' })}
+                      options={[
+                        { value: '', label: 'Sélectionner...' },
+                        { value: 'Initial', label: 'Initial' },
+                        { value: 'Prolongation', label: 'Prolongation' }
+                      ]}
+                    />
+                    <Select
+                      label="Statut"
+                      value={formData.statut}
+                      onChange={(e) => setFormData({ ...formData, statut: e.target.value as 'Actif' | 'Clôturé' })}
+                      options={[
+                        { value: 'Actif', label: 'Actif' },
+                        { value: 'Clôturé', label: 'Clôturé' }
+                      ]}
+                    />
                   </div>
                 )}
 
                 {/* Statut (si ce n'est pas un arrêt maladie) */}
                 {!(formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) && (
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Statut
-                    </label>
-                    <select
-                      value={formData.statut}
-                      onChange={(e) => setFormData({ ...formData, statut: e.target.value as 'Actif' | 'Clôturé' })}
-                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white text-sm"
-                    >
-                      <option value="Actif">Actif</option>
-                      <option value="Clôturé">Clôturé</option>
-                    </select>
-                  </div>
+                  <Select
+                    label="Statut"
+                    value={formData.statut}
+                    onChange={(e) => setFormData({ ...formData, statut: e.target.value as 'Actif' | 'Clôturé' })}
+                    options={[
+                      { value: 'Actif', label: 'Actif' },
+                      { value: 'Clôturé', label: 'Clôturé' }
+                    ]}
+                  />
                 )}
 
                 {/* Cinquième ligne : Commentaire */}
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Commentaire
                   </label>
                   <textarea
                     value={formData.commentaire}
                     onChange={(e) => setFormData({ ...formData, commentaire: e.target.value })}
-                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white resize-none text-sm"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white resize-none text-sm font-medium placeholder:text-gray-500"
                     rows={3}
+                    placeholder="Ajouter un commentaire..."
                   />
                 </div>
 
                 {/* Boutons d'action */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                   {isEditing && (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(formData.id)}
-                      className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 font-medium text-sm flex items-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
+                    <Button variant="danger" size="sm" icon={<Trash2 className="w-4 h-4" />} onClick={() => handleDelete(formData.id)}>
                       Supprimer
-                    </button>
+                    </Button>
                   )}
                   <div className="flex items-center gap-3 ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowModal(false)
-                        setIsEditing(false)
-                        setFormData({
-                          id: '',
-                          ressource_id: '',
-                          site: '',
-                          date_debut: format(new Date(), 'yyyy-MM-dd'),
-                          date_fin: format(new Date(), 'yyyy-MM-dd'),
-                          type: 'Congés payés',
-                          competence: '',
-                          commentaire: '',
-                          statut: 'Actif',
-                          type_arret_maladie: '',
-                        })
-                      }}
-                      className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200 font-medium text-sm"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setShowModal(false)
+                      setIsEditing(false)
+                      setFormData({
+                        id: '',
+                        ressource_id: '',
+                        site: '',
+                        date_debut: format(new Date(), 'yyyy-MM-dd'),
+                        date_fin: format(new Date(), 'yyyy-MM-dd'),
+                        type: 'Congés payés',
+                        competence: '',
+                        commentaire: '',
+                        statut: 'Actif',
+                        type_arret_maladie: '',
+                      })
+                    }}>
                       Annuler
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 shadow-md hover:shadow-lg font-semibold flex items-center gap-2 text-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
+                    </Button>
+                    <Button variant="primary" size="sm" icon={<CheckCircle2 className="w-4 h-4" />} type="submit" className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
                       {isEditing ? 'Enregistrer' : 'Créer'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </form>
-            </div>
+            </Card>
           </div>
         )}
       </div>

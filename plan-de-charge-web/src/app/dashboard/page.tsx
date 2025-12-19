@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { Loading } from '@/components/Common/Loading'
+import { Card, CardHeader } from '@/components/UI/Card'
 import { createClient } from '@/lib/supabase/client'
-import { BarChart3, Users, Calendar, AlertCircle } from 'lucide-react'
+import { BarChart3, Users, Calendar, AlertCircle, TrendingUp, Activity } from 'lucide-react'
 
-// Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
 
 export default function DashboardPage() {
@@ -25,30 +25,25 @@ export default function DashboardPage() {
         setLoading(true)
         setError(null)
 
-        // Créer le client seulement côté client
         if (typeof window === 'undefined') {
           return
         }
 
         const supabase = createClient()
 
-        // Compter les affaires
         const { count: countAffaires } = await supabase
           .from('affaires')
           .select('*', { count: 'exact', head: true })
 
-        // Compter les ressources actives
         const { count: countRessources } = await supabase
           .from('ressources')
           .select('*', { count: 'exact', head: true })
           .eq('actif', true)
 
-        // Compter les affectations
         const { count: countAffectations } = await supabase
           .from('affectations')
           .select('*', { count: 'exact', head: true })
 
-        // Compter les absences
         const { count: countAbsences } = await supabase
           .from('absences')
           .select('*', { count: 'exact', head: true })
@@ -81,96 +76,107 @@ export default function DashboardPage() {
   if (error) {
     return (
       <Layout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Erreur: {error}</p>
-        </div>
+        <Card>
+          <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              <p className="text-red-800 font-semibold">Erreur: {error}</p>
+            </div>
+          </div>
+        </Card>
       </Layout>
     )
   }
 
+  const statCards = [
+    {
+      label: 'Affaires',
+      value: stats.totalAffaires,
+      icon: BarChart3,
+      gradient: 'from-blue-500 to-indigo-600',
+      color: 'blue',
+      bgGradient: 'from-blue-50 to-indigo-50'
+    },
+    {
+      label: 'Ressources actives',
+      value: stats.totalRessources,
+      icon: Users,
+      gradient: 'from-green-500 to-emerald-600',
+      color: 'green',
+      bgGradient: 'from-green-50 to-emerald-50'
+    },
+    {
+      label: 'Affectations',
+      value: stats.totalAffectations,
+      icon: Calendar,
+      gradient: 'from-purple-500 to-indigo-600',
+      color: 'purple',
+      bgGradient: 'from-purple-50 to-indigo-50'
+    },
+    {
+      label: 'Absences',
+      value: stats.totalAbsences,
+      icon: AlertCircle,
+      gradient: 'from-orange-500 to-amber-600',
+      color: 'orange',
+      bgGradient: 'from-orange-50 to-amber-50'
+    },
+  ]
+
   return (
     <Layout>
       <div className="space-y-8">
-        {/* En-tête avec icône */}
+        {/* En-tête moderne */}
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg">
-            <BarChart3 className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-xl">
+            <BarChart3 className="w-9 h-9 text-white" />
           </div>
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <p className="text-gray-600 mt-1">Vue d'ensemble et statistiques en temps réel</p>
+            <p className="text-gray-600 mt-2 text-lg">Vue d'ensemble et statistiques en temps réel</p>
           </div>
         </div>
 
         {/* Statistiques - Cartes modernes */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Affaires</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAffaires}</p>
-              </div>
-            </div>
-            <div className="h-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
-          </div>
-
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Ressources actives</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalRessources}</p>
-              </div>
-            </div>
-            <div className="h-1 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full"></div>
-          </div>
-
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                <Calendar className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Affectations</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAffectations}</p>
-              </div>
-            </div>
-            <div className="h-1 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full"></div>
-          </div>
-
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg">
-                <AlertCircle className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Absences</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAbsences}</p>
-              </div>
-            </div>
-            <div className="h-1 bg-gradient-to-r from-orange-500 to-amber-600 rounded-full"></div>
-          </div>
+          {statCards.map((stat) => {
+            const Icon = stat.icon
+            return (
+              <Card key={stat.label} hover>
+                <div className={`p-6 rounded-xl bg-gradient-to-br ${stat.bgGradient} border-2 border-${stat.color}-200`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
+                      <Icon className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                        {stat.label}
+                      </p>
+                      <p className="text-4xl font-bold text-gray-900">{stat.value}</p>
+                    </div>
+                  </div>
+                  <div className={`h-2 bg-gradient-to-r ${stat.gradient} rounded-full shadow-md`}></div>
+                </div>
+              </Card>
+            )
+          })}
         </div>
 
-        {/* Graphiques et tableaux à venir */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-orange-500 to-amber-600 rounded-full"></div>
+        {/* Section graphiques */}
+        <Card>
+          <CardHeader gradient="orange" icon={<TrendingUp className="w-6 h-6 text-orange-600" />}>
             <h2 className="text-2xl font-bold text-gray-800">Graphiques et analyses</h2>
+          </CardHeader>
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mx-auto mb-6">
+              <Activity className="w-10 h-10 text-gray-400" />
+            </div>
+            <p className="text-gray-600 text-lg font-semibold mb-2">Les graphiques seront ajoutés prochainement</p>
+            <p className="text-gray-400 text-sm">Visualisations de charge, répartition par site, tendances...</p>
           </div>
-          <div className="text-center py-12">
-            <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg font-medium">Les graphiques seront ajoutés prochainement</p>
-            <p className="text-gray-400 text-sm mt-2">Visualisations de charge, répartition par site, tendances...</p>
-          </div>
-        </div>
+        </Card>
       </div>
     </Layout>
   )

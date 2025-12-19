@@ -3,65 +3,112 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Layout } from '@/components/Common/Layout'
-import { CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, AlertCircle, Building2, MapPin, Target } from 'lucide-react'
+import { Card, CardHeader } from '@/components/UI/Card'
+import { 
+  CheckCircle2, XCircle, Loader2, BarChart3, Users, Calendar, 
+  AlertCircle, Building2, MapPin, Sparkles, Zap, TrendingUp 
+} from 'lucide-react'
 
 export default function Home() {
   const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking')
   const [supabaseUrl, setSupabaseUrl] = useState<string>('')
 
   useEffect(() => {
-    console.log('🔵 [HOME] useEffect déclenché')
-    console.log('🔵 [HOME] Environnement:', typeof window !== 'undefined' ? 'CLIENT' : 'SERVER')
-
-    // Vérifier la connexion Supabase
     const checkSupabase = async () => {
-      console.log('🔵 [HOME] checkSupabase() appelé')
-
       try {
-        console.log('🔵 [HOME] Lecture des variables d\'environnement...')
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-        console.log('🔵 [HOME] NEXT_PUBLIC_SUPABASE_URL:', url ? '✅ Définie (' + url.substring(0, 30) + '...)' : '❌ MANQUANTE')
-        console.log('🔵 [HOME] NEXT_PUBLIC_SUPABASE_ANON_KEY:', key ? '✅ Définie (longueur: ' + key.length + ')' : '❌ MANQUANTE')
-        console.log('🔵 [HOME] process.env complet:', Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC_')))
-
         if (url && key) {
-          console.log('✅ [HOME] Variables OK - Connexion Supabase possible')
           setSupabaseUrl(url)
           setSupabaseStatus('connected')
         } else {
-          console.error('❌ [HOME] Variables manquantes - URL:', !!url, 'KEY:', !!key)
           setSupabaseStatus('error')
         }
       } catch (error: any) {
-        console.error('❌ [HOME] Erreur dans checkSupabase:', error)
-        console.error('❌ [HOME] Stack:', error?.stack)
         setSupabaseStatus('error')
       }
     }
 
     checkSupabase()
-    console.log('🔵 [HOME] useEffect terminé')
   }, [])
+
+  const quickActions = [
+    { 
+      href: '/affaires', 
+      label: 'Affaires', 
+      icon: Building2, 
+      gradient: 'from-indigo-500 to-purple-600',
+      description: 'Créez et gérez les affaires et leurs sites',
+      color: 'indigo'
+    },
+    { 
+      href: '/ressources', 
+      label: 'Ressources', 
+      icon: Users, 
+      gradient: 'from-green-500 to-emerald-600',
+      description: 'Créez et gérez les ressources et leurs compétences',
+      color: 'green'
+    },
+    { 
+      href: '/planning2', 
+      label: 'Planning', 
+      icon: Sparkles, 
+      gradient: 'from-indigo-500 to-purple-600',
+      description: 'Gérer la charge et affecter les ressources en une seule interface',
+      color: 'indigo',
+      badge: 'Nouveau'
+    },
+    { 
+      href: '/absences', 
+      label: 'Absences', 
+      icon: Calendar, 
+      gradient: 'from-purple-500 to-indigo-600',
+      description: 'Gérer les absences, formations et congés des ressources',
+      color: 'purple'
+    },
+    { 
+      href: '/dashboard', 
+      label: 'Dashboard', 
+      icon: BarChart3, 
+      gradient: 'from-orange-500 to-amber-600',
+      description: 'Vue d\'ensemble et statistiques en temps réel',
+      color: 'orange'
+    },
+    { 
+      href: '/admin/sites', 
+      label: 'Sites', 
+      icon: MapPin, 
+      gradient: 'from-blue-500 to-cyan-600',
+      description: 'Administrer les sites et leurs régions',
+      color: 'blue'
+    },
+  ]
 
   return (
     <Layout>
-      <div className="space-y-8">
-        {/* En-tête avec gradient */}
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+      <div className="space-y-10">
+        {/* Hero Section */}
+        <div className="text-center space-y-4 py-8">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full text-sm font-semibold mb-4">
+            <Zap className="w-4 h-4" />
+            <span>Version 2.0 - Interface moderne</span>
+          </div>
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
             Plan de Charge
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Application web moderne pour la gestion des ressources et des affectations
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            Application web moderne et intuitive pour la gestion des ressources, 
+            des affectations et du planning
           </p>
         </div>
 
-        {/* Statut de connexion - Design amélioré */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Statut de la connexion</h2>
-          <div className={`p-5 rounded-xl flex items-center gap-4 transition-all duration-300 ${
+        {/* Statut de connexion */}
+        <Card>
+          <CardHeader gradient="indigo" icon={<BarChart3 className="w-6 h-6 text-indigo-600" />}>
+            <h2 className="text-2xl font-bold text-gray-800">Statut de la connexion</h2>
+          </CardHeader>
+          <div className={`p-6 rounded-xl flex items-center gap-4 transition-all duration-300 ${
             supabaseStatus === 'connected' 
               ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 shadow-sm' 
               : supabaseStatus === 'error' 
@@ -69,22 +116,22 @@ export default function Home() {
               : 'bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 shadow-sm'
           }`}>
             {supabaseStatus === 'connected' && (
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
-                <CheckCircle2 className="w-7 h-7 text-white" />
+              <div className="flex-shrink-0 w-14 h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                <CheckCircle2 className="w-8 h-8 text-white" />
               </div>
             )}
             {supabaseStatus === 'error' && (
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-500 flex items-center justify-center shadow-lg">
-                <XCircle className="w-7 h-7 text-white" />
+              <div className="flex-shrink-0 w-14 h-14 rounded-full bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg">
+                <XCircle className="w-8 h-8 text-white" />
               </div>
             )}
             {supabaseStatus === 'checking' && (
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center shadow-lg">
-                <Loader2 className="w-7 h-7 text-white animate-spin" />
+              <div className="flex-shrink-0 w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                <Loader2 className="w-8 h-8 text-white animate-spin" />
               </div>
             )}
             <div className="flex-1">
-              <p className={`text-lg font-semibold ${
+              <p className={`text-xl font-bold ${
                 supabaseStatus === 'connected' ? 'text-green-800' :
                 supabaseStatus === 'error' ? 'text-red-800' :
                 'text-blue-800'
@@ -94,148 +141,91 @@ export default function Home() {
                 {supabaseStatus === 'checking' && '🔄 Vérification en cours...'}
               </p>
               {supabaseUrl && (
-                <p className="text-sm text-gray-600 mt-1 font-mono">
+                <p className="text-sm text-gray-600 mt-2 font-mono bg-white/50 px-3 py-1 rounded-lg inline-block">
                   {supabaseUrl.substring(0, 50)}...
                 </p>
               )}
             </div>
           </div>
+        </Card>
+
+        {/* Navigation rapide - Design moderne */}
+        <div>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
+            <h2 className="text-2xl font-bold text-gray-800">Accès rapide</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {quickActions.map((action) => {
+              const Icon = action.icon
+              return (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="group relative bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-indigo-300 hover:-translate-y-1 overflow-hidden"
+                >
+                  {/* Badge "Nouveau" */}
+                  {action.badge && (
+                    <div className="absolute top-4 right-4 px-2 py-1 bg-gradient-to-r from-pink-500 to-rose-600 text-white text-xs font-bold rounded-full shadow-md">
+                      {action.badge}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-gray-800 group-hover:text-indigo-600 transition-colors mb-2">
+                        {action.label}
+                      </h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        {action.description}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className={`mt-4 text-${action.color}-600 text-sm font-semibold group-hover:translate-x-1 transition-transform inline-flex items-center gap-1`}>
+                    Accéder <span className="text-lg">→</span>
+                  </div>
+                  
+                  {/* Effet de brillance au survol */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                </Link>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Navigation rapide - Cartes modernes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Link
-            href="/affaires"
-            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-indigo-300 hover:-translate-y-1"
-          >
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+        {/* Section fonctionnalités */}
+        <Card>
+          <CardHeader gradient="indigo" icon={<TrendingUp className="w-6 h-6 text-indigo-600" />}>
+            <h2 className="text-2xl font-bold text-gray-800">Fonctionnalités principales</h2>
+          </CardHeader>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
+              <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center mb-3">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">
-                Affaires
-              </h3>
+              <h3 className="font-bold text-gray-800 mb-2">Gestion des affaires</h3>
+              <p className="text-sm text-gray-600">Créez et suivez vos affaires avec leurs budgets et RAF</p>
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Créez et gérez les affaires et leurs sites
-            </p>
-            <div className="mt-4 text-indigo-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-              Accéder <span>→</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/ressources"
-            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-green-300 hover:-translate-y-1"
-          >
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100">
+              <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center mb-3">
                 <Users className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 group-hover:text-green-600 transition-colors">
-                Ressources
-              </h3>
+              <h3 className="font-bold text-gray-800 mb-2">Gestion des ressources</h3>
+              <p className="text-sm text-gray-600">Organisez vos équipes et leurs compétences</p>
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Créez et gérez les ressources et leurs compétences
-            </p>
-            <div className="mt-4 text-green-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-              Accéder <span>→</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/planning"
-            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-blue-300 hover:-translate-y-1"
-          >
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Target className="w-6 h-6 text-white" />
+            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100">
+              <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center mb-3">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
-                Planning
-              </h3>
+              <h3 className="font-bold text-gray-800 mb-2">Planning avancé</h3>
+              <p className="text-sm text-gray-600">Visualisez et gérez la charge et les affectations</p>
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Gérer la charge et affecter les ressources en une seule interface
-            </p>
-            <div className="mt-4 text-blue-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-              Accéder <span>→</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/absences"
-            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-purple-300 hover:-translate-y-1"
-          >
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Calendar className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 group-hover:text-purple-600 transition-colors">
-                Absences
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Gérer les absences, formations et congés des ressources
-            </p>
-            <div className="mt-4 text-purple-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-              Accéder <span>→</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/dashboard"
-            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-orange-300 hover:-translate-y-1"
-          >
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 group-hover:text-orange-600 transition-colors">
-                Dashboard
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Vue d'ensemble et statistiques en temps réel
-            </p>
-            <div className="mt-4 text-orange-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-              Accéder <span>→</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/sites"
-            className="group bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 border border-gray-200/50 hover:border-cyan-300 hover:-translate-y-1"
-          >
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <MapPin className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 group-hover:text-cyan-600 transition-colors">
-                Sites
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Administrer les sites et leurs régions
-            </p>
-            <div className="mt-4 text-cyan-600 text-sm font-medium group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-              Accéder <span>→</span>
-            </div>
-          </Link>
-        </div>
-
-        {/* Lien test - Design amélioré */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-200/50">
-          <Link
-            href="/test-supabase"
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors group"
-          >
-            <span className="text-lg">🧪</span>
-            <span>Tester la connexion Supabase</span>
-            <span className="group-hover:translate-x-1 transition-transform">→</span>
-          </Link>
-        </div>
+          </div>
+        </Card>
       </div>
     </Layout>
   )
