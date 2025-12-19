@@ -114,12 +114,6 @@ const endOfMonth = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0)
 }
 
-const startOfWeek = (date: Date): Date => {
-  const day = date.getDay()
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Ajuster pour lundi = 1
-  return new Date(date.setDate(diff))
-}
-
 // ========================================
 // COMPOSANT PRINCIPAL
 // ========================================
