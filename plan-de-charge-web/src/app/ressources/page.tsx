@@ -1089,7 +1089,7 @@ interface InterimsManagementProps {
   }
   setFormData: (data: any) => void
   createInterim: (data: any) => Promise<any>
-  updateInterim: (id: string, data: any) => Promise<void>
+  updateInterim: (id: string, data: any) => Promise<any>
   deleteInterim: (id: string) => Promise<void>
   verifierEtMettreAJourRenouvellements: () => Promise<{ updated: number; alertsCreated: number }>
   desactiverInterimsExpires: () => Promise<void>
