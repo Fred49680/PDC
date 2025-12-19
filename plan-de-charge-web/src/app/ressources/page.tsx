@@ -29,7 +29,9 @@ export default function RessourcesPage() {
   const ressourcesOptions = useMemo(() => ({
     site: filters.site || undefined,
     actif: filters.actif,
-    type_contrat: activeCategoryTab !== 'tous' ? activeCategoryTab : undefined,
+    type_contrat: activeCategoryTab !== 'tous' 
+      ? (activeCategoryTab === 'Intérim' ? 'ETT' : activeCategoryTab)
+      : undefined,
   }), [filters.site, filters.actif, activeCategoryTab])
   
   const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch, loadRessources } =
@@ -128,7 +130,7 @@ export default function RessourcesPage() {
 
   // Charger toutes les ressources ETT pour la liste déroulante (seulement si onglet Intérim actif)
   const { ressources: ressourcesETT } = useRessources(
-    activeCategoryTab === 'Intérim' ? { type_contrat: 'Intérim', actif: true } : { type_contrat: undefined, actif: true }
+    activeCategoryTab === 'Intérim' ? { type_contrat: 'ETT', actif: true } : { type_contrat: undefined, actif: true }
   )
 
   // Normaliser la valeur du site dans formData une fois que les sites sont chargés
