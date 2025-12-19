@@ -1243,10 +1243,41 @@ function InterimsManagement({
   }
 
   const handleEdit = (interim: any) => {
+    // Normaliser le site en cherchant dans sitesList
+    let normalizedSite = interim.site || ''
+    
+    if (normalizedSite && sitesList.length > 0) {
+      // Chercher une correspondance exacte (insensible à la casse et aux espaces)
+      const matchingSite = sitesList.find(s => {
+        const siteFromList = s.site?.trim() || ''
+        const siteFromInterim = normalizedSite.trim()
+        return siteFromList.toLowerCase() === siteFromInterim.toLowerCase()
+      })
+      
+      if (matchingSite) {
+        normalizedSite = matchingSite.site.trim()
+      } else {
+        // Si pas de correspondance, essayer de trouver par ressource
+        const ressource = ressourcesETT.find(r => r.id === interim.ressource_id)
+        if (ressource && ressource.site) {
+          const matchingSiteFromRessource = sitesList.find(s => {
+            const siteFromList = s.site?.trim() || ''
+            const siteFromRessource = ressource.site.trim()
+            return siteFromList.toLowerCase() === siteFromRessource.toLowerCase()
+          })
+          if (matchingSiteFromRessource) {
+            normalizedSite = matchingSiteFromRessource.site.trim()
+          }
+        }
+      }
+    }
+    
+    console.log('[handleEdit] Interim site:', interim.site, '-> Normalisé:', normalizedSite)
+    
     setFormData({
       id: interim.id,
       ressource_id: interim.ressource_id,
-      site: interim.site,
+      site: normalizedSite,
       date_debut_contrat: format(new Date(interim.date_debut_contrat), 'yyyy-MM-dd'),
       date_fin_contrat: format(new Date(interim.date_fin_contrat), 'yyyy-MM-dd'),
       a_renouveler: interim.a_renouveler || 'A renouveler',
