@@ -1122,6 +1122,8 @@ interface InterimsManagementProps {
   setFilters: (filters: { site: string; aRenouveler: string }) => void
   searchTerm: string
   setSearchTerm: (term: string) => void
+  showArchived: boolean
+  setShowArchived: (show: boolean) => void
   sitesList: any[]
   ressourcesETT: any[]
   isEditing: boolean
@@ -1576,10 +1578,10 @@ function InterimsManagement({
           <div className="flex gap-2 items-center">
             <Button
               onClick={() => setShowArchived(!showArchived)}
-              variant={showArchived ? "default" : "outline"}
+              variant={showArchived ? "primary" : "secondary"}
               className={showArchived 
-                ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                ? "bg-orange-500 hover:bg-orange-600 text-white border-0" 
+                : ""
               }
             >
               <Filter className="w-4 h-4 mr-2" />
