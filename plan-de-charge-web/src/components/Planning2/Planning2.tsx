@@ -115,13 +115,13 @@ export default function Planning2({
   }, [propPrecision, propDateDebut, propDateFin, precision, dateDebut, dateFin])
   
   // Chargement des données
-  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, refresh: refreshCharge } = useCharge({
+  const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate: consolidateCharge, refresh: refreshCharge } = useCharge({
     affaireId,
     site,
     autoRefresh,
   })
 
-  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, refresh: refreshAffectations } = useAffectations({
+  const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, consolidate: consolidateAffectations, refresh: refreshAffectations } = useAffectations({
     affaireId,
     site,
     autoRefresh,
@@ -1207,14 +1207,18 @@ export default function Planning2({
         
         // Recharger les données UNE SEULE FOIS après toutes les créations (refresh unique)
         if (nbPeriodesCreees > 0) {
-          // Recharger les périodes
-          await refreshCharge()
-          
-          // Consolider si précision JOUR
-          if (precision === 'JOUR') {
-            // La consolidation se fait automatiquement via le trigger PostgreSQL
-            // Plus besoin d'appeler consolidate() manuellement
+          // Consolider les périodes pour cette compétence (fusionne les périodes consécutives)
+          // Cela doit être fait APRÈS tous les INSERT pour éviter que le trigger ne supprime les INSERT en cours
+          try {
+            await consolidateCharge(competence)
+            console.log(`[Planning2] Consolidation effectuée pour compétence ${competence}`)
+          } catch (consolidateErr) {
+            console.error(`[Planning2] Erreur lors de la consolidation pour ${competence}:`, consolidateErr)
+            // Ne pas bloquer si la consolidation échoue, les données sont quand même enregistrées
           }
+          
+          // Recharger les périodes après consolidation
+          await refreshCharge()
         }
 
         // Afficher le message de succès
@@ -1250,7 +1254,7 @@ export default function Planning2({
           5000
         )
       }
-    }, [colonnes, precision, savePeriode, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
+    }, [colonnes, precision, savePeriode, consolidateCharge, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
@@ -1453,13 +1457,18 @@ export default function Planning2({
         
         // Recharger les données UNE SEULE FOIS après toutes les créations (refresh unique)
         if (nbAffectationsCreees > 0) {
-          await refreshAffectations()
-          
-          // Consolider si précision JOUR
-          if (precision === 'JOUR') {
-            // La consolidation se fait automatiquement via le trigger PostgreSQL
-            // Plus besoin d'appeler consolidateAffectations() manuellement
+          // Consolider les affectations pour cette compétence (fusionne les périodes consécutives pour toutes les ressources)
+          // Cela doit être fait APRÈS tous les INSERT pour éviter que le trigger ne supprime les INSERT en cours
+          try {
+            await consolidateAffectations(competence)
+            console.log(`[Planning2] Consolidation affectations effectuée pour compétence ${competence}`)
+          } catch (consolidateErr) {
+            console.error(`[Planning2] Erreur lors de la consolidation affectations pour ${competence}:`, consolidateErr)
+            // Ne pas bloquer si la consolidation échoue, les données sont quand même enregistrées
           }
+          
+          // Recharger les affectations après consolidation
+          await refreshAffectations()
         }
 
         const nbBloquees = affectationsACreer.length - affectationsValides.length
@@ -1493,7 +1502,7 @@ export default function Planning2({
         )
         setIsGeneratingAffectations(false)
       }
-    }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, refreshAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
+    }, [competencesData, colonnes, precision, absences, toutesAffectationsRessources, affaireId, saveAffectation, consolidateAffectations, refreshAffectations, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Navigation
   const handlePreviousPeriod = () => {
