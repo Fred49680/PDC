@@ -1649,55 +1649,53 @@ function InterimsManagement({
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4 flex-1">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">
+                      {interim.ressource?.nom || 'Ressource inconnue'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        <span>{interim.site}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          Du {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} au {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span className={estExpire ? 'text-red-600 font-semibold' : expireBientot ? 'text-yellow-600 font-semibold' : ''}>
+                          {estExpire 
+                            ? `Expiré depuis ${Math.abs(joursRestants)} jour(s) ouvré(s)`
+                            : expireBientot
+                            ? `${joursRestants} jour(s) ouvré(s) restant(s)`
+                            : `${joursRestants} jour(s) ouvré(s) restant(s)`
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    {interim.commentaire && (
+                      <p className="mt-2 text-sm text-gray-500 italic">
+                        {interim.commentaire}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
                     <div className={`px-3 py-1 rounded-lg border ${getStatutColor(interim.a_renouveler || '')}`}>
                       <span className="text-xs font-semibold">
                         {interim.a_renouveler || 'En cours'}
                       </span>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-2">
-                        {interim.ressource?.nom || 'Ressource inconnue'}
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4" />
-                          <span>{interim.site}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>
-                            Du {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} au {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
-                          <span className={estExpire ? 'text-red-600 font-semibold' : expireBientot ? 'text-yellow-600 font-semibold' : ''}>
-                            {estExpire 
-                              ? `Expiré depuis ${Math.abs(joursRestants)} jour(s) ouvré(s)`
-                              : expireBientot
-                              ? `${joursRestants} jour(s) ouvré(s) restant(s)`
-                              : `${joursRestants} jour(s) ouvré(s) restant(s)`
-                            }
-                          </span>
-                        </div>
-                        {interim.ressource && (
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            <span className={interim.ressource.actif ? 'text-green-600' : 'text-red-600'}>
-                              {interim.ressource.actif ? 'Actif' : 'Inactif'}
-                            </span>
-                          </div>
-                        )}
+                    {interim.ressource && (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <span className={interim.ressource.actif ? 'text-green-600' : 'text-red-600'}>
+                          {interim.ressource.actif ? 'Actif' : 'Inactif'}
+                        </span>
                       </div>
-                      {interim.commentaire && (
-                        <p className="mt-2 text-sm text-gray-500 italic">
-                          {interim.commentaire}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
+                    )}
                     {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
                       <button
                         onClick={(e) => {
