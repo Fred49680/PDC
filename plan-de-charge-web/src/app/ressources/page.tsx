@@ -1092,7 +1092,7 @@ interface InterimsManagementProps {
   updateInterim: (id: string, data: any) => Promise<any>
   deleteInterim: (id: string) => Promise<void>
   verifierEtMettreAJourRenouvellements: () => Promise<{ updated: number; alertsCreated: number }>
-  desactiverInterimsExpires: () => Promise<void>
+  desactiverInterimsExpires: () => Promise<{ desactivated: number }>
 }
 
 function InterimsManagement({
