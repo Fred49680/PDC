@@ -22,6 +22,7 @@ export const dynamic = 'force-dynamic'
 export default function AffairesPage() {
   const [showImport, setShowImport] = useState(false)
   const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires } = useAffaires()
+  const [activeTab, setActiveTab] = useState<'liste' | 'gestion'>('liste')
   
   const [responsable, setResponsable] = useState('')
   const [site, setSite] = useState('')
@@ -396,7 +397,36 @@ export default function AffairesPage() {
           </div>
         </Card>
 
+        {/* Onglets */}
+        <Card>
+          <div className="border-b border-gray-200">
+            <nav className="flex -mb-px">
+              <button
+                onClick={() => setActiveTab('liste')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'liste'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Liste des affaires
+              </button>
+              <button
+                onClick={() => setActiveTab('gestion')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'gestion'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Gestion affaire
+              </button>
+            </nav>
+          </div>
+        </Card>
+
         {/* Liste des affaires */}
+        {activeTab === 'liste' && (
         <Card>
           <CardHeader gradient="indigo" icon={<Building2 className="w-6 h-6 text-indigo-600" />}>
             <div className="flex items-center justify-between w-full">
@@ -428,14 +458,12 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Compte</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Budget</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">RAF</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Date maj RAF</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -637,9 +665,70 @@ export default function AffairesPage() {
                             <span>{affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}</span>
                           )}
                         </td>
-                        
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+        )}
+
+        {/* Onglet Gestion affaire */}
+        {activeTab === 'gestion' && (
+        <Card>
+          <CardHeader gradient="indigo" icon={<Building2 className="w-6 h-6 text-indigo-600" />}>
+            <div className="flex items-center justify-between w-full">
+              <h2 className="text-2xl font-bold text-gray-800">Gestion affaire</h2>
+              <span className="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-full text-sm font-bold">
+                {affaires.length}
+              </span>
+            </div>
+          </CardHeader>
+
+          {loading ? (
+            <Loading message="Chargement des affaires..." />
+          ) : error ? (
+            <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+                <p className="text-red-800 font-semibold">Erreur: {error.message}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border-2 border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                  <tr>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">AffaireID</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heure</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Plannifié</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {affaires.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Building2 className="w-12 h-12 text-gray-300" />
+                          <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    affaires.map((affaire) => (
+                      <tr 
+                        key={affaire.id} 
+                        className="hover:bg-indigo-50/50 transition-colors duration-150"
+                      >
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 font-medium">
+                          {affaire.affaire_id || '-'}
+                        </td>
                         <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden sm:table-cell"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
                           onClick={() => handleCellEdit(affaire, 'raf_heures')}
                           title="Cliquez pour modifier"
                         >
@@ -662,9 +751,8 @@ export default function AffairesPage() {
                             <span>{affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}</span>
                           )}
                         </td>
-                        
                         <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden md:table-cell"
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
                           onClick={() => handleCellEdit(affaire, 'date_maj_raf')}
                           title="Cliquez pour modifier"
                         >
@@ -685,6 +773,12 @@ export default function AffairesPage() {
                             <span>{affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}</span>
                           )}
                         </td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'HH:mm', { locale: fr }) : '-'}
+                        </td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '-'}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -693,6 +787,7 @@ export default function AffairesPage() {
             </div>
           )}
         </Card>
+        )}
 
         {/* Modal de création/modification */}
         {showModal && (
@@ -793,39 +888,14 @@ export default function AffairesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Budget (H)"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.budget_heures || ''}
-                    onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
-                  />
-                  <Input
-                    label="RAF (H)"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.raf_heures || ''}
-                    onChange={(e) => {
-                      const rafValue = parseFloat(e.target.value) || 0
-                      setFormData({ 
-                        ...formData, 
-                        raf_heures: rafValue,
-                        date_maj_raf: rafValue > 0 ? new Date() : formData.date_maj_raf
-                      })
-                    }}
-                    placeholder="0.00"
-                  />
-                </div>
-
                 <Input
-                  label="Date MAJ du RAF"
-                  type="date"
-                  value={formData.date_maj_raf ? format(formData.date_maj_raf, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setFormData({ ...formData, date_maj_raf: e.target.value ? new Date(e.target.value) : undefined })}
+                  label="Budget (H)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.budget_heures || ''}
+                  onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
                 />
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
