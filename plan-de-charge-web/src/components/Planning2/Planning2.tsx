@@ -1062,21 +1062,66 @@ export default function Planning2({
       }> = []
       
       if (precision === 'JOUR') {
-        // Créer une période uniquement pour les jours ouvrés (lundi-vendredi, pas fériés)
-        const currentDate = new Date(dateDebutMasse)
-        while (currentDate <= dateFinMasse) {
-          // Vérifier si c'est un jour ouvré (exclut week-ends et fériés)
-          if (isBusinessDay(currentDate)) {
-            const dateNorm = normalizeDateToUTC(currentDate)
-            periodesACreer.push({
-              competence,
-              date_debut: dateNorm,
-              date_fin: dateNorm,
-              nb_ressources: nbRessources,
-              force_weekend_ferie: false // Toujours false car on filtre les jours ouvrés
-            })
+        // *** OPTIMISATION : Si la période est grande (> 90 jours), utiliser le mode MOIS pour accélérer ***
+        const joursTotal = Math.ceil((dateFinMasse.getTime() - dateDebutMasse.getTime()) / (1000 * 60 * 60 * 24))
+        const seuilOptimisation = 90 // Seuil en jours pour basculer automatiquement en mode MOIS
+        
+        if (joursTotal > seuilOptimisation) {
+          // Utiliser le mode MOIS pour accélérer (beaucoup moins de périodes à créer)
+          const currentDate = new Date(dateDebutMasse)
+          while (currentDate <= dateFinMasse) {
+            const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+            let monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+            
+            // Limiter à dateFinMasse
+            if (monthEnd > dateFinMasse) {
+              monthEnd = new Date(dateFinMasse)
+            }
+            
+            // Vérifier qu'il y a au moins un jour ouvré dans ce mois
+            let hasBusinessDay = false
+            const checkDate = new Date(monthStart)
+            while (checkDate <= monthEnd) {
+              if (isBusinessDay(checkDate)) {
+                hasBusinessDay = true
+                break
+              }
+              checkDate.setDate(checkDate.getDate() + 1)
+            }
+            
+            if (hasBusinessDay) {
+              const dateDebutNorm = normalizeDateToUTC(monthStart)
+              const dateFinNorm = normalizeDateToUTC(monthEnd)
+              periodesACreer.push({
+                competence,
+                date_debut: dateDebutNorm,
+                date_fin: dateFinNorm,
+                nb_ressources: nbRessources,
+                force_weekend_ferie: false
+              })
+            }
+            
+            // Passer au mois suivant
+            currentDate.setMonth(currentDate.getMonth() + 1)
+            currentDate.setDate(1)
           }
-          currentDate.setDate(currentDate.getDate() + 1)
+        } else {
+          // Créer une période uniquement pour les jours ouvrés (lundi-vendredi, pas fériés)
+          const currentDate = new Date(dateDebutMasse)
+          while (currentDate <= dateFinMasse) {
+            // Vérifier si c'est un jour ouvré (exclut week-ends et fériés)
+            if (isBusinessDay(currentDate)) {
+              const dateNorm = normalizeDateToUTC(currentDate)
+              periodesACreer.push({
+                competence,
+                date_debut: dateNorm,
+                date_fin: dateNorm,
+                nb_ressources: nbRessources,
+                force_weekend_ferie: false // Toujours false car on filtre les jours ouvrés
+              })
+            }
+            currentDate.setDate(currentDate.getDate() + 1)
+          }
         }
       } else if (precision === 'SEMAINE') {
         // Pour SEMAINE, créer des périodes mais seulement pour les semaines contenant au moins un jour ouvré
@@ -1169,9 +1214,13 @@ export default function Planning2({
       }
 
       // Confirmation finale
+      const joursTotal = Math.ceil((dateFinMasse.getTime() - dateDebutMasse.getTime()) / (1000 * 60 * 60 * 24))
+      const seuilOptimisation = 90
+      const modeUtilise = (precision === 'JOUR' && joursTotal > seuilOptimisation) ? 'MOIS (optimisé automatiquement)' : precision
+      
       const confirme = await confirmAsync(
         'Charge de masse',
-        `Créer ${periodesACreer.length} période(s) avec ${nbRessources} ressource(s) nécessaire(s) pour "${competence}"\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\n(Uniquement jours ouvrés : lundi-vendredi)\n\nConfirmer ?`,
+        `Créer ${periodesACreer.length} période(s) avec ${nbRessources} ressource(s) nécessaire(s) pour "${competence}"\n\nDu ${dateDebutMasse.toLocaleDateString('fr-FR')} au ${dateFinMasse.toLocaleDateString('fr-FR')}\n\nMode: ${modeUtilise}\n(Uniquement jours ouvrés : lundi-vendredi)\n\nConfirmer ?`,
         { type: 'info' }
       )
       
