@@ -1088,7 +1088,7 @@ interface InterimsManagementProps {
     commentaire: string
   }
   setFormData: (data: any) => void
-  createInterim: (data: any) => Promise<void>
+  createInterim: (data: any) => Promise<any>
   updateInterim: (id: string, data: any) => Promise<void>
   deleteInterim: (id: string) => Promise<void>
   verifierEtMettreAJourRenouvellements: () => Promise<{ updated: number; alertsCreated: number }>
