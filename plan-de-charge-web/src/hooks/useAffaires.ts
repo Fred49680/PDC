@@ -108,9 +108,10 @@ export function useAffaires(options: UseAffairesOptions = {}) {
         
         // IMPORTANT : Toujours inclure affaire_id dans affaireData, même si null
         // Supabase ignore les champs undefined, donc on force null au lieu de undefined
+        // Normaliser le site en majuscules pour cohérence avec periodes_charge
         const affaireData: any = {
           affaire_id: affaireIdValue, // null ou string, jamais undefined
-          site: affaire.site,
+          site: affaire.site ? affaire.site.toUpperCase().trim() : null,
           libelle: affaire.libelle,
           tranche: affaire.tranche && affaire.tranche.trim() !== '' ? affaire.tranche.trim() : null,
           statut: affaire.statut || 'Ouverte',
