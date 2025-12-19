@@ -32,6 +32,9 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       const supabase = getSupabaseClient()
 
+      // Log des options pour débogage
+      console.log('[useInterims] loadInterims appelé avec options:', options)
+
       let query = supabase
         .from('interims')
         .select(`
@@ -58,27 +61,45 @@ export function useInterims(options: UseInterimsOptions = {}) {
 
       const { data, error: queryError } = await query
 
-      if (queryError) throw queryError
+      if (queryError) {
+        console.error('[useInterims] Erreur requête Supabase:', queryError)
+        throw queryError
+      }
+
+      console.log('[useInterims] Données récupérées:', data?.length || 0, 'intérim(s)')
 
       // Convertir les dates
-      const interimsAvecDates = (data || []).map((item: any) => ({
-        id: item.id,
-        ressource_id: item.ressource_id,
-        site: item.site,
-        date_debut_contrat: item.date_debut_contrat ? new Date(item.date_debut_contrat) : new Date(),
-        date_fin_contrat: item.date_fin_contrat ? new Date(item.date_fin_contrat) : new Date(),
-        a_renouveler: item.a_renouveler || '',
-        date_mise_a_jour: item.date_mise_a_jour ? new Date(item.date_mise_a_jour) : new Date(),
-        commentaire: item.commentaire || undefined,
-        created_at: item.created_at ? new Date(item.created_at) : new Date(),
-        updated_at: item.updated_at ? new Date(item.updated_at) : new Date(),
-        ressource: item.ressources ? {
-          id: item.ressources.id,
-          nom: item.ressources.nom,
-          actif: item.ressources.actif,
-        } : null,
-      })) as (Interim & { ressource: { id: string; nom: string; actif: boolean } | null })[]
+      const interimsAvecDates = (data || []).map((item: any) => {
+        // Gérer le cas où la jointure avec ressources échoue (ressource supprimée)
+        let ressourceInfo = null
+        if (item.ressources) {
+          // Si ressources est un tableau (relation 1-n), prendre le premier élément
+          const ressource = Array.isArray(item.ressources) ? item.ressources[0] : item.ressources
+          if (ressource) {
+            ressourceInfo = {
+              id: ressource.id,
+              nom: ressource.nom,
+              actif: ressource.actif,
+            }
+          }
+        }
 
+        return {
+          id: item.id,
+          ressource_id: item.ressource_id,
+          site: item.site,
+          date_debut_contrat: item.date_debut_contrat ? new Date(item.date_debut_contrat) : new Date(),
+          date_fin_contrat: item.date_fin_contrat ? new Date(item.date_fin_contrat) : new Date(),
+          a_renouveler: item.a_renouveler || '',
+          date_mise_a_jour: item.date_mise_a_jour ? new Date(item.date_mise_a_jour) : new Date(),
+          commentaire: item.commentaire || undefined,
+          created_at: item.created_at ? new Date(item.created_at) : new Date(),
+          updated_at: item.updated_at ? new Date(item.updated_at) : new Date(),
+          ressource: ressourceInfo,
+        }
+      }) as (Interim & { ressource: { id: string; nom: string; actif: boolean } | null })[]
+
+      console.log('[useInterims] Intérims formatés:', interimsAvecDates.length)
       setInterims(interimsAvecDates as any)
     } catch (err) {
       setError(err as Error)
