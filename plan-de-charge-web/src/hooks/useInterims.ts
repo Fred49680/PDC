@@ -425,6 +425,119 @@ export function useInterims(options: UseInterimsOptions = {}) {
     }
   }, [getSupabaseClient, loadInterims])
 
+  /**
+   * Initialise les intérims depuis les ressources ETT
+   * Crée une entrée dans la table interims pour chaque ressource avec type_contrat='ETT'
+   */
+  const initialiserInterims = useCallback(async () => {
+    try {
+      setError(null)
+      setLoading(true)
+
+      const supabase = getSupabaseClient()
+
+      // 1. Récupérer toutes les ressources ETT actives
+      const { data: ressourcesETT, error: ressourcesError } = await supabase
+        .from('ressources')
+        .select('id, nom, site, date_fin_contrat, actif')
+        .eq('type_contrat', 'ETT')
+        .eq('actif', true)
+
+      if (ressourcesError) throw ressourcesError
+
+      if (!ressourcesETT || ressourcesETT.length === 0) {
+        console.log('[useInterims] Aucune ressource ETT trouvée')
+        await loadInterims()
+        return { created: 0, updated: 0 }
+      }
+
+      // 2. Récupérer les intérims existants pour éviter les doublons
+      const { data: interimsExistants, error: interimsError } = await supabase
+        .from('interims')
+        .select('ressource_id')
+
+      if (interimsError) throw interimsError
+
+      const ressourceIdsExistants = new Set(
+        (interimsExistants || []).map((i: any) => i.ressource_id)
+      )
+
+      // 3. Créer les intérims manquants
+      let nbCrees = 0
+      let nbMisesAJour = 0
+
+      for (const ressource of ressourcesETT) {
+        const ressourceId = ressource.id
+
+        // Vérifier si un intérim existe déjà pour cette ressource
+        if (ressourceIdsExistants.has(ressourceId)) {
+          // Mettre à jour la date_fin_contrat si elle a changé
+          const { data: interimExistant, error: fetchError } = await supabase
+            .from('interims')
+            .select('id, date_fin_contrat')
+            .eq('ressource_id', ressourceId)
+            .single()
+
+          if (!fetchError && interimExistant) {
+            const dateFinRessource = ressource.date_fin_contrat
+              ? new Date(ressource.date_fin_contrat).toISOString().split('T')[0]
+              : null
+
+            // Si la date de fin a changé, mettre à jour
+            if (dateFinRessource && interimExistant.date_fin_contrat !== dateFinRessource) {
+              const { error: updateError } = await supabase
+                .from('interims')
+                .update({
+                  date_fin_contrat: dateFinRessource,
+                  date_mise_a_jour: new Date().toISOString(),
+                })
+                .eq('id', interimExistant.id)
+
+              if (!updateError) {
+                nbMisesAJour++
+              }
+            }
+          }
+          continue
+        }
+
+        // Créer un nouvel intérim
+        const dateFinContrat = ressource.date_fin_contrat
+          ? new Date(ressource.date_fin_contrat).toISOString().split('T')[0]
+          : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 90 jours par défaut
+
+        const { error: createError } = await supabase
+          .from('interims')
+          .insert({
+            ressource_id: ressourceId,
+            site: ressource.site || '',
+            date_debut_contrat: new Date().toISOString().split('T')[0], // Date du jour par défaut
+            date_fin_contrat: dateFinContrat,
+            a_renouveler: '',
+            date_mise_a_jour: new Date().toISOString(),
+            commentaire: `Initialisé depuis la ressource ${ressource.nom}`,
+          })
+
+        if (createError) {
+          console.error(`[useInterims] Erreur création intérim pour ${ressource.nom}:`, createError)
+        } else {
+          nbCrees++
+        }
+      }
+
+      // 4. Recharger les intérims
+      await loadInterims()
+
+      return { created: nbCrees, updated: nbMisesAJour }
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useInterims] Erreur initialiserInterims:', err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [getSupabaseClient, loadInterims])
+
   return {
     interims,
     loading,
@@ -435,5 +548,6 @@ export function useInterims(options: UseInterimsOptions = {}) {
     refresh: loadInterims,
     verifierEtMettreAJourRenouvellements,
     desactiverInterimsExpires,
+    initialiserInterims,
   }
 }

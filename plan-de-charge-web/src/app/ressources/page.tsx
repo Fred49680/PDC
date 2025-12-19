@@ -126,6 +126,7 @@ export default function RessourcesPage() {
     refresh: refreshInterims,
     verifierEtMettreAJourRenouvellements,
     desactiverInterimsExpires,
+    initialiserInterims,
   } = useInterims(activeCategoryTab === 'Intérim' ? interimsOptions : { site: undefined, aRenouveler: undefined })
 
   // Charger toutes les ressources ETT pour la liste déroulante (seulement si onglet Intérim actif)
@@ -956,6 +957,7 @@ export default function RessourcesPage() {
             deleteInterim={deleteInterim}
             verifierEtMettreAJourRenouvellements={verifierEtMettreAJourRenouvellements}
             desactiverInterimsExpires={desactiverInterimsExpires}
+            initialiserInterims={initialiserInterims}
           />
         ) : (
           <>
@@ -1095,6 +1097,7 @@ interface InterimsManagementProps {
   deleteInterim: (id: string) => Promise<void>
   verifierEtMettreAJourRenouvellements: () => Promise<{ updated: number; alertsCreated: number }>
   desactiverInterimsExpires: () => Promise<{ desactivated: number }>
+  initialiserInterims: () => Promise<{ created: number; updated: number }>
 }
 
 function InterimsManagement({
@@ -1118,6 +1121,7 @@ function InterimsManagement({
   deleteInterim,
   verifierEtMettreAJourRenouvellements,
   desactiverInterimsExpires,
+  initialiserInterims,
 }: InterimsManagementProps) {
   // Filtrer les intérims par terme de recherche
   const interimsFiltres = useMemo(() => {
@@ -1307,6 +1311,20 @@ function InterimsManagement({
     }
   }
 
+  const handleInitialiserInterims = async () => {
+    if (!confirm('Voulez-vous initialiser les intérims depuis les ressources ETT ?\n\nCette opération créera une entrée dans la table interims pour chaque ressource avec type_contrat=\'ETT\'.')) {
+      return
+    }
+
+    try {
+      const result = await initialiserInterims()
+      alert(`${result.created} intérim(s) créé(s), ${result.updated} intérim(s) mis à jour`)
+    } catch (err) {
+      console.error('[InterimsManagement] Erreur initialisation:', err)
+      alert('Erreur lors de l\'initialisation des intérims')
+    }
+  }
+
   if (loading) {
     return <Loading message="Chargement des intérims..." />
   }
@@ -1431,6 +1449,15 @@ function InterimsManagement({
             />
           </div>
           <div className="flex gap-2">
+            {interims.length === 0 && ressourcesETT.length > 0 && (
+              <Button
+                onClick={handleInitialiserInterims}
+                className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white"
+              >
+                <Briefcase className="w-4 h-4 mr-2" />
+                Initialiser les intérims ({ressourcesETT.length})
+              </Button>
+            )}
             <Button
               onClick={handleVerificationManuelle}
               className="bg-blue-500 hover:bg-blue-600 text-white"
