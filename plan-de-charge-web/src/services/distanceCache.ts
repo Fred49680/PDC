@@ -28,6 +28,12 @@ export async function getCachedDistance(
   profile: string = 'driving-car'
 ): Promise<CachedDistance | null> {
   try {
+    // Vérifier que nous sommes côté client
+    if (typeof window === 'undefined') {
+      console.warn('[distanceCache] getCachedDistance appelé côté serveur, ignoré')
+      return null
+    }
+    
     const supabase = createClient()
     
     const { data, error } = await supabase
@@ -78,6 +84,12 @@ export async function saveCachedDistance(
   profile: string = 'driving-car'
 ): Promise<boolean> {
   try {
+    // Vérifier que nous sommes côté client
+    if (typeof window === 'undefined') {
+      console.warn('[distanceCache] saveCachedDistance appelé côté serveur, ignoré')
+      return false
+    }
+    
     const supabase = createClient()
 
     const { error } = await supabase

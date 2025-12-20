@@ -8,9 +8,13 @@ import { useInterims } from '@/hooks/useInterims'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Users, Plus, Trash2, Edit2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter, Briefcase, RefreshCw, Calendar, User, Building2, Clock, AlertTriangle } from 'lucide-react'
+import { Users, Plus, Trash2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter, Briefcase, RefreshCw, Calendar, User, Building2, Clock, AlertTriangle } from 'lucide-react'
+import type { Interim } from '@/types/interims'
+import type { Ressource, RessourceCompetence } from '@/types/affectations'
+import type { Site } from '@/types/sites'
 import { createClient } from '@/lib/supabase/client'
 import { ImportExcel } from '@/components/Ressources/ImportExcel'
+import { AdresseForm } from '@/components/Ressources/AdresseForm'
 import { Card, CardHeader } from '@/components/UI/Card'
 import { Button } from '@/components/UI/Button'
 import { Input } from '@/components/UI/Input'
@@ -34,7 +38,7 @@ export default function RessourcesPage() {
       : undefined,
   }), [filters.site, filters.actif, activeCategoryTab])
   
-  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetence, deleteCompetence, saveCompetencesBatch, loadRessources } =
+  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetencesBatch, loadRessources } =
     useRessources(ressourcesOptions)
   
   // Charger toutes les ressources pour le comptage (sans filtre type_contrat)
@@ -104,12 +108,22 @@ export default function RessourcesPage() {
   const [showArchivedInterims, setShowArchivedInterims] = useState(false)
   const [isEditingInterim, setIsEditingInterim] = useState(false)
   const [showInterimModal, setShowInterimModal] = useState(false)
+  // Calculer les dates par défaut une seule fois au montage
+  const defaultDates = useMemo(() => {
+    const now = new Date()
+    const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
+    return {
+      debut: format(now, 'yyyy-MM-dd'),
+      fin: format(in90Days, 'yyyy-MM-dd'),
+    }
+  }, [])
+
   const [interimFormData, setInterimFormData] = useState({
     id: '',
     ressource_id: '',
     site: '',
-    date_debut_contrat: format(new Date(), 'yyyy-MM-dd'),
-    date_fin_contrat: format(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+    date_debut_contrat: defaultDates.debut,
+    date_fin_contrat: defaultDates.fin,
     a_renouveler: 'A renouveler',
     commentaire: '',
   })
@@ -135,7 +149,6 @@ export default function RessourcesPage() {
     createInterim, 
     updateInterim, 
     deleteInterim, 
-    refresh: refreshInterims,
     verifierEtMettreAJourRenouvellements,
     desactiverInterimsExpires,
     initialiserInterims,
@@ -156,9 +169,12 @@ export default function RessourcesPage() {
       // Si la valeur n'est pas dans la liste, chercher une correspondance (insensible à la casse)
       if (!siteValues.includes(currentSite)) {
         const matchingSite = sitesList.find(s => s.site?.trim().toLowerCase() === currentSite.toLowerCase())
-        if (matchingSite) {
-          setFormData(prev => ({ ...prev, site: matchingSite.site.trim() }))
-        } else {
+        if (matchingSite && matchingSite.site.trim() !== formData.site) {
+          // Utiliser requestAnimationFrame pour éviter setState synchrone dans useEffect
+          requestAnimationFrame(() => {
+            setFormData(prev => ({ ...prev, site: matchingSite.site.trim() }))
+          })
+        } else if (!matchingSite) {
           // Si toujours pas de correspondance, essayer de trouver via la ressource
           if (formData.ressource_id) {
             const ressource = ressourcesETT.find(r => r.id === formData.ressource_id)
@@ -168,15 +184,19 @@ export default function RessourcesPage() {
                 const siteFromRessource = ressource.site.trim()
                 return siteFromList.toLowerCase() === siteFromRessource.toLowerCase()
               })
-              if (matchingSiteFromRessource) {
-                setFormData(prev => ({ ...prev, site: matchingSiteFromRessource.site.trim() }))
+              if (matchingSiteFromRessource && matchingSiteFromRessource.site.trim() !== formData.site) {
+                requestAnimationFrame(() => {
+                  setFormData(prev => ({ ...prev, site: matchingSiteFromRessource.site.trim() }))
+                })
               }
             }
           }
         }
       } else if (formData.site !== currentSite) {
         // Normaliser en enlevant les espaces si nécessaire
-        setFormData(prev => ({ ...prev, site: currentSite }))
+        requestAnimationFrame(() => {
+          setFormData(prev => ({ ...prev, site: currentSite }))
+        })
       }
     }
   }, [sitesLoading, sitesList, isEditing, formData.site, formData.ressource_id, ressourcesETT])
@@ -237,27 +257,6 @@ export default function RessourcesPage() {
     } catch (err) {
       console.error('[RessourcesPage] Erreur:', err)
     }
-  }
-
-  const handleEdit = (ressource: typeof ressources[0]) => {
-    setFormData({
-      id: ressource.id,
-      nom: ressource.nom,
-      site: ressource.site ? ressource.site.trim() : '',
-      type_contrat: ressource.type_contrat === 'ETT' ? 'ETT' : (ressource.type_contrat || ''),
-      responsable: ressource.responsable || '',
-      date_debut_contrat: ressource.date_debut_contrat
-        ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
-        : '',
-      date_fin_contrat: ressource.date_fin_contrat ? format(ressource.date_fin_contrat, 'yyyy-MM-dd') : '',
-      adresse_domicile: ressource.adresse_domicile || '',
-      actif: ressource.actif,
-      ressource_id: '',
-      a_renouveler: '',
-      commentaire: '',
-    })
-    setIsEditing(true)
-    setShowModal(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -855,7 +854,7 @@ export default function RessourcesPage() {
                     <div className="text-center py-8">
                       <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500 font-medium">
-                        Veuillez d'abord créer la ressource pour gérer ses compétences.
+                        Veuillez d&apos;abord créer la ressource pour gérer ses compétences.
                       </p>
                     </div>
                   ) : (
@@ -996,23 +995,12 @@ export default function RessourcesPage() {
               {/* Contenu de l'onglet Adresse */}
               {activeTab === 'adresse' && (
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Adresse du domicile
-                      </label>
-                      <textarea
-                        value={formData.adresse_domicile}
-                        onChange={(e) => setFormData({ ...formData, adresse_domicile: e.target.value })}
-                        placeholder="Ex: 123 Rue Example, 75001 Paris, France"
-                        rows={4}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        Indiquez l'adresse complète du domicile de la ressource. Cette adresse sera utilisée pour calculer les distances vers les sites d'affectation.
-                      </p>
-                    </div>
-                  </div>
+                  <AdresseForm
+                    value={formData.adresse_domicile}
+                    onChange={(adresse) => setFormData({ ...formData, adresse_domicile: adresse })}
+                    label="Adresse du domicile"
+                    autoValidate={true}
+                  />
 
                   {/* Boutons d'action */}
                   <div className="flex items-center justify-end pt-4 border-t border-gray-200">
@@ -1190,8 +1178,23 @@ export default function RessourcesPage() {
 }
 
 // ===== COMPOSANT DE GESTION DES INTÉRIMS =====
+interface InterimFormData {
+  id: string
+  ressource_id: string
+  site: string
+  date_debut_contrat: string
+  date_fin_contrat: string
+  a_renouveler: string
+  commentaire: string
+}
+
+// Type étendu pour Interim avec ressource jointe
+type InterimWithRessource = Interim & {
+  ressource?: Ressource
+}
+
 interface InterimsManagementProps {
-  interims: any[]
+  interims: InterimWithRessource[]
   loading: boolean
   error: Error | null
   filters: { site: string; aRenouveler: string }
@@ -1200,29 +1203,21 @@ interface InterimsManagementProps {
   setSearchTerm: (term: string) => void
   showArchived: boolean
   setShowArchived: (show: boolean) => void
-  sitesList: any[]
-  ressourcesETT: any[]
+  sitesList: Site[]
+  ressourcesETT: Ressource[]
   isEditing: boolean
   setIsEditing: (editing: boolean) => void
   showModal: boolean
   setShowModal: (show: boolean) => void
-  formData: {
-    id: string
-    ressource_id: string
-    site: string
-    date_debut_contrat: string
-    date_fin_contrat: string
-    a_renouveler: string
-    commentaire: string
-  }
-  setFormData: (data: any) => void
-  createInterim: (data: any) => Promise<any>
-  updateInterim: (id: string, data: any) => Promise<any>
+  formData: InterimFormData
+  setFormData: (data: InterimFormData) => void
+  createInterim: (data: Partial<Interim>) => Promise<Interim>
+  updateInterim: (id: string, data: Partial<Interim>) => Promise<Interim>
   deleteInterim: (id: string) => Promise<void>
   verifierEtMettreAJourRenouvellements: () => Promise<{ updated: number; alertsCreated: number }>
   desactiverInterimsExpires: () => Promise<{ desactivated: number }>
   initialiserInterims: () => Promise<{ created: number; updated: number }>
-  competences: Map<string, any[]>
+  competences: Map<string, RessourceCompetence[]>
   saveCompetencesBatch: (ressourceId: string, competences: Array<{ competence: string; type_comp: string }>) => Promise<void>
 }
 
@@ -1437,13 +1432,13 @@ function InterimsManagement({
   }
   // Filtrer les intérims par terme de recherche
   const interimsFiltres = useMemo(() => {
-    let filtered = interims as any[]
+    let filtered = interims
 
     // Filtre par terme de recherche (nom de ressource)
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase()
-      filtered = filtered.filter((interim: any) => {
-        const ressourceNom = interim.ressource?.nom?.toLowerCase() || ''
+      filtered = filtered.filter((interim) => {
+        const ressourceNom = (interim as Interim & { ressource?: { nom?: string } }).ressource?.nom?.toLowerCase() || ''
         return ressourceNom.includes(searchLower)
       })
     }
@@ -1454,14 +1449,14 @@ function InterimsManagement({
   // Calculer les statistiques
   const stats = useMemo(() => {
     const total = interims.length
-    const aRenouveler = interims.filter((i: any) => i.a_renouveler === 'A renouveler').length
-    const renouveles = interims.filter((i: any) => i.a_renouveler === 'Oui' || i.a_renouveler === 'oui').length
-    const nonRenouveles = interims.filter((i: any) => i.a_renouveler === 'Non' || i.a_renouveler === 'non').length
+    const aRenouveler = interims.filter((i) => i.a_renouveler === 'A renouveler').length
+    const renouveles = interims.filter((i) => i.a_renouveler === 'Oui' || i.a_renouveler === 'oui').length
+    const nonRenouveles = interims.filter((i) => i.a_renouveler === 'Non' || i.a_renouveler === 'non').length
     
     // Compter ceux qui expirent dans les 10 prochains jours ouvrés
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const expirentBientot = interims.filter((i: any) => {
+    const expirentBientot = interims.filter((i) => {
       const dateFin = new Date(i.date_fin_contrat)
       dateFin.setHours(0, 0, 0, 0)
       const joursRestants = businessDaysBetween(today, dateFin)
@@ -1539,8 +1534,8 @@ function InterimsManagement({
       if (isEditing) {
         await updateInterim(formData.id, {
           site: siteToUse,
-          date_debut_contrat: dateDebut,
-          date_fin_contrat: dateFin,
+          date_debut_contrat: dateDebut as unknown as Date,
+          date_fin_contrat: dateFin as unknown as Date,
           a_renouveler: formData.a_renouveler,
           commentaire: formData.commentaire.trim() || undefined,
         })
@@ -1548,8 +1543,8 @@ function InterimsManagement({
         await createInterim({
           ressource_id: formData.ressource_id.trim(),
           site: siteToUse,
-          date_debut_contrat: dateDebut,
-          date_fin_contrat: dateFin,
+          date_debut_contrat: dateDebut as unknown as Date,
+          date_fin_contrat: dateFin as unknown as Date,
           a_renouveler: formData.a_renouveler,
           commentaire: formData.commentaire.trim() || undefined,
         })
@@ -1573,7 +1568,7 @@ function InterimsManagement({
     }
   }
 
-  const handleEdit = (interim: any) => {
+  const handleEdit = (interim: Interim) => {
     // Normaliser le site en cherchant dans sitesList
     let normalizedSite = interim.site || ''
     
@@ -1897,7 +1892,7 @@ function InterimsManagement({
             <p className="text-gray-600 text-lg">Aucun intérim trouvé</p>
           </div>
         ) : (
-          interimsFiltres.map((interim: any) => {
+          interimsFiltres.map((interim) => {
             const joursRestants = getJoursRestants(new Date(interim.date_fin_contrat))
             const estExpire = joursRestants < 0
             const expireBientot = joursRestants <= 10 && joursRestants >= 0
@@ -2187,8 +2182,8 @@ function InterimsManagement({
                 {!formData.ressource_id ? (
                   <div className="text-center py-8">
                     <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">
-                      Veuillez d'abord sélectionner une ressource pour gérer ses compétences.
+                      <p className="text-gray-500 font-medium">
+                      Veuillez d&apos;abord sélectionner une ressource pour gérer ses compétences.
                     </p>
                   </div>
                 ) : (
