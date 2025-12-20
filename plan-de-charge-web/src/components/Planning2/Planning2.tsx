@@ -212,10 +212,52 @@ export default function Planning2({
   })
 
   const { absences } = useAbsences({})
-  const { ressources, competences: competencesMap, loading: loadingRessources } = useRessources({
+  
+  // Charger toutes les ressources actives du site (inclut déjà les ETT actifs)
+  const { ressources: ressourcesActives, competences: competencesMapActives, loading: loadingRessourcesActives } = useRessources({
     site,
     actif: true,
   })
+  
+  // Charger aussi les ressources temporaires (ETT) inactives pour les inclure
+  const { ressources: ressourcesETTInactives, competences: competencesMapETTInactives, loading: loadingRessourcesETTInactives } = useRessources({
+    site,
+    type_contrat: 'ETT',
+    actif: false,
+  })
+  
+  // Fusionner les ressources actives et les ressources ETT inactives (sans doublons)
+  const ressources = useMemo(() => {
+    const ressourcesMap = new Map<string, typeof ressourcesActives[0]>()
+    
+    // Ajouter toutes les ressources actives (inclut les ETT actifs)
+    ressourcesActives.forEach((r) => {
+      ressourcesMap.set(r.id, r)
+    })
+    
+    // Ajouter les ressources ETT inactives (temporaires inactives)
+    ressourcesETTInactives.forEach((r) => {
+      if (!ressourcesMap.has(r.id)) {
+        ressourcesMap.set(r.id, r)
+      }
+    })
+    
+    return Array.from(ressourcesMap.values()).sort((a, b) => a.nom.localeCompare(b.nom))
+  }, [ressourcesActives, ressourcesETTInactives])
+  
+  // Fusionner les compétences
+  const competencesMap = useMemo(() => {
+    const competencesMapMerged = new Map(competencesMapActives)
+    
+    // Ajouter les compétences des ressources ETT inactives
+    competencesMapETTInactives.forEach((comps, resId) => {
+      competencesMapMerged.set(resId, comps)
+    })
+    
+    return competencesMapMerged
+  }, [competencesMapActives, competencesMapETTInactives])
+  
+  const loadingRessources = loadingRessourcesActives || loadingRessourcesETTInactives
 
   // État pour toutes les affectations (toutes affaires)
   const [toutesAffectationsRessources, setToutesAffectationsRessources] = useState<Map<string, Affectation[]>>(new Map())
