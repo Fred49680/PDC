@@ -234,15 +234,38 @@ export default function TransfertsPage() {
   }
 
   const handleRessourceChange = (selectedRessourceId: string) => {
-    const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
-    if (selectedRessource) {
-      setFormData({
-        ...formData,
+    setFormData((prev) => {
+      const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
+      if (selectedRessource && selectedRessource.site) {
+        // Pré-remplir automatiquement le site d'origine avec le site de référence de la ressource
+        return {
+          ...prev,
+          ressource_id: selectedRessourceId,
+          site_origine: selectedRessource.site,
+        }
+      }
+      // Si la ressource n'est pas trouvée ou n'a pas de site, mettre à jour seulement l'ID
+      return {
+        ...prev,
         ressource_id: selectedRessourceId,
-        site_origine: selectedRessource.site, // Pré-remplir le site d'origine
-      })
-    }
+      }
+    })
   }
+
+  // useEffect pour mettre à jour le site d'origine si la ressource change et que les ressources sont chargées
+  // Ne pré-remplit que si le site d'origine est vide (pour ne pas écraser une modification manuelle)
+  useEffect(() => {
+    if (formData.ressource_id && ressources.length > 0 && !formData.site_origine) {
+      const selectedRessource = ressources.find((r) => r.id === formData.ressource_id)
+      if (selectedRessource && selectedRessource.site) {
+        // Pré-remplir le site d'origine avec le site de référence de la ressource
+        setFormData((prev) => ({
+          ...prev,
+          site_origine: selectedRessource.site,
+        }))
+      }
+    }
+  }, [formData.ressource_id, formData.site_origine, ressources])
 
   const handleAppliquer = async (transfert: Transfert) => {
     if (transfert.statut === 'Appliqué') {
