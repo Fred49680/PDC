@@ -171,15 +171,55 @@ export default function TransfertsPage() {
 
       if (error) throw error
 
-      const affectations = (affectationsData || []).map((a: any) => ({
-        id: a.id,
+      // Mapper les affectations
+      type AffectationData = {
+        id: string
+        affaire_id: string
+        competence: string
+        date_debut: Date
+        date_fin: Date
+        charge: number
+        affaire_label: string
+      }
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const affectationsMapped: AffectationData[] = (affectationsData || []).map((a: any) => ({
+        id: String(a.id),
         affaire_id: a.affaires?.affaire_id || '',
         affaire_label: a.affaires?.libelle || '',
-        competence: a.competence,
-        date_debut: new Date(a.date_debut),
-        date_fin: new Date(a.date_fin),
+        competence: String(a.competence),
+        date_debut: a.date_debut instanceof Date ? a.date_debut : new Date(String(a.date_debut)),
+        date_fin: a.date_fin instanceof Date ? a.date_fin : new Date(String(a.date_fin)),
         charge: Number(a.charge),
       }))
+
+      // Dédupliquer les affectations identiques (même affaire, compétence et période)
+      // En cas de doublon, on garde la première trouvée
+      const affectationsUniques = new Map<string, AffectationData>()
+      
+      affectationsMapped.forEach((aff) => {
+        // Créer une clé unique basée sur affaire_id, compétence et période
+        const dateDebutStr = aff.date_debut.toISOString().split('T')[0]
+        const dateFinStr = aff.date_fin.toISOString().split('T')[0]
+        const key = `${aff.affaire_id}|${aff.competence}|${dateDebutStr}|${dateFinStr}`
+        
+        // Si cette affectation n'existe pas déjà, l'ajouter
+        // Sinon, on garde celle avec le plus grand ID (plus récente)
+        if (!affectationsUniques.has(key)) {
+          affectationsUniques.set(key, aff)
+        } else {
+          // En cas de doublon réel, garder celle avec le plus grand ID (plus récente)
+          const existing = affectationsUniques.get(key)!
+          if (aff.id > existing.id) {
+            affectationsUniques.set(key, aff)
+          }
+        }
+      })
+
+      // Convertir en tableau et trier par date de début
+      const affectations = Array.from(affectationsUniques.values()).sort(
+        (a, b) => a.date_debut.getTime() - b.date_debut.getTime()
+      )
 
       setAffectationsList(affectations)
     } catch (err) {
@@ -245,9 +285,9 @@ export default function TransfertsPage() {
       setAffectationForm({ affaire_id: '', competence: '' })
       await loadAffectationsTransfert()
       alert('Affectation créée avec succès')
-    } catch (err: any) {
+    } catch (err) {
       console.error('[TransfertsPage] Erreur création affectation:', err)
-      alert(err.message || 'Erreur lors de la création de l\'affectation')
+      alert(err instanceof Error ? err.message : 'Erreur lors de la création de l\'affectation')
     } finally {
       setLoadingAffectation(false)
     }
@@ -396,9 +436,9 @@ export default function TransfertsPage() {
       })
       setIsEditing(false)
       setShowModal(false)
-    } catch (err: any) {
+    } catch (err) {
       console.error('[TransfertsPage] Erreur sauvegarde:', err)
-      alert(err.message || 'Erreur lors de la sauvegarde du transfert')
+      alert(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde du transfert')
     }
   }
 
@@ -552,9 +592,9 @@ export default function TransfertsPage() {
     ) {
       try {
         await updateTransfert(transfert.id, { statut: 'Appliqué' })
-      } catch (err: any) {
+      } catch (err) {
         console.error('[TransfertsPage] Erreur application:', err)
-        alert(err.message || 'Erreur lors de l\'application du transfert')
+        alert(err instanceof Error ? err.message : 'Erreur lors de l\'application du transfert')
       }
     }
   }
@@ -1002,7 +1042,7 @@ export default function TransfertsPage() {
                     ]}
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Si "Appliqué", le transfert sera appliqué immédiatement (création d'affectations
+                    Si &quot;Appliqué&quot;, le transfert sera appliqué immédiatement (création d&apos;affectations
                     sur le site de destination)
                   </p>
                 </div>
