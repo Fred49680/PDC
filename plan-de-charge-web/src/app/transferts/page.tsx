@@ -688,8 +688,9 @@ export default function TransfertsPage() {
                       return null
                     })()}
                     <Select
+                      key={`site-origine-${formData.site_origine}-${sitesList.length}`}
                       label="Site d'origine *"
-                      value={formData.site_origine}
+                      value={formData.site_origine || ''}
                       onChange={(e) => {
                         console.log('[TransfertsPage] Select Site d\'origine onChange:', e.target.value)
                         setFormData((prev) => {
