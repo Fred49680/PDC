@@ -99,11 +99,12 @@ export default function TransfertsPage() {
   }, [transferts, searchTerm])
 
   // Mémoriser les options des sites pour éviter les re-renders
+  // Normaliser tout en majuscules pour le traitement
   const siteOptions = useMemo(() => {
     const options = [
       { value: '', label: 'Sélectionner un site' },
       ...sitesList.map((site) => ({
-        value: site.site,
+        value: site.site.toUpperCase(),
         label: site.site,
       })),
     ]
@@ -225,8 +226,9 @@ export default function TransfertsPage() {
     setFormData({
       id: transfert.id,
       ressource_id: transfert.ressource_id,
-      site_origine: transfert.site_origine,
-      site_destination: transfert.site_destination,
+      // Normaliser les sites en majuscules
+      site_origine: transfert.site_origine.toUpperCase(),
+      site_destination: transfert.site_destination.toUpperCase(),
       date_debut: format(new Date(transfert.date_debut), 'yyyy-MM-dd'),
       date_fin: format(new Date(transfert.date_fin), 'yyyy-MM-dd'),
       statut: transfert.statut,
@@ -262,24 +264,26 @@ export default function TransfertsPage() {
         ressource_id: selectedRessourceId,
       }
       
-      // Si la ressource est trouvée et a un site, trouver le site correspondant dans sitesList
-      // (comparaison insensible à la casse pour gérer les différences de casse)
+      // Si la ressource est trouvée et a un site, normaliser en majuscules
       if (selectedRessource && selectedRessource.site) {
-        // Trouver le site correspondant en comparant insensiblement à la casse
+        // Normaliser le site de la ressource en majuscules
+        const siteRessourceUpper = selectedRessource.site.toUpperCase()
+        
+        // Trouver le site correspondant dans sitesList en comparant en majuscules
         const matchingSite = sitesList.find(
-          (s) => s.site.toLowerCase() === selectedRessource.site.toLowerCase()
+          (s) => s.site.toUpperCase() === siteRessourceUpper
         )
         
         if (matchingSite) {
-          // Utiliser la valeur exacte du site trouvé (avec la bonne casse)
-          console.log('[TransfertsPage] Site trouvé (casse normalisée):', selectedRessource.site, '->', matchingSite.site)
-          newData.site_origine = matchingSite.site
+          // Utiliser la valeur en majuscules pour le formulaire
+          console.log('[TransfertsPage] Site trouvé:', selectedRessource.site, '->', matchingSite.site.toUpperCase())
+          newData.site_origine = matchingSite.site.toUpperCase()
           console.log('[TransfertsPage] Nouveau formData.site_origine:', newData.site_origine)
         } else {
           console.warn('[TransfertsPage] Site', selectedRessource.site, 'non trouvé dans sitesList')
           console.log('[TransfertsPage] Liste des sites disponibles:', sitesList.map((s) => s.site))
-          // Utiliser quand même la valeur de la ressource (au cas où)
-          newData.site_origine = selectedRessource.site
+          // Utiliser la valeur en majuscules de la ressource
+          newData.site_origine = siteRessourceUpper
         }
       } else {
         console.log('[TransfertsPage] Aucune ressource trouvée ou pas de site disponible')
@@ -290,7 +294,7 @@ export default function TransfertsPage() {
   }
 
   // useEffect pour mettre à jour le site d'origine si la ressource change et que les ressources sont chargées
-  // Pré-remplit automatiquement le site d'origine avec le site de référence de la ressource
+  // Pré-remplit automatiquement le site d'origine avec le site de référence de la ressource (en majuscules)
   useEffect(() => {
     // Ne s'exécuter que si on a une ressource sélectionnée, des ressources chargées, des sites chargés, et qu'on n'est pas en mode édition
     if (formData.ressource_id && ressources.length > 0 && sitesList.length > 0 && !isEditing) {
@@ -301,20 +305,23 @@ export default function TransfertsPage() {
       console.log('[TransfertsPage] useEffect - Sites disponibles:', sitesList.length, sitesList.map((s) => s.site))
       
       if (selectedRessource && selectedRessource.site) {
-        // Trouver le site correspondant en comparant insensiblement à la casse
+        // Normaliser le site de la ressource en majuscules
+        const siteRessourceUpper = selectedRessource.site.toUpperCase()
+        
+        // Trouver le site correspondant dans sitesList en comparant en majuscules
         const matchingSite = sitesList.find(
-          (s) => s.site.toLowerCase() === selectedRessource.site.toLowerCase()
+          (s) => s.site.toUpperCase() === siteRessourceUpper
         )
         
         if (matchingSite) {
-          // Utiliser la valeur exacte du site trouvé (avec la bonne casse)
-          const correctSiteValue = matchingSite.site
-          console.log('[TransfertsPage] useEffect - Site trouvé (casse normalisée):', selectedRessource.site, '->', correctSiteValue)
+          // Utiliser la valeur en majuscules
+          const correctSiteValue = matchingSite.site.toUpperCase()
+          console.log('[TransfertsPage] useEffect - Site trouvé:', selectedRessource.site, '->', correctSiteValue)
           
-          // Pré-remplir le site d'origine avec le site de référence de la ressource (avec la bonne casse)
+          // Pré-remplir le site d'origine avec le site de référence de la ressource (en majuscules)
           setFormData((prev) => {
-            // Comparer insensiblement à la casse pour éviter les mises à jour inutiles
-            if (prev.site_origine?.toLowerCase() !== correctSiteValue.toLowerCase()) {
+            // Comparer en majuscules pour éviter les mises à jour inutiles
+            if (prev.site_origine?.toUpperCase() !== correctSiteValue) {
               console.log('[TransfertsPage] useEffect - Mise à jour du site d\'origine de', prev.site_origine, 'vers', correctSiteValue)
               return {
                 ...prev,
@@ -328,6 +335,16 @@ export default function TransfertsPage() {
         } else {
           console.warn('[TransfertsPage] useEffect - Site', selectedRessource.site, 'non trouvé dans sitesList')
           console.log('[TransfertsPage] useEffect - Liste des sites disponibles:', sitesList.map((s) => s.site))
+          // Utiliser quand même la valeur en majuscules de la ressource
+          setFormData((prev) => {
+            if (prev.site_origine?.toUpperCase() !== siteRessourceUpper) {
+              return {
+                ...prev,
+                site_origine: siteRessourceUpper,
+              }
+            }
+            return prev
+          })
         }
       } else {
         console.log('[TransfertsPage] useEffect - Aucune ressource trouvée ou pas de site disponible')
@@ -494,24 +511,24 @@ export default function TransfertsPage() {
               </div>
               <Select
                 value={filters.siteOrigine}
-                onChange={(e) => setFilters({ ...filters, siteOrigine: e.target.value })}
+                onChange={(e) => setFilters({ ...filters, siteOrigine: e.target.value.toUpperCase() || '' })}
                 className="w-full sm:w-48"
                 options={[
                   { value: '', label: 'Tous les sites origine' },
                   ...sitesList.map((site) => ({
-                    value: site.site,
+                    value: site.site.toUpperCase(),
                     label: site.site,
                   })),
                 ]}
               />
               <Select
                 value={filters.siteDestination}
-                onChange={(e) => setFilters({ ...filters, siteDestination: e.target.value })}
+                onChange={(e) => setFilters({ ...filters, siteDestination: e.target.value.toUpperCase() || '' })}
                 className="w-full sm:w-48"
                 options={[
                   { value: '', label: 'Tous les sites destination' },
                   ...sitesList.map((site) => ({
-                    value: site.site,
+                    value: site.site.toUpperCase(),
                     label: site.site,
                   })),
                 ]}
@@ -719,8 +736,10 @@ export default function TransfertsPage() {
                       onChange={(e) => {
                         console.log('[TransfertsPage] Select Site d\'origine onChange:', e.target.value)
                         setFormData((prev) => {
-                          console.log('[TransfertsPage] Ancien site_origine:', prev.site_origine, 'Nouveau:', e.target.value)
-                          return { ...prev, site_origine: e.target.value }
+                          // Normaliser en majuscules
+                          const newValue = e.target.value.toUpperCase()
+                          console.log('[TransfertsPage] Ancien site_origine:', prev.site_origine, 'Nouveau:', newValue)
+                          return { ...prev, site_origine: newValue }
                         })
                       }}
                       required
@@ -734,16 +753,16 @@ export default function TransfertsPage() {
                       label="Site de destination *"
                       value={formData.site_destination}
                       onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, site_destination: e.target.value }))
+                        setFormData((prev) => ({ ...prev, site_destination: e.target.value.toUpperCase() }))
                       }
                       required
                       className="w-full"
                       options={[
                         { value: '', label: 'Sélectionner un site' },
                         ...sitesList
-                          .filter((site) => site.site !== formData.site_origine)
+                          .filter((site) => site.site.toUpperCase() !== formData.site_origine?.toUpperCase())
                           .map((site) => ({
-                            value: site.site,
+                            value: site.site.toUpperCase(),
                             label: site.site,
                           })),
                       ]}

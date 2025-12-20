@@ -99,11 +99,13 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         }
 
         if (memoizedOptions.siteOrigine) {
-          query = query.eq('site_origine', memoizedOptions.siteOrigine)
+          // Normaliser en majuscules pour la comparaison
+          query = query.eq('site_origine', memoizedOptions.siteOrigine.toUpperCase())
         }
 
         if (memoizedOptions.siteDestination) {
-          query = query.eq('site_destination', memoizedOptions.siteDestination)
+          // Normaliser en majuscules pour la comparaison
+          query = query.eq('site_destination', memoizedOptions.siteDestination.toUpperCase())
         }
 
         if (memoizedOptions.statut) {
@@ -220,19 +222,24 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           throw new Error('La ressource n\'est pas active')
         }
 
-        if (ressource.site !== transfert.site_origine) {
+        // Normaliser les sites en majuscules pour le traitement
+        const siteOrigineUpper = transfert.site_origine.trim().toUpperCase()
+        const siteDestinationUpper = transfert.site_destination.trim().toUpperCase()
+        const ressourceSiteUpper = ressource.site.trim().toUpperCase()
+
+        if (ressourceSiteUpper !== siteOrigineUpper) {
           throw new Error(
             `La ressource est sur le site "${ressource.site}", pas sur "${transfert.site_origine}"`
           )
         }
 
-        // Créer le transfert
+        // Créer le transfert (sites en majuscules)
         const { data, error: insertError } = await supabase
           .from('transferts')
           .insert({
             ressource_id: transfert.ressource_id,
-            site_origine: transfert.site_origine.trim(),
-            site_destination: transfert.site_destination.trim(),
+            site_origine: siteOrigineUpper,
+            site_destination: siteDestinationUpper,
             date_debut: dateDebut,
             date_fin: dateFin,
             statut: transfert.statut || 'Planifié',
@@ -258,7 +265,7 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
             site: transfert.site_origine,
             date_debut: new Date(dateDebut),
             date_fin: new Date(dateFin),
-            action: `Transfert de ${ressource.nom} de ${transfert.site_origine} vers ${transfert.site_destination} : ${transfert.statut || 'Planifié'}`,
+            action: `Transfert de ${ressource.nom} de ${siteOrigineUpper} vers ${siteDestinationUpper} : ${transfert.statut || 'Planifié'}`,
             prise_en_compte: 'Non',
           })
         } catch (alerteError) {
@@ -324,11 +331,13 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         } = {}
 
         if (updates.site_origine !== undefined) {
-          updateData.site_origine = updates.site_origine.trim()
+          // Normaliser en majuscules
+          updateData.site_origine = updates.site_origine.trim().toUpperCase()
         }
 
         if (updates.site_destination !== undefined) {
-          updateData.site_destination = updates.site_destination.trim()
+          // Normaliser en majuscules
+          updateData.site_destination = updates.site_destination.trim().toUpperCase()
         }
 
         if (updates.date_debut !== undefined) {
@@ -486,9 +495,13 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           return
         }
 
+        // Normaliser les sites en majuscules
+        const siteDestinationUpper = siteDestination.trim().toUpperCase()
+        const siteOrigineUpper = siteOrigine.trim().toUpperCase()
+
         // Pour chaque compétence, créer une affectation "générique" sur le site de destination
         // Utiliser une affaire factice "TRANSFERT" pour tracer
-        const affaireTransfert = `TRANSFERT_${siteDestination}`
+        const affaireTransfert = `TRANSFERT_${siteDestinationUpper}`
 
         // Vérifier si l'affaire existe, sinon la créer
         const { data: affaireExistante } = await supabase
@@ -500,13 +513,13 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         let affaireId: string
 
         if (!affaireExistante) {
-          // Créer l'affaire factice
+          // Créer l'affaire factice (site en majuscules)
           const { data: nouvelleAffaire, error: affaireError } = await supabase
             .from('affaires')
             .insert({
               affaire_id: affaireTransfert,
-              site: siteDestination,
-              libelle: `Transfert automatique vers ${siteDestination}`,
+              site: siteDestinationUpper,
+              libelle: `Transfert automatique vers ${siteDestinationUpper}`,
               actif: true,
             })
             .select('id')
@@ -522,10 +535,10 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           affaireId = affaireExistante.id
         }
 
-        // Créer les affectations pour chaque compétence
+        // Créer les affectations pour chaque compétence (site en majuscules)
         const affectations = competences.map((comp) => ({
           affaire_id: affaireId,
-          site: siteDestination,
+          site: siteDestinationUpper,
           ressource_id: ressourceId,
           competence: comp.competence,
           date_debut: dateDebut.toISOString().split('T')[0],
@@ -540,15 +553,15 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           throw affectationsError
         }
 
-        // Logger dans les alertes
+        // Logger dans les alertes (sites en majuscules)
         try {
           await createAlerte({
             type_alerte: 'TRANSFERT_APPLIQUE',
             ressource_id: ressourceId,
-            site: siteDestination,
+            site: siteDestinationUpper,
             date_debut: dateDebut,
             date_fin: dateFin,
-            action: `Transfert appliqué de ${siteOrigine} vers ${siteDestination} - ${competences.length} compétence(s) affectée(s)`,
+            action: `Transfert appliqué de ${siteOrigineUpper} vers ${siteDestinationUpper} - ${competences.length} compétence(s) affectée(s)`,
             prise_en_compte: 'Non',
           })
         } catch (alerteError) {
