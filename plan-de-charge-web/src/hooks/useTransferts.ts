@@ -238,10 +238,11 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         }
 
         // Récupérer l'adresse du site de destination
+        // Utiliser site_key (en majuscules) pour la recherche au lieu de site
         const { data: siteDestination, error: siteError } = await supabase
           .from('sites')
           .select('adresse')
-          .eq('site', siteDestinationUpper)
+          .eq('site_key', siteDestinationUpper)
           .single()
 
         if (siteError) {
