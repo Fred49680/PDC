@@ -255,15 +255,6 @@ export default function TransfertsPage() {
     const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
     console.log('[TransfertsPage] Ressource trouvée:', selectedRessource)
     
-    // Vérifier si le site de la ressource existe dans la liste des sites
-    if (selectedRessource && selectedRessource.site) {
-      const siteExists = sitesList.some((s) => s.site === selectedRessource.site)
-      console.log('[TransfertsPage] Site', selectedRessource.site, 'existe dans sitesList:', siteExists)
-      if (!siteExists) {
-        console.log('[TransfertsPage] Liste des sites disponibles:', sitesList.map((s) => s.site))
-      }
-    }
-    
     // Mettre à jour le formulaire avec l'ID de la ressource et le site d'origine si disponible
     setFormData((prev) => {
       const newData: typeof prev = {
@@ -271,11 +262,25 @@ export default function TransfertsPage() {
         ressource_id: selectedRessourceId,
       }
       
-      // Si la ressource est trouvée et a un site, pré-remplir le site d'origine
+      // Si la ressource est trouvée et a un site, trouver le site correspondant dans sitesList
+      // (comparaison insensible à la casse pour gérer les différences de casse)
       if (selectedRessource && selectedRessource.site) {
-        console.log('[TransfertsPage] Mise à jour du site d\'origine avec:', selectedRessource.site)
-        newData.site_origine = selectedRessource.site
-        console.log('[TransfertsPage] Nouveau formData.site_origine:', newData.site_origine)
+        // Trouver le site correspondant en comparant insensiblement à la casse
+        const matchingSite = sitesList.find(
+          (s) => s.site.toLowerCase() === selectedRessource.site.toLowerCase()
+        )
+        
+        if (matchingSite) {
+          // Utiliser la valeur exacte du site trouvé (avec la bonne casse)
+          console.log('[TransfertsPage] Site trouvé (casse normalisée):', selectedRessource.site, '->', matchingSite.site)
+          newData.site_origine = matchingSite.site
+          console.log('[TransfertsPage] Nouveau formData.site_origine:', newData.site_origine)
+        } else {
+          console.warn('[TransfertsPage] Site', selectedRessource.site, 'non trouvé dans sitesList')
+          console.log('[TransfertsPage] Liste des sites disponibles:', sitesList.map((s) => s.site))
+          // Utiliser quand même la valeur de la ressource (au cas où)
+          newData.site_origine = selectedRessource.site
+        }
       } else {
         console.log('[TransfertsPage] Aucune ressource trouvée ou pas de site disponible')
       }
@@ -287,8 +292,8 @@ export default function TransfertsPage() {
   // useEffect pour mettre à jour le site d'origine si la ressource change et que les ressources sont chargées
   // Pré-remplit automatiquement le site d'origine avec le site de référence de la ressource
   useEffect(() => {
-    // Ne s'exécuter que si on a une ressource sélectionnée, des ressources chargées, et qu'on n'est pas en mode édition
-    if (formData.ressource_id && ressources.length > 0 && !isEditing) {
+    // Ne s'exécuter que si on a une ressource sélectionnée, des ressources chargées, des sites chargés, et qu'on n'est pas en mode édition
+    if (formData.ressource_id && ressources.length > 0 && sitesList.length > 0 && !isEditing) {
       const selectedRessource = ressources.find((r) => r.id === formData.ressource_id)
       console.log('[TransfertsPage] useEffect - Ressource ID:', formData.ressource_id)
       console.log('[TransfertsPage] useEffect - Ressource trouvée:', selectedRessource)
@@ -296,25 +301,34 @@ export default function TransfertsPage() {
       console.log('[TransfertsPage] useEffect - Sites disponibles:', sitesList.length, sitesList.map((s) => s.site))
       
       if (selectedRessource && selectedRessource.site) {
-        // Vérifier si le site existe dans la liste des sites
-        const siteExists = sitesList.some((s) => s.site === selectedRessource.site)
-        console.log('[TransfertsPage] useEffect - Site', selectedRessource.site, 'existe dans sitesList:', siteExists)
+        // Trouver le site correspondant en comparant insensiblement à la casse
+        const matchingSite = sitesList.find(
+          (s) => s.site.toLowerCase() === selectedRessource.site.toLowerCase()
+        )
         
-        // Pré-remplir le site d'origine avec le site de référence de la ressource
-        setFormData((prev) => {
-          // Toujours mettre à jour le site d'origine avec le site de la ressource sélectionnée
-          // (sauf si on est en mode édition, ce qui est déjà vérifié ci-dessus)
-          if (prev.site_origine !== selectedRessource.site) {
-            console.log('[TransfertsPage] useEffect - Mise à jour du site d\'origine de', prev.site_origine, 'vers', selectedRessource.site)
-            return {
-              ...prev,
-              site_origine: selectedRessource.site,
+        if (matchingSite) {
+          // Utiliser la valeur exacte du site trouvé (avec la bonne casse)
+          const correctSiteValue = matchingSite.site
+          console.log('[TransfertsPage] useEffect - Site trouvé (casse normalisée):', selectedRessource.site, '->', correctSiteValue)
+          
+          // Pré-remplir le site d'origine avec le site de référence de la ressource (avec la bonne casse)
+          setFormData((prev) => {
+            // Comparer insensiblement à la casse pour éviter les mises à jour inutiles
+            if (prev.site_origine?.toLowerCase() !== correctSiteValue.toLowerCase()) {
+              console.log('[TransfertsPage] useEffect - Mise à jour du site d\'origine de', prev.site_origine, 'vers', correctSiteValue)
+              return {
+                ...prev,
+                site_origine: correctSiteValue,
+              }
+            } else {
+              console.log('[TransfertsPage] useEffect - Site d\'origine déjà correct:', prev.site_origine)
             }
-          } else {
-            console.log('[TransfertsPage] useEffect - Site d\'origine déjà correct:', prev.site_origine)
-          }
-          return prev
-        })
+            return prev
+          })
+        } else {
+          console.warn('[TransfertsPage] useEffect - Site', selectedRessource.site, 'non trouvé dans sitesList')
+          console.log('[TransfertsPage] useEffect - Liste des sites disponibles:', sitesList.map((s) => s.site))
+        }
       } else {
         console.log('[TransfertsPage] useEffect - Aucune ressource trouvée ou pas de site disponible')
       }
