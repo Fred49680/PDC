@@ -5,6 +5,7 @@ import { Layout } from '@/components/Common/Layout'
 import { useTransferts } from '@/hooks/useTransferts'
 import { useRessources } from '@/hooks/useRessources'
 import { useSites } from '@/hooks/useSites'
+import { useAffaires } from '@/hooks/useAffaires'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -80,6 +81,105 @@ export default function TransfertsPage() {
     date_fin: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'), // 30 jours par défaut
     statut: 'Planifié' as 'Planifié' | 'Appliqué',
   })
+
+  // États pour la gestion des affectations dans le modal
+  const [affectationForm, setAffectationForm] = useState({
+    affaire_id: '',
+    competence: '',
+  })
+  const [competencesRessource, setCompetencesRessource] = useState<string[]>([])
+  const [loadingAffectation, setLoadingAffectation] = useState(false)
+
+  // Charger les affaires du site de destination (si un transfert est en édition et appliqué)
+  const { affaires: affairesDestination } = useAffaires({
+    site: isEditing && formData.statut === 'Appliqué' ? formData.site_destination : undefined,
+    enableRealtime: false,
+  })
+
+  // Charger les compétences de la ressource quand elle est sélectionnée
+  useEffect(() => {
+    const loadCompetences = async () => {
+      if (!formData.ressource_id) {
+        setCompetencesRessource([])
+        return
+      }
+
+      try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('ressources_competences')
+          .select('competence')
+          .eq('ressource_id', formData.ressource_id)
+          .order('competence', { ascending: true })
+
+        if (error) throw error
+
+        const competences = (data || []).map((c) => c.competence)
+        setCompetencesRessource(competences)
+      } catch (err) {
+        console.error('[TransfertsPage] Erreur chargement compétences:', err)
+        setCompetencesRessource([])
+      }
+    }
+
+    loadCompetences()
+  }, [formData.ressource_id])
+
+  // Fonction pour créer une affectation
+  const handleCreateAffectation = async () => {
+    if (!affectationForm.affaire_id || !affectationForm.competence || !formData.ressource_id) {
+      alert('Veuillez sélectionner une affaire et une compétence')
+      return
+    }
+
+    try {
+      setLoadingAffectation(true)
+
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      // Récupérer l'ID de l'affaire
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affectationForm.affaire_id)
+        .eq('site', formData.site_destination.toUpperCase())
+        .single()
+
+      if (affaireError || !affaireData) {
+        throw new Error('Affaire introuvable')
+      }
+
+      // Calculer le nombre de jours ouvrés
+      const { businessDaysBetween } = await import('@/utils/calendar')
+      const dateDebut = new Date(formData.date_debut)
+      const dateFin = new Date(formData.date_fin)
+      const nbJoursOuvres = businessDaysBetween(dateDebut, dateFin)
+
+      // Créer l'affectation
+      const { error: affectationError } = await supabase.from('affectations').insert({
+        affaire_id: affaireData.id,
+        site: formData.site_destination.toUpperCase(),
+        ressource_id: formData.ressource_id,
+        competence: affectationForm.competence,
+        date_debut: formData.date_debut,
+        date_fin: formData.date_fin,
+        charge: nbJoursOuvres,
+      })
+
+      if (affectationError) throw affectationError
+
+      // Réinitialiser le formulaire d'affectation
+      setAffectationForm({ affaire_id: '', competence: '' })
+      alert('Affectation créée avec succès')
+    } catch (err: any) {
+      console.error('[TransfertsPage] Erreur création affectation:', err)
+      alert(err.message || 'Erreur lors de la création de l\'affectation')
+    } finally {
+      setLoadingAffectation(false)
+    }
+  }
 
   // Filtrer les transferts par terme de recherche et masquer les transferts terminés
   const transfertsFiltres = useMemo(() => {
@@ -834,6 +934,67 @@ export default function TransfertsPage() {
                     sur le site de destination)
                   </p>
                 </div>
+
+                {/* Section pour affecter la ressource transférée à des affaires */}
+                {isEditing && formData.statut === 'Appliqué' && formData.ressource_id && (
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                      Affecter la ressource à une affaire
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Select
+                          label="Affaire *"
+                          value={affectationForm.affaire_id}
+                          onChange={(e) =>
+                            setAffectationForm({ ...affectationForm, affaire_id: e.target.value })
+                          }
+                          className="w-full"
+                          options={[
+                            { value: '', label: 'Sélectionner une affaire' },
+                            ...affairesDestination
+                              .filter((a) => a.actif && a.affaire_id)
+                              .map((affaire) => ({
+                                value: affaire.affaire_id || '',
+                                label: `${affaire.affaire_id} - ${affaire.libelle}`,
+                              })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <Select
+                          label="Compétence *"
+                          value={affectationForm.competence}
+                          onChange={(e) =>
+                            setAffectationForm({ ...affectationForm, competence: e.target.value })
+                          }
+                          className="w-full"
+                          options={[
+                            { value: '', label: 'Sélectionner une compétence' },
+                            ...competencesRessource.map((comp) => ({
+                              value: comp,
+                              label: comp,
+                            })),
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-2">
+                        Période : Du {format(new Date(formData.date_debut), 'dd/MM/yyyy', { locale: fr })} au{' '}
+                        {format(new Date(formData.date_fin), 'dd/MM/yyyy', { locale: fr })}
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleCreateAffectation}
+                        disabled={loadingAffectation || !affectationForm.affaire_id || !affectationForm.competence}
+                        className="bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300"
+                      >
+                        {loadingAffectation ? 'Création...' : 'Créer l\'affectation'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-4 pt-4">
                   {isEditing && (
