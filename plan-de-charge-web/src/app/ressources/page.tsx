@@ -253,7 +253,31 @@ export default function RessourcesPage() {
           setActiveTab('informations')
         }
       }
-      // En mode édition, on reste sur l'onglet actuel et le modal reste ouvert
+      
+      // Si on est sur l'onglet adresse, fermer le modal après sauvegarde
+      if (activeTab === 'adresse') {
+        setShowModal(false)
+        setIsEditing(false)
+        setActiveTab('informations')
+        setFormData({
+          id: '',
+          nom: '',
+          site: '',
+          type_contrat: '',
+          responsable: '',
+          date_debut_contrat: '',
+          date_fin_contrat: '',
+          adresse_domicile: '',
+          actif: true,
+          ressource_id: '',
+          a_renouveler: '',
+          commentaire: '',
+        })
+        setCompetencesSelection(new Map())
+        setCompetencesPersonnalisees([{ nom: '', principale: false }])
+        setCompetenceFormRessourceId(null)
+      }
+      // En mode édition sur les autres onglets, on reste sur l'onglet actuel et le modal reste ouvert
     } catch (err) {
       console.error('[RessourcesPage] Erreur:', err)
     }
