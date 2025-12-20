@@ -354,8 +354,10 @@ const coords = await geocode('123 Rue Example, Paris')
 
 ### Fournisseurs d'API
 
-- `openrouteservice` : OpenRouteService (gratuit)
-- `google` : Google Maps Distance Matrix API (payant)
+- `openrouteservice` : OpenRouteService (gratuit) - Utilisé par défaut si aucune clé Google n'est configurée
+- `google` : Google Maps Distance Matrix API (payant mais plus précis) - **Utilisé par défaut actuellement** car la clé API est configurée
+
+**Note :** La clé API Google Maps est déjà configurée dans le fichier `.env.local`. Le service détecte automatiquement la clé et utilise Google Maps par défaut pour des résultats plus précis.
 
 ## 🔍 Dépannage
 
