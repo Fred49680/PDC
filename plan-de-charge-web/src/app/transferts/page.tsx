@@ -98,6 +98,19 @@ export default function TransfertsPage() {
     return filtered
   }, [transferts, searchTerm])
 
+  // Mémoriser les options des sites pour éviter les re-renders
+  const siteOptions = useMemo(() => {
+    const options = [
+      { value: '', label: 'Sélectionner un site' },
+      ...sitesList.map((site) => ({
+        value: site.site,
+        label: site.site,
+      })),
+    ]
+    console.log('[TransfertsPage] siteOptions recalculées:', options.length, 'options')
+    return options
+  }, [sitesList])
+
   // Calculer les statistiques
   const stats = useMemo(() => {
     const total = transferts.length
@@ -676,15 +689,13 @@ export default function TransfertsPage() {
                     {(() => {
                       console.log('[TransfertsPage] Rendu Select Site d\'origine - formData.site_origine:', formData.site_origine)
                       console.log('[TransfertsPage] Rendu Select Site d\'origine - sitesList.length:', sitesList.length)
-                      console.log('[TransfertsPage] Rendu Select Site d\'origine - options:', [
-                        { value: '', label: 'Sélectionner un site' },
-                        ...sitesList.map((site) => ({
-                          value: site.site,
-                          label: site.site,
-                        })),
-                      ])
-                      const siteInOptions = sitesList.some((s) => s.site === formData.site_origine)
+                      console.log('[TransfertsPage] Rendu Select Site d\'origine - siteOptions.length:', siteOptions.length)
+                      const siteInOptions = siteOptions.some((opt) => opt.value === formData.site_origine)
                       console.log('[TransfertsPage] Rendu Select Site d\'origine - site_origine dans options:', siteInOptions)
+                      if (formData.site_origine && !siteInOptions) {
+                        console.warn('[TransfertsPage] ATTENTION: site_origine', formData.site_origine, 'n\'est pas dans les options!')
+                        console.log('[TransfertsPage] Options disponibles:', siteOptions.map((opt) => opt.value))
+                      }
                       return null
                     })()}
                     <Select
@@ -700,13 +711,7 @@ export default function TransfertsPage() {
                       }}
                       required
                       className="w-full"
-                      options={[
-                        { value: '', label: 'Sélectionner un site' },
-                        ...sitesList.map((site) => ({
-                          value: site.site,
-                          label: site.site,
-                        })),
-                      ]}
+                      options={siteOptions}
                     />
                   </div>
 
