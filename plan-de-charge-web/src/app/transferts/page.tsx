@@ -234,8 +234,12 @@ export default function TransfertsPage() {
   }
 
   const handleRessourceChange = (selectedRessourceId: string) => {
+    console.log('[TransfertsPage] handleRessourceChange appelé avec:', selectedRessourceId)
+    console.log('[TransfertsPage] Ressources disponibles:', ressources.length)
+    
     // Trouver la ressource sélectionnée
     const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
+    console.log('[TransfertsPage] Ressource trouvée:', selectedRessource)
     
     // Mettre à jour le formulaire avec l'ID de la ressource et le site d'origine si disponible
     setFormData((prev) => {
@@ -246,7 +250,10 @@ export default function TransfertsPage() {
       
       // Si la ressource est trouvée et a un site, pré-remplir le site d'origine
       if (selectedRessource && selectedRessource.site) {
+        console.log('[TransfertsPage] Mise à jour du site d\'origine avec:', selectedRessource.site)
         newData.site_origine = selectedRessource.site
+      } else {
+        console.log('[TransfertsPage] Aucune ressource trouvée ou pas de site disponible')
       }
       
       return newData
@@ -259,12 +266,14 @@ export default function TransfertsPage() {
     // Ne s'exécuter que si on a une ressource sélectionnée, des ressources chargées, et qu'on n'est pas en mode édition
     if (formData.ressource_id && ressources.length > 0 && !isEditing) {
       const selectedRessource = ressources.find((r) => r.id === formData.ressource_id)
+      console.log('[TransfertsPage] useEffect - Ressource trouvée:', selectedRessource)
       if (selectedRessource && selectedRessource.site) {
         // Pré-remplir le site d'origine avec le site de référence de la ressource
         setFormData((prev) => {
           // Toujours mettre à jour le site d'origine avec le site de la ressource sélectionnée
           // (sauf si on est en mode édition, ce qui est déjà vérifié ci-dessus)
           if (prev.site_origine !== selectedRessource.site) {
+            console.log('[TransfertsPage] useEffect - Mise à jour du site d\'origine avec:', selectedRessource.site)
             return {
               ...prev,
               site_origine: selectedRessource.site,
