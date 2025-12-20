@@ -99,13 +99,13 @@ export default function TransfertsPage() {
   }, [transferts, searchTerm])
 
   // Mémoriser les options des sites pour éviter les re-renders
-  // Normaliser tout en majuscules pour le traitement
+  // Normaliser tout en majuscules pour le traitement et l'affichage
   const siteOptions = useMemo(() => {
     const options = [
       { value: '', label: 'Sélectionner un site' },
       ...sitesList.map((site) => ({
         value: site.site.toUpperCase(),
-        label: site.site,
+        label: site.site.toUpperCase(), // Affichage en majuscules
       })),
     ]
     console.log('[TransfertsPage] siteOptions recalculées:', options.length, 'options')
@@ -367,7 +367,7 @@ export default function TransfertsPage() {
 
     if (
       confirm(
-        `Appliquer le transfert de ${transfert.ressource?.nom || 'cette ressource'} de ${transfert.site_origine} vers ${transfert.site_destination} ?\n\nCela va créer des affectations sur le site de destination.`
+        `Appliquer le transfert de ${transfert.ressource?.nom || 'cette ressource'} de ${transfert.site_origine.toUpperCase()} vers ${transfert.site_destination.toUpperCase()} ?\n\nCela va créer des affectations sur le site de destination.`
       )
     ) {
       try {
@@ -517,7 +517,7 @@ export default function TransfertsPage() {
                   { value: '', label: 'Tous les sites origine' },
                   ...sitesList.map((site) => ({
                     value: site.site.toUpperCase(),
-                    label: site.site,
+                    label: site.site.toUpperCase(), // Affichage en majuscules
                   })),
                 ]}
               />
@@ -529,7 +529,7 @@ export default function TransfertsPage() {
                   { value: '', label: 'Tous les sites destination' },
                   ...sitesList.map((site) => ({
                     value: site.site.toUpperCase(),
-                    label: site.site,
+                    label: site.site.toUpperCase(), // Affichage en majuscules
                   })),
                 ]}
               />
@@ -613,9 +613,9 @@ export default function TransfertsPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4" />
-                            <span className="font-semibold">{transfert.site_origine}</span>
+                            <span className="font-semibold">{transfert.site_origine.toUpperCase()}</span>
                             <ArrowRightLeft className="w-4 h-4 text-gray-400" />
-                            <span className="font-semibold">{transfert.site_destination}</span>
+                            <span className="font-semibold">{transfert.site_destination.toUpperCase()}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
@@ -763,7 +763,7 @@ export default function TransfertsPage() {
                           .filter((site) => site.site.toUpperCase() !== formData.site_origine?.toUpperCase())
                           .map((site) => ({
                             value: site.site.toUpperCase(),
-                            label: site.site,
+                            label: site.site.toUpperCase(), // Affichage en majuscules
                           })),
                       ]}
                     />
