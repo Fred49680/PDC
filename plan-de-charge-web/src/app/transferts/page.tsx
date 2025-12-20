@@ -236,10 +236,20 @@ export default function TransfertsPage() {
   const handleRessourceChange = (selectedRessourceId: string) => {
     console.log('[TransfertsPage] handleRessourceChange appelé avec:', selectedRessourceId)
     console.log('[TransfertsPage] Ressources disponibles:', ressources.length)
+    console.log('[TransfertsPage] Sites disponibles:', sitesList.length)
     
     // Trouver la ressource sélectionnée
     const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
     console.log('[TransfertsPage] Ressource trouvée:', selectedRessource)
+    
+    // Vérifier si le site de la ressource existe dans la liste des sites
+    if (selectedRessource && selectedRessource.site) {
+      const siteExists = sitesList.some((s) => s.site === selectedRessource.site)
+      console.log('[TransfertsPage] Site', selectedRessource.site, 'existe dans sitesList:', siteExists)
+      if (!siteExists) {
+        console.log('[TransfertsPage] Liste des sites disponibles:', sitesList.map((s) => s.site))
+      }
+    }
     
     // Mettre à jour le formulaire avec l'ID de la ressource et le site d'origine si disponible
     setFormData((prev) => {
@@ -252,6 +262,7 @@ export default function TransfertsPage() {
       if (selectedRessource && selectedRessource.site) {
         console.log('[TransfertsPage] Mise à jour du site d\'origine avec:', selectedRessource.site)
         newData.site_origine = selectedRessource.site
+        console.log('[TransfertsPage] Nouveau formData.site_origine:', newData.site_origine)
       } else {
         console.log('[TransfertsPage] Aucune ressource trouvée ou pas de site disponible')
       }
@@ -269,8 +280,13 @@ export default function TransfertsPage() {
       console.log('[TransfertsPage] useEffect - Ressource ID:', formData.ressource_id)
       console.log('[TransfertsPage] useEffect - Ressource trouvée:', selectedRessource)
       console.log('[TransfertsPage] useEffect - Site actuel dans formData:', formData.site_origine)
+      console.log('[TransfertsPage] useEffect - Sites disponibles:', sitesList.length, sitesList.map((s) => s.site))
       
       if (selectedRessource && selectedRessource.site) {
+        // Vérifier si le site existe dans la liste des sites
+        const siteExists = sitesList.some((s) => s.site === selectedRessource.site)
+        console.log('[TransfertsPage] useEffect - Site', selectedRessource.site, 'existe dans sitesList:', siteExists)
+        
         // Pré-remplir le site d'origine avec le site de référence de la ressource
         setFormData((prev) => {
           // Toujours mettre à jour le site d'origine avec le site de la ressource sélectionnée
@@ -293,10 +309,11 @@ export default function TransfertsPage() {
       console.log('[TransfertsPage] useEffect - Conditions non remplies:', {
         hasRessourceId: !!formData.ressource_id,
         ressourcesLength: ressources.length,
+        sitesLength: sitesList.length,
         isEditing,
       })
     }
-  }, [formData.ressource_id, formData.site_origine, ressources, isEditing])
+  }, [formData.ressource_id, formData.site_origine, ressources, sitesList, isEditing])
 
   const handleAppliquer = async (transfert: Transfert) => {
     if (transfert.statut === 'Appliqué') {
@@ -656,10 +673,30 @@ export default function TransfertsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
+                    {(() => {
+                      console.log('[TransfertsPage] Rendu Select Site d\'origine - formData.site_origine:', formData.site_origine)
+                      console.log('[TransfertsPage] Rendu Select Site d\'origine - sitesList.length:', sitesList.length)
+                      console.log('[TransfertsPage] Rendu Select Site d\'origine - options:', [
+                        { value: '', label: 'Sélectionner un site' },
+                        ...sitesList.map((site) => ({
+                          value: site.site,
+                          label: site.site,
+                        })),
+                      ])
+                      const siteInOptions = sitesList.some((s) => s.site === formData.site_origine)
+                      console.log('[TransfertsPage] Rendu Select Site d\'origine - site_origine dans options:', siteInOptions)
+                      return null
+                    })()}
                     <Select
                       label="Site d'origine *"
                       value={formData.site_origine}
-                      onChange={(e) => setFormData({ ...formData, site_origine: e.target.value })}
+                      onChange={(e) => {
+                        console.log('[TransfertsPage] Select Site d\'origine onChange:', e.target.value)
+                        setFormData((prev) => {
+                          console.log('[TransfertsPage] Ancien site_origine:', prev.site_origine, 'Nouveau:', e.target.value)
+                          return { ...prev, site_origine: e.target.value }
+                        })
+                      }}
                       required
                       className="w-full"
                       options={[
@@ -677,7 +714,7 @@ export default function TransfertsPage() {
                       label="Site de destination *"
                       value={formData.site_destination}
                       onChange={(e) =>
-                        setFormData({ ...formData, site_destination: e.target.value })
+                        setFormData((prev) => ({ ...prev, site_destination: e.target.value }))
                       }
                       required
                       className="w-full"
