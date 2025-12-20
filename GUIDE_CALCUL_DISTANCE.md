@@ -72,13 +72,16 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=votre_cle_google_ici
 
 ### 3. Variables d'environnement locales
 
-Pour le développement local, le fichier `.env.local` dans `plan-de-charge-web/` contient déjà la clé Google Maps :
+Pour le développement local, ajoutez la clé Google Maps dans le fichier `.env.local` dans `plan-de-charge-web/` :
 
 ```env
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyDY57ZffE7f8Homq8E8wybjOi9k21sMsU0
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=votre_cle_google_ici
 ```
 
-**Important :** Pour Vercel (production), vous devez également ajouter cette variable dans **Settings** → **Environment Variables** de votre projet Vercel.
+**Important :** 
+- Pour Vercel (production), vous devez également ajouter cette variable dans **Settings** → **Environment Variables** de votre projet Vercel
+- **Ne jamais commiter la clé API dans Git** (le fichier `.env.local` est déjà dans `.gitignore`)
+- Si votre clé a été exposée, révoquez-la immédiatement dans [Google Cloud Console](https://console.cloud.google.com/apis/credentials) et créez-en une nouvelle
 
 ### 4. Appliquer la migration du cache
 
