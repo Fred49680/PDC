@@ -234,35 +234,38 @@ export default function TransfertsPage() {
   }
 
   const handleRessourceChange = (selectedRessourceId: string) => {
-    setFormData((prev) => {
+    // Mettre à jour l'ID de la ressource immédiatement
+    setFormData((prev) => ({
+      ...prev,
+      ressource_id: selectedRessourceId,
+    }))
+
+    // Essayer de trouver la ressource et mettre à jour le site d'origine
+    // Si les ressources ne sont pas encore chargées, le useEffect s'en chargera
+    if (ressources.length > 0) {
       const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
       if (selectedRessource && selectedRessource.site) {
         // Pré-remplir automatiquement le site d'origine avec le site de référence de la ressource
-        // Forcer la mise à jour même si le site d'origine est déjà rempli (sauf en mode édition)
-        return {
+        setFormData((prev) => ({
           ...prev,
           ressource_id: selectedRessourceId,
           site_origine: selectedRessource.site,
-        }
+        }))
       }
-      // Si la ressource n'est pas trouvée ou n'a pas de site, mettre à jour seulement l'ID
-      return {
-        ...prev,
-        ressource_id: selectedRessourceId,
-      }
-    })
+    }
   }
 
   // useEffect pour mettre à jour le site d'origine si la ressource change et que les ressources sont chargées
   // Pré-remplit automatiquement le site d'origine avec le site de référence de la ressource
   useEffect(() => {
+    // Ne s'exécuter que si on a une ressource sélectionnée, des ressources chargées, et qu'on n'est pas en mode édition
     if (formData.ressource_id && ressources.length > 0 && !isEditing) {
       const selectedRessource = ressources.find((r) => r.id === formData.ressource_id)
       if (selectedRessource && selectedRessource.site) {
         // Pré-remplir le site d'origine avec le site de référence de la ressource
-        // Seulement si on n'est pas en mode édition (pour ne pas écraser une modification manuelle en édition)
         setFormData((prev) => {
-          // Ne mettre à jour que si le site d'origine est différent ou vide
+          // Toujours mettre à jour le site d'origine avec le site de la ressource sélectionnée
+          // (sauf si on est en mode édition, ce qui est déjà vérifié ci-dessus)
           if (prev.site_origine !== selectedRessource.site) {
             return {
               ...prev,
