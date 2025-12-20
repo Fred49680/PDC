@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useTransferts } from '@/hooks/useTransferts'
 import { useRessources } from '@/hooks/useRessources'
@@ -89,6 +89,17 @@ export default function TransfertsPage() {
   })
   const [competencesRessource, setCompetencesRessource] = useState<string[]>([])
   const [loadingAffectation, setLoadingAffectation] = useState(false)
+  const [affectationsList, setAffectationsList] = useState<
+    Array<{
+      id: string
+      affaire_id: string
+      affaire_label: string
+      competence: string
+      date_debut: Date
+      date_fin: Date
+      charge: number
+    }>
+  >([])
 
   // Charger les affaires du site de destination (si un transfert est en édition et appliqué)
   const { affaires: affairesDestination } = useAffaires({
@@ -125,6 +136,66 @@ export default function TransfertsPage() {
 
     loadCompetences()
   }, [formData.ressource_id])
+
+  // Fonction pour charger les affectations de la ressource pour la période du transfert
+  const loadAffectationsTransfert = useCallback(async () => {
+    if (!formData.ressource_id || !formData.site_destination || !isEditing || formData.statut !== 'Appliqué') {
+      setAffectationsList([])
+      return
+    }
+
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      // Récupérer les affectations de la ressource sur le site de destination pendant la période
+      const { data: affectationsData, error } = await supabase
+        .from('affectations')
+        .select(`
+          id,
+          affaire_id,
+          competence,
+          date_debut,
+          date_fin,
+          charge,
+          affaires!inner (
+            affaire_id,
+            libelle
+          )
+        `)
+        .eq('ressource_id', formData.ressource_id)
+        .eq('site', formData.site_destination.toUpperCase())
+        .lte('date_debut', formData.date_fin)
+        .gte('date_fin', formData.date_debut)
+        .order('date_debut', { ascending: true })
+
+      if (error) throw error
+
+      const affectations = (affectationsData || []).map((a: any) => ({
+        id: a.id,
+        affaire_id: a.affaires?.affaire_id || '',
+        affaire_label: a.affaires?.libelle || '',
+        competence: a.competence,
+        date_debut: new Date(a.date_debut),
+        date_fin: new Date(a.date_fin),
+        charge: Number(a.charge),
+      }))
+
+      setAffectationsList(affectations)
+    } catch (err) {
+      console.error('[TransfertsPage] Erreur chargement affectations:', err)
+      setAffectationsList([])
+    }
+  }, [formData.ressource_id, formData.site_destination, formData.date_debut, formData.date_fin, isEditing])
+
+  // Charger les affectations quand le modal est ouvert avec un transfert appliqué
+  useEffect(() => {
+    if (isEditing && formData.statut === 'Appliqué' && formData.ressource_id) {
+      loadAffectationsTransfert()
+    } else {
+      setAffectationsList([])
+    }
+  }, [isEditing, formData.statut, formData.ressource_id, loadAffectationsTransfert])
 
   // Fonction pour créer une affectation
   const handleCreateAffectation = async () => {
@@ -170,8 +241,9 @@ export default function TransfertsPage() {
 
       if (affectationError) throw affectationError
 
-      // Réinitialiser le formulaire d'affectation
+      // Réinitialiser le formulaire d'affectation et recharger la liste
       setAffectationForm({ affaire_id: '', competence: '' })
+      await loadAffectationsTransfert()
       alert('Affectation créée avec succès')
     } catch (err: any) {
       console.error('[TransfertsPage] Erreur création affectation:', err)
@@ -993,6 +1065,43 @@ export default function TransfertsPage() {
                         {loadingAffectation ? 'Création...' : 'Créer l\'affectation'}
                       </Button>
                     </div>
+
+                    {/* Liste des affectations existantes */}
+                    {affectationsList.length > 0 && (
+                      <div className="mt-6">
+                        <h4 className="text-md font-semibold text-gray-700 mb-2">
+                          Affectations existantes ({affectationsList.length})
+                        </h4>
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Affaire</th>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Compétence</th>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Période</th>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Charge</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {affectationsList.map((affectation) => (
+                                <tr key={affectation.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2">
+                                    <div className="font-medium text-gray-900">{affectation.affaire_id}</div>
+                                    <div className="text-xs text-gray-500">{affectation.affaire_label}</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-700">{affectation.competence}</td>
+                                  <td className="px-3 py-2 text-gray-700">
+                                    {format(affectation.date_debut, 'dd/MM/yyyy', { locale: fr })} -{' '}
+                                    {format(affectation.date_fin, 'dd/MM/yyyy', { locale: fr })}
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-700">{affectation.charge} j. ouvré(s)</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
