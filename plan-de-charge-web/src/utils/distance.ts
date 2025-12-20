@@ -75,17 +75,19 @@ export async function geocodeAddress(
 
 /**
  * Calcule la distance et la durée entre deux adresses
- * Utilise OpenRouteService (gratuit, limité à 2000 requêtes/jour)
+ * Vérifie d'abord le cache en base de données, puis calcule si nécessaire
  * 
  * @param adresseOrigine Adresse de départ (ex: "123 Rue Example, 75001 Paris, France")
  * @param adresseDestination Adresse d'arrivée (ex: "Centrale Nucléaire de Blayais, 33340 Blaye, France")
  * @param options Options de calcul (mode de transport, etc.)
+ * @param validateAddresses Si true, valide les adresses avant de calculer (défaut: true)
  * @returns Résultat avec distance en km et durée en minutes
  */
 export async function calculateDistance(
   adresseOrigine: string,
   adresseDestination: string,
-  options: DistanceOptions = {}
+  options: DistanceOptions = {},
+  validateAddresses: boolean = true
 ): Promise<DistanceResult> {
   if (!adresseOrigine || !adresseDestination) {
     return {
@@ -102,25 +104,86 @@ export async function calculateDistance(
   const { profile = 'driving-car', apiProvider = defaultProvider } = options
 
   try {
+    // 1. Vérifier le cache en base de données
+    const { getCachedDistance, saveCachedDistance } = await import('@/services/distanceCache')
+    const cached = await getCachedDistance(adresseOrigine, adresseDestination, profile)
+    
+    if (cached) {
+      console.log('[calculateDistance] Distance trouvée dans le cache')
+      return {
+        distanceKm: cached.distance_km,
+        durationMinutes: cached.duration_minutes,
+        success: true,
+        route: {
+          distance: cached.distance_meters,
+          duration: cached.duration_seconds,
+        },
+      }
+    }
+
+    // 2. Valider les adresses si demandé
+    if (validateAddresses) {
+      const { validateAddress } = await import('@/utils/validateAddress')
+      
+      const validationOrigine = await validateAddress(adresseOrigine, apiProvider === 'google')
+      if (!validationOrigine.valid) {
+        return {
+          distanceKm: 0,
+          durationMinutes: 0,
+          success: false,
+          error: `Adresse d'origine invalide: ${validationOrigine.error}`,
+        }
+      }
+
+      const validationDestination = await validateAddress(adresseDestination, apiProvider === 'google')
+      if (!validationDestination.valid) {
+        return {
+          distanceKm: 0,
+          durationMinutes: 0,
+          success: false,
+          error: `Adresse de destination invalide: ${validationDestination.error}`,
+        }
+      }
+    }
+
+    // 3. Calculer la distance
+    let result: DistanceResult
+
     if (apiProvider === 'openrouteservice') {
-      return await calculateDistanceOpenRouteService(
+      result = await calculateDistanceOpenRouteService(
         adresseOrigine,
         adresseDestination,
         profile
       )
     } else if (apiProvider === 'google') {
-      return await calculateDistanceGoogle(
+      result = await calculateDistanceGoogle(
         adresseOrigine,
         adresseDestination
       )
+    } else {
+      return {
+        distanceKm: 0,
+        durationMinutes: 0,
+        success: false,
+        error: 'Fournisseur API non supporté',
+      }
     }
 
-    return {
-      distanceKm: 0,
-      durationMinutes: 0,
-      success: false,
-      error: 'Fournisseur API non supporté',
+    // 4. Sauvegarder dans le cache si le calcul a réussi
+    if (result.success && result.route) {
+      await saveCachedDistance(
+        adresseOrigine,
+        adresseDestination,
+        result.distanceKm,
+        result.durationMinutes,
+        result.route.distance,
+        result.route.duration,
+        apiProvider,
+        profile
+      )
     }
+
+    return result
   } catch (error) {
     console.error('Erreur lors du calcul de distance:', error)
     return {

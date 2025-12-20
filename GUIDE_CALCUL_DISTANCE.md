@@ -7,6 +7,8 @@ Ce guide explique comment utiliser la fonctionnalité de calcul de distance pour
 La solution permet de :
 - Stocker l'adresse du domicile de chaque ressource
 - Stocker l'adresse de chaque site
+- **Valider les adresses** avant de calculer (vérifie qu'elles existent)
+- **Cache en base de données** pour éviter de recalculer les mêmes trajets
 - Calculer automatiquement la distance en kilomètres entre ces deux adresses
 - Afficher la distance et la durée du trajet dans l'interface
 
@@ -78,7 +80,26 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyDY57ZffE7f8Homq8E8wybjOi9k21sMsU0
 
 **Important :** Pour Vercel (production), vous devez également ajouter cette variable dans **Settings** → **Environment Variables** de votre projet Vercel.
 
+### 4. Appliquer la migration du cache
+
+Exécutez la migration `MIGRATION_CREATE_DISTANCES_CACHE.sql` dans Supabase pour créer la table de cache des distances :
+
+1. Connectez-vous à votre projet Supabase
+2. Allez dans **SQL Editor**
+3. Copiez-collez le contenu de `MIGRATION_CREATE_DISTANCES_CACHE.sql`
+4. Exécutez la requête
+
+Cette migration crée la table `distances_cache` qui stocke les distances calculées pour éviter les recalculs.
+
 ## 💾 Saisie des adresses
+
+### Validation automatique
+
+Les adresses sont **automatiquement validées** avant le calcul de distance :
+- ✅ Vérification que l'adresse existe (géocodage)
+- ✅ Message d'erreur clair si l'adresse est invalide
+- ✅ Suggestion de l'adresse formatée si disponible
+- ✅ Évite les erreurs de calcul sur des adresses inexistantes
 
 ### Pour les ressources
 
@@ -98,7 +119,45 @@ Centrale Nucléaire de Blayais, 33340 Blaye, France
 
 ## 💻 Utilisation dans le code
 
-### Exemple 1 : Calculer la distance entre une ressource et un site
+### Exemple 1 : Valider une adresse avant de calculer
+
+```typescript
+import { useValidateAddress } from '@/hooks/useValidateAddress'
+
+function AdresseInput() {
+  const { validate, loading, error, isValid, formattedAddress } = useValidateAddress()
+  const [adresse, setAdresse] = useState('')
+  
+  const handleValidate = async () => {
+    const result = await validate(adresse)
+    if (result.valid) {
+      console.log('Adresse valide:', result.formattedAddress)
+      console.log('Coordonnées:', result.coordinates)
+    } else {
+      console.error('Adresse invalide:', result.error)
+    }
+  }
+  
+  return (
+    <div>
+      <input 
+        value={adresse}
+        onChange={(e) => setAdresse(e.target.value)}
+        placeholder="Entrez une adresse"
+      />
+      <button onClick={handleValidate} disabled={loading}>
+        {loading ? 'Validation...' : 'Valider l\'adresse'}
+      </button>
+      {error && <p className="text-red-500">{error}</p>}
+      {isValid && formattedAddress && (
+        <p className="text-green-500">✓ {formattedAddress}</p>
+      )}
+    </div>
+  )
+}
+```
+
+### Exemple 2 : Calculer la distance entre une ressource et un site
 
 ```typescript
 import { useDistanceRessourceSite } from '@/hooks/useDistance'
@@ -341,6 +400,21 @@ const coords = await geocode('123 Rue Example, Paris')
 // coords = { lat: 48.8566, lon: 2.3522 }
 ```
 
+#### `useValidateAddress()`
+
+Hook pour valider une adresse (vérifier qu'elle existe).
+
+**Exemple :**
+```typescript
+const { validate, loading, isValid, error, formattedAddress } = useValidateAddress()
+
+const result = await validate('123 Rue Example, Paris')
+if (result.valid) {
+  console.log('Adresse valide:', result.formattedAddress)
+  console.log('Coordonnées:', result.coordinates)
+}
+```
+
 ## ⚙️ Options de configuration
 
 ### Profils de transport (OpenRouteService)
@@ -387,18 +461,31 @@ Si vous utilisez OpenRouteService gratuit :
 
 ## 📝 Notes importantes
 
-1. **Cache** : Le hook `useDistance` utilise un cache en mémoire par défaut pour éviter les appels multiples pour les mêmes adresses. Cela améliore les performances et réduit l'utilisation de votre quota API.
+1. **Cache en base de données** : Les distances calculées sont automatiquement stockées dans la table `distances_cache`. Si une distance a déjà été calculée pour un couple d'adresses, elle sera réutilisée sans appel API supplémentaire. Cela réduit considérablement l'utilisation de votre quota API.
 
-2. **Format des adresses** : Pour de meilleurs résultats, utilisez des adresses complètes incluant :
+2. **Validation des adresses** : Les adresses sont automatiquement validées avant le calcul :
+   - Vérification que l'adresse existe via géocodage
+   - Message d'erreur clair si l'adresse est invalide
+   - Évite les erreurs de calcul sur des adresses inexistantes
+
+3. **Double cache** : 
+   - **Cache en base** : Persistant, partagé entre tous les utilisateurs
+   - **Cache en mémoire** : Dans le hook React, pour éviter les appels multiples dans la même session
+
+4. **Format des adresses** : Pour de meilleurs résultats, utilisez des adresses complètes incluant :
    - Numéro et nom de rue
    - Code postal et ville
    - Pays (optionnel mais recommandé)
 
-3. **Performance** : Le calcul de distance nécessite deux appels API (géocodage des deux adresses + calcul de l'itinéraire). Le cache permet d'éviter les appels répétés.
+5. **Performance** : 
+   - Si la distance est en cache : récupération instantanée (pas d'appel API)
+   - Si non en cache : validation des adresses + calcul (2-3 appels API)
+   - Les résultats sont automatiquement mis en cache pour les prochaines fois
 
-4. **Coûts** : 
+6. **Coûts** : 
    - OpenRouteService gratuit : 2000 requêtes/jour
    - Google Maps : $200 de crédit gratuit/mois, puis $5 pour 1000 requêtes
+   - **Le cache réduit drastiquement les coûts** car les mêmes trajets ne sont calculés qu'une seule fois
 
 ## 🔄 Prochaines étapes
 

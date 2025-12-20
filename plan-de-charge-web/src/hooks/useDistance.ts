@@ -15,6 +15,10 @@ interface UseDistanceOptions extends DistanceOptions {
    * Cache les résultats par défaut (évite les appels multiples pour les mêmes adresses)
    */
   enableCache?: boolean
+  /**
+   * Valide les adresses avant de calculer (défaut: true)
+   */
+  validateAddresses?: boolean
 }
 
 /**
@@ -28,7 +32,7 @@ export function useDistance(options: UseDistanceOptions = {}) {
 
   // Cache simple en mémoire (clef: "adresse1|adresse2")
   const cacheRef = useState<Map<string, DistanceResult>>(new Map())[0]
-  const { enableCache = true, ...distanceOptions } = options
+  const { enableCache = true, validateAddresses = true, ...distanceOptions } = options
 
   /**
    * Calcule la distance entre deux adresses
@@ -57,7 +61,8 @@ export function useDistance(options: UseDistanceOptions = {}) {
         const distanceResult = await calculateDistance(
           adresseOrigine,
           adresseDestination,
-          distanceOptions
+          distanceOptions,
+          validateAddresses
         )
 
         // Mettre en cache si succès
@@ -86,7 +91,7 @@ export function useDistance(options: UseDistanceOptions = {}) {
         setLoading(false)
       }
     },
-    [distanceOptions, enableCache, cacheRef]
+    [distanceOptions, enableCache, validateAddresses, cacheRef]
   )
 
   /**
