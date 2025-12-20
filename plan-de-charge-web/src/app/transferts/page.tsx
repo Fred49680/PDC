@@ -266,24 +266,37 @@ export default function TransfertsPage() {
     // Ne s'exécuter que si on a une ressource sélectionnée, des ressources chargées, et qu'on n'est pas en mode édition
     if (formData.ressource_id && ressources.length > 0 && !isEditing) {
       const selectedRessource = ressources.find((r) => r.id === formData.ressource_id)
+      console.log('[TransfertsPage] useEffect - Ressource ID:', formData.ressource_id)
       console.log('[TransfertsPage] useEffect - Ressource trouvée:', selectedRessource)
+      console.log('[TransfertsPage] useEffect - Site actuel dans formData:', formData.site_origine)
+      
       if (selectedRessource && selectedRessource.site) {
         // Pré-remplir le site d'origine avec le site de référence de la ressource
         setFormData((prev) => {
           // Toujours mettre à jour le site d'origine avec le site de la ressource sélectionnée
           // (sauf si on est en mode édition, ce qui est déjà vérifié ci-dessus)
           if (prev.site_origine !== selectedRessource.site) {
-            console.log('[TransfertsPage] useEffect - Mise à jour du site d\'origine avec:', selectedRessource.site)
+            console.log('[TransfertsPage] useEffect - Mise à jour du site d\'origine de', prev.site_origine, 'vers', selectedRessource.site)
             return {
               ...prev,
               site_origine: selectedRessource.site,
             }
+          } else {
+            console.log('[TransfertsPage] useEffect - Site d\'origine déjà correct:', prev.site_origine)
           }
           return prev
         })
+      } else {
+        console.log('[TransfertsPage] useEffect - Aucune ressource trouvée ou pas de site disponible')
       }
+    } else {
+      console.log('[TransfertsPage] useEffect - Conditions non remplies:', {
+        hasRessourceId: !!formData.ressource_id,
+        ressourcesLength: ressources.length,
+        isEditing,
+      })
     }
-  }, [formData.ressource_id, ressources, isEditing])
+  }, [formData.ressource_id, formData.site_origine, ressources, isEditing])
 
   const handleAppliquer = async (transfert: Transfert) => {
     if (transfert.statut === 'Appliqué') {
