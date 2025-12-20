@@ -223,6 +223,11 @@ export default function Planning2({
   const [ressourcesTransferees, setRessourcesTransferees] = useState<typeof ressourcesActives>([])
   const [competencesMapTransferees, setCompetencesMapTransferees] = useState<typeof competencesMapActives>(new Map())
   const [loadingRessourcesTransferees, setLoadingRessourcesTransferees] = useState(false)
+
+  // Charger toutes les ressources (pour sélection externe)
+  const [toutesRessources, setToutesRessources] = useState<typeof ressourcesActives>([])
+  const [competencesMapToutes, setCompetencesMapToutes] = useState<typeof competencesMapActives>(new Map())
+  const [loadingToutesRessources, setLoadingToutesRessources] = useState(false)
   
   useEffect(() => {
     const loadRessourcesTransferees = async () => {
@@ -318,6 +323,78 @@ export default function Planning2({
     
     loadRessourcesTransferees()
   }, [site])
+
+  // Charger toutes les ressources actives (pour sélection externe)
+  useEffect(() => {
+    const loadToutesRessources = async () => {
+      try {
+        setLoadingToutesRessources(true)
+        const supabase = createClient()
+        
+        // Récupérer toutes les ressources actives
+        const { data: ressourcesData, error: ressourcesError } = await supabase
+          .from('ressources')
+          .select('*')
+          .eq('actif', true)
+          .order('nom', { ascending: true })
+        
+        if (ressourcesError) throw ressourcesError
+        
+        const ressourcesList = (ressourcesData || []).map((item) => ({
+          id: item.id,
+          nom: item.nom,
+          site: item.site,
+          type_contrat: item.type_contrat,
+          responsable: item.responsable,
+          adresse_domicile: item.adresse_domicile || undefined,
+          date_debut_contrat: item.date_debut_contrat ? new Date(item.date_debut_contrat) : undefined,
+          date_fin_contrat: item.date_fin_contrat ? new Date(item.date_fin_contrat) : undefined,
+          actif: item.actif ?? true,
+          created_at: new Date(item.created_at),
+          updated_at: new Date(item.updated_at),
+        }))
+        
+        setToutesRessources(ressourcesList)
+        
+        // Charger les compétences de toutes les ressources
+        if (ressourcesList.length > 0) {
+          const ressourceIds = ressourcesList.map(r => r.id)
+          const { data: competencesData, error: competencesError } = await supabase
+            .from('ressources_competences')
+            .select('*')
+            .in('ressource_id', ressourceIds)
+          
+          if (competencesError) throw competencesError
+          
+          const competencesMap = new Map<string, RessourceCompetence[]>()
+          ;(competencesData || []).forEach((comp) => {
+            const resId = comp.ressource_id
+            if (!competencesMap.has(resId)) {
+              competencesMap.set(resId, [])
+            }
+            competencesMap.get(resId)!.push({
+              id: comp.id,
+              ressource_id: comp.ressource_id,
+              competence: comp.competence,
+              niveau: comp.niveau,
+              type_comp: comp.type_comp || 'S',
+              created_at: new Date(comp.created_at),
+            })
+          })
+          
+          setCompetencesMapToutes(competencesMap)
+        }
+      } catch (err) {
+        console.error('[Planning2] Erreur chargement toutes ressources:', err)
+        setToutesRessources([])
+        setCompetencesMapToutes(new Map())
+      } finally {
+        setLoadingToutesRessources(false)
+      }
+    }
+    
+    loadToutesRessources()
+  }, [])
   
   // Fusionner les ressources actives et les ressources transférées (sans doublons)
   const ressources = useMemo(() => {
@@ -784,6 +861,19 @@ export default function Planning2({
     isGenerating: false
   })
 
+  // Modal de sélection de ressources externes
+  const [ressourceExterneModal, setRessourceExterneModal] = useState<{
+    isOpen: boolean
+    competence: string
+    colIndex: number
+    ressourcesSelectionnees: Array<{ ressourceId: string; ressourceNom: string; ressourceSite: string }>
+  }>({
+    isOpen: false,
+    competence: '',
+    colIndex: -1,
+    ressourcesSelectionnees: []
+  })
+
   const pendingChargeMasseResolver = useRef<((value: { dateFin: Date; nbRessources: number } | null) => void) | null>(null)
 
   const openChargeMasseModal = useCallback((
@@ -1243,6 +1333,266 @@ export default function Planning2({
       console.error('[Planning2] Erreur saveAffectation/deleteAffectation:', err)
     }
   }, [affectations, saveAffectation, deleteAffectation, precision, dateFin, absences, toutesAffectationsRessources, affairesDetails, affaireId, colonnes, confirmAsync, addToast, isGeneratingAffectations])
+
+  // Fonction pour créer un transfert
+  const creerTransfert = useCallback(async (
+    ressourceId: string,
+    siteOrigine: string,
+    siteDestination: string,
+    dateDebut: Date,
+    dateFin: Date
+  ): Promise<boolean> => {
+    try {
+      const supabase = createClient()
+      
+      const { error } = await supabase
+        .from('transferts')
+        .insert({
+          ressource_id: ressourceId,
+          site_origine: siteOrigine.toUpperCase(),
+          site_destination: siteDestination.toUpperCase(),
+          date_debut: dateDebut.toISOString().split('T')[0],
+          date_fin: dateFin.toISOString().split('T')[0],
+          statut: 'Planifié'
+        })
+      
+      if (error) {
+        console.error('[Planning2] Erreur création transfert:', error)
+        addToast(`Erreur lors de la création du transfert: ${error.message}`, 'error', 5000)
+        return false
+      }
+      
+      return true
+    } catch (err) {
+      console.error('[Planning2] Erreur création transfert:', err)
+      addToast('Erreur lors de la création du transfert', 'error', 5000)
+      return false
+    }
+  }, [addToast])
+
+  // Fonction pour obtenir les ressources externes par compétence
+  const getRessourcesExternesParCompetence = useCallback((competence: string) => {
+    return toutesRessources.filter((r) => {
+      // Filtrer les ressources qui ne sont pas sur le site actuel
+      if (r.site.toUpperCase() === site.toUpperCase()) {
+        return false
+      }
+      
+      // Filtrer par compétence
+      const competencesRessource = competencesMapToutes.get(r.id) || []
+      return competencesRessource.some((c) => c.competence === competence)
+    })
+  }, [toutesRessources, competencesMapToutes, site])
+
+  // Fonction pour ouvrir le modal de sélection de ressources externes
+  const ouvrirModalRessourceExterne = useCallback((competence: string, colIndex: number) => {
+    setRessourceExterneModal({
+      isOpen: true,
+      competence,
+      colIndex,
+      ressourcesSelectionnees: []
+    })
+  }, [])
+
+  // Fonction pour gérer la sélection d'une ressource externe
+  const handleSelectionRessourceExterne = useCallback(async (
+    ressourceId: string,
+    ressourceNom: string,
+    ressourceSite: string
+  ) => {
+    const col = colonnes[ressourceExterneModal.colIndex]
+    if (!col) return
+
+    let dateDebutAffectation: Date
+    let dateFinAffectation: Date
+    
+    if (precision === 'JOUR') {
+      dateDebutAffectation = normalizeDateToUTC(col.date)
+      dateFinAffectation = normalizeDateToUTC(col.date)
+    } else if (precision === 'SEMAINE') {
+      const dayOfWeek = col.date.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      dateDebutAffectation = new Date(col.date)
+      dateDebutAffectation.setDate(dateDebutAffectation.getDate() - daysToMonday)
+      dateFinAffectation = new Date(dateDebutAffectation)
+      dateFinAffectation.setDate(dateFinAffectation.getDate() + 6)
+      dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
+      dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
+    } else if (precision === 'MOIS') {
+      dateDebutAffectation = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+      dateFinAffectation = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+      if (dateFinAffectation > dateFin) dateFinAffectation = new Date(dateFin)
+      dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
+      dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
+    } else {
+      dateDebutAffectation = normalizeDateToUTC(col.date)
+      dateFinAffectation = normalizeDateToUTC(col.date)
+    }
+
+    try {
+      // Vérifier absences
+      const dateDebutStr = dateDebutAffectation.toISOString().split('T')[0]
+      const dateFinStr = dateFinAffectation.toISOString().split('T')[0]
+
+      const absenceConflit = absences.find((abs) => {
+        if (abs.ressource_id !== ressourceId) return false
+        const absDateDebut = abs.date_debut instanceof Date 
+          ? abs.date_debut.toISOString().split('T')[0]
+          : new Date(abs.date_debut).toISOString().split('T')[0]
+        const absDateFin = abs.date_fin instanceof Date 
+          ? abs.date_fin.toISOString().split('T')[0]
+          : new Date(abs.date_fin).toISOString().split('T')[0]
+        return absDateDebut <= dateFinStr && absDateFin >= dateDebutStr
+      })
+
+      if (absenceConflit) {
+        const absDateDebut = absenceConflit.date_debut instanceof Date 
+          ? absenceConflit.date_debut
+          : new Date(absenceConflit.date_debut)
+        const absDateFin = absenceConflit.date_fin instanceof Date 
+          ? absenceConflit.date_fin
+          : new Date(absenceConflit.date_fin)
+        
+        addToast(
+          `Impossible d'affecter : la ressource est absente (${absenceConflit.type}) du ${absDateDebut.toLocaleDateString('fr-FR')} au ${absDateFin.toLocaleDateString('fr-FR')}`,
+          'error',
+          5000
+        )
+        return
+      }
+
+      // Vérifier sur-affectations
+      const affectationsRessource = toutesAffectationsRessources.get(ressourceId) || []
+      const dateDebutUTC = normalizeDateToUTC(dateDebutAffectation)
+      const dateFinUTC = normalizeDateToUTC(dateFinAffectation)
+      
+      const affectationsConflit = affectationsRessource.filter((aff) => {
+        const affDateDebut = normalizeDateToUTC(aff.date_debut)
+        const affDateFin = normalizeDateToUTC(aff.date_fin)
+        const chevauche = affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC
+        const autreAffaire = aff.affaire_id !== affaireId || aff.competence !== ressourceExterneModal.competence
+        return chevauche && autreAffaire
+      })
+
+      if (affectationsConflit.length > 0) {
+        addToast(
+          `Impossible d'affecter : la ressource est déjà affectée sur cette période. Une ressource ne peut pas être affectée à plusieurs affaires en même temps.`,
+          'error',
+          5000
+        )
+        return
+      }
+
+      // Si la ressource est externe, créer le transfert
+      if (ressourceSite.toUpperCase() !== site.toUpperCase()) {
+        // Calculer les dates de transfert : date au plus tôt et date fin au plus tard des affectations
+        // Récupérer toutes les affectations futures de cette ressource sur ce site (toutes compétences)
+        const supabaseClient = createClient()
+        const aujourdhui = new Date().toISOString().split('T')[0]
+        const { data: affectationsExistentes } = await supabaseClient
+          .from('affectations')
+          .select('date_debut, date_fin')
+          .eq('ressource_id', ressourceId)
+          .eq('site', site.toUpperCase())
+          .gte('date_fin', aujourdhui)
+        
+        // Calculer la date au plus tôt et la date fin au plus tard
+        let dateDebutTransfert = dateDebutAffectation
+        let dateFinTransfert = dateFinAffectation
+        
+        if (affectationsExistentes && affectationsExistentes.length > 0) {
+          affectationsExistentes.forEach((aff) => {
+            const affDateDebut = new Date(aff.date_debut)
+            const affDateFin = new Date(aff.date_fin)
+            
+            if (affDateDebut < dateDebutTransfert) {
+              dateDebutTransfert = affDateDebut
+            }
+            if (affDateFin > dateFinTransfert) {
+              dateFinTransfert = affDateFin
+            }
+          })
+        }
+        
+        // Vérifier si un transfert existe déjà pour cette période
+        const { data: transfertsExistant } = await supabaseClient
+          .from('transferts')
+          .select('id, date_debut, date_fin')
+          .eq('ressource_id', ressourceId)
+          .eq('site_origine', ressourceSite.toUpperCase())
+          .eq('site_destination', site.toUpperCase())
+        
+        let transfertExiste = false
+        if (transfertsExistant && transfertsExistant.length > 0) {
+          // Vérifier si un transfert couvre déjà cette période
+          for (const t of transfertsExistant) {
+            const tDateDebut = new Date(t.date_debut)
+            const tDateFin = new Date(t.date_fin)
+            // Si le transfert existant couvre ou chevauche la période, on l'étend si nécessaire
+            if (tDateDebut <= dateFinTransfert && tDateFin >= dateDebutTransfert) {
+              // Étendre le transfert existant si nécessaire
+              const nouvelleDateDebut = tDateDebut < dateDebutTransfert ? tDateDebut : dateDebutTransfert
+              const nouvelleDateFin = tDateFin > dateFinTransfert ? tDateFin : dateFinTransfert
+              
+              // Mettre à jour le transfert existant
+              await supabaseClient
+                .from('transferts')
+                .update({
+                  date_debut: nouvelleDateDebut.toISOString().split('T')[0],
+                  date_fin: nouvelleDateFin.toISOString().split('T')[0]
+                })
+                .eq('id', t.id)
+              
+              transfertExiste = true
+              break
+            }
+          }
+        }
+        
+        if (!transfertExiste) {
+          const transfertCree = await creerTransfert(
+            ressourceId,
+            ressourceSite,
+            site,
+            dateDebutTransfert,
+            dateFinTransfert
+          )
+          
+          if (!transfertCree) {
+            return
+          }
+        }
+      }
+
+      // Créer l'affectation
+      await saveAffectation({
+        ressource_id: ressourceId,
+        competence: ressourceExterneModal.competence,
+        date_debut: dateDebutAffectation,
+        date_fin: dateFinAffectation,
+        charge: 1,
+        force_weekend_ferie: false,
+      })
+
+      // Ajouter la ressource à la liste des sélectionnées
+      setRessourceExterneModal(prev => ({
+        ...prev,
+        ressourcesSelectionnees: [
+          ...prev.ressourcesSelectionnees,
+          { ressourceId, ressourceNom, ressourceSite }
+        ]
+      }))
+
+      addToast(
+        `Ressource ${ressourceNom} affectée${ressourceSite.toUpperCase() !== site.toUpperCase() ? ' (transfert créé)' : ''}`,
+        'success',
+        3000
+      )
+    } catch (err) {
+      console.error('[Planning2] Erreur affectation ressource externe:', err)
+      addToast('Erreur lors de l\'affectation de la ressource', 'error', 5000)
+    }
+  }, [ressourceExterneModal, colonnes, precision, dateFin, absences, toutesAffectationsRessources, affaireId, site, creerTransfert, saveAffectation, addToast])
 
   // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
@@ -2383,7 +2733,13 @@ export default function Planning2({
                                   )}
                                   <div 
                                     onDoubleClick={() => handleChargeMasse(compData.competence, idx)}
-                                    title="Double-clic pour créer une charge de masse jusqu'à une date de fin"
+                                    onClick={(e) => {
+                                      // Clic simple pour sélectionner une ressource externe
+                                      if (e.detail === 1 && besoin > 0) {
+                                        ouvrirModalRessourceExterne(compData.competence, idx)
+                                      }
+                                    }}
+                                    title="Clic pour affecter une ressource externe | Double-clic pour créer une charge de masse"
                                     className="rounded-xl p-3 mb-2 border-2 bg-yellow-50 border-yellow-300 cursor-pointer hover:bg-yellow-100 transition-colors"
                                   >
                                     <div className="text-center">
@@ -2585,6 +2941,126 @@ export default function Planning2({
         cancelText={confirmDialog.cancelText}
         type={confirmDialog.type}
       />
+
+      {/* Modal de sélection de ressources externes */}
+      {ressourceExterneModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          {/* Overlay */}
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setRessourceExterneModal(prev => ({ ...prev, isOpen: false, ressourcesSelectionnees: [] }))}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-indigo-200 w-full max-w-2xl max-h-[80vh] p-6 transform transition-all animate-in fade-in zoom-in duration-200 flex flex-col">
+            {/* Header */}
+            <div className="flex items-start gap-4 mb-4 flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-indigo-400 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-800 mb-1">Sélectionner une ressource externe</h3>
+                <p className="text-gray-600 text-sm">
+                  Compétence : <span className="font-semibold">{ressourceExterneModal.competence}</span>
+                </p>
+                {colonnes[ressourceExterneModal.colIndex] && (
+                  <p className="text-gray-600 text-sm mt-1">
+                    Date : <span className="font-semibold">{colonnes[ressourceExterneModal.colIndex].date.toLocaleDateString('fr-FR')}</span>
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setRessourceExterneModal(prev => ({ ...prev, isOpen: false, ressourcesSelectionnees: [] }))}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="text-2xl">×</span>
+              </button>
+            </div>
+
+            {/* Liste des ressources externes */}
+            <div className="flex-1 overflow-y-auto mb-4">
+              {loadingToutesRessources ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {getRessourcesExternesParCompetence(ressourceExterneModal.competence).map((ressource) => {
+                    const estDejaSelectionnee = ressourceExterneModal.ressourcesSelectionnees.some(
+                      r => r.ressourceId === ressource.id
+                    )
+                    const competencesRessource = competencesMapToutes.get(ressource.id) || []
+                    const competenceInfo = competencesRessource.find(c => c.competence === ressourceExterneModal.competence)
+                    
+                    return (
+                      <div
+                        key={ressource.id}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          estDejaSelectionnee
+                            ? 'bg-green-50 border-green-400'
+                            : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
+                        }`}
+                        onClick={() => {
+                          if (!estDejaSelectionnee) {
+                            handleSelectionRessourceExterne(ressource.id, ressource.nom, ressource.site)
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-800">{ressource.nom}</span>
+                              {competenceInfo?.type_comp === 'P' && (
+                                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">Principale</span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              Site : {ressource.site}
+                            </div>
+                          </div>
+                          {estDejaSelectionnee && (
+                            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  
+                  {getRessourcesExternesParCompetence(ressourceExterneModal.competence).length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>Aucune ressource externe disponible pour cette compétence</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Liste des ressources sélectionnées */}
+            {ressourceExterneModal.ressourcesSelectionnees.length > 0 && (
+              <div className="border-t pt-4 mt-4 flex-shrink-0">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Ressources sélectionnées :</h4>
+                <div className="space-y-1">
+                  {ressourceExterneModal.ressourcesSelectionnees.map((r, idx) => (
+                    <div key={idx} className="text-sm text-gray-600 bg-green-50 p-2 rounded">
+                      ✓ {r.ressourceNom} ({r.ressourceSite})
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bouton fermer */}
+            <div className="flex items-center justify-end gap-3 mt-4 flex-shrink-0">
+              <button
+                onClick={() => setRessourceExterneModal(prev => ({ ...prev, isOpen: false, ressourcesSelectionnees: [] }))}
+                className="px-5 py-2.5 rounded-xl font-medium transition-all text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 hover:shadow-md"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
