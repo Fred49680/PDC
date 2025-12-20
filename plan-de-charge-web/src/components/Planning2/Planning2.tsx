@@ -25,7 +25,7 @@ import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
 import type { Absence } from '@/types/absences'
 import { createClient } from '@/lib/supabase/client'
-import type { Affectation } from '@/types/affectations'
+import type { Affectation, RessourceCompetence } from '@/types/affectations'
 import { useToast } from '@/components/UI/Toast'
 
 interface Planning2Props {
@@ -213,51 +213,144 @@ export default function Planning2({
 
   const { absences } = useAbsences({})
   
-  // Charger toutes les ressources actives du site (inclut déjà les ETT actifs)
+  // Charger les ressources actives du site
   const { ressources: ressourcesActives, competences: competencesMapActives, loading: loadingRessourcesActives } = useRessources({
     site,
     actif: true,
   })
   
-  // Charger aussi les ressources temporaires (ETT) inactives pour les inclure
-  const { ressources: ressourcesETTInactives, competences: competencesMapETTInactives, loading: loadingRessourcesETTInactives } = useRessources({
-    site,
-    type_contrat: 'ETT',
-    actif: false,
-  })
+  // Charger les ressources avec transfert actif vers ce site
+  const [ressourcesTransferees, setRessourcesTransferees] = useState<typeof ressourcesActives>([])
+  const [competencesMapTransferees, setCompetencesMapTransferees] = useState<typeof competencesMapActives>(new Map())
+  const [loadingRessourcesTransferees, setLoadingRessourcesTransferees] = useState(false)
   
-  // Fusionner les ressources actives et les ressources ETT inactives (sans doublons)
+  useEffect(() => {
+    const loadRessourcesTransferees = async () => {
+      if (!site) {
+        setRessourcesTransferees([])
+        setCompetencesMapTransferees(new Map())
+        return
+      }
+      
+      try {
+        setLoadingRessourcesTransferees(true)
+        const supabase = createClient()
+        const aujourdhui = new Date().toISOString().split('T')[0]
+        
+        // Récupérer les transferts actifs vers ce site
+        const { data: transfertsData, error: transfertsError } = await supabase
+          .from('transferts')
+          .select('ressource_id')
+          .eq('site_destination', site.toUpperCase())
+          .eq('statut', 'Appliqué')
+          .gte('date_fin', aujourdhui)
+          .lte('date_debut', aujourdhui)
+        
+        if (transfertsError) throw transfertsError
+        
+        if (!transfertsData || transfertsData.length === 0) {
+          setRessourcesTransferees([])
+          setCompetencesMapTransferees(new Map())
+          return
+        }
+        
+        // Récupérer les ressources correspondantes
+        const ressourceIds = transfertsData.map((t) => t.ressource_id)
+        const { data: ressourcesData, error: ressourcesError } = await supabase
+          .from('ressources')
+          .select('*')
+          .in('id', ressourceIds)
+          .order('nom', { ascending: true })
+        
+        if (ressourcesError) throw ressourcesError
+        
+        const ressourcesList = (ressourcesData || []).map((item) => ({
+          id: item.id,
+          nom: item.nom,
+          site: item.site,
+          type_contrat: item.type_contrat,
+          responsable: item.responsable,
+          adresse_domicile: item.adresse_domicile || undefined,
+          date_debut_contrat: item.date_debut_contrat ? new Date(item.date_debut_contrat) : undefined,
+          date_fin_contrat: item.date_fin_contrat ? new Date(item.date_fin_contrat) : undefined,
+          actif: item.actif ?? true,
+          created_at: new Date(item.created_at),
+          updated_at: new Date(item.updated_at),
+        }))
+        
+        setRessourcesTransferees(ressourcesList)
+        
+        // Charger les compétences de ces ressources
+        if (ressourcesList.length > 0) {
+          const { data: competencesData, error: competencesError } = await supabase
+            .from('ressources_competences')
+            .select('*')
+            .in('ressource_id', ressourceIds)
+          
+          if (competencesError) throw competencesError
+          
+          const competencesMap = new Map<string, RessourceCompetence[]>()
+          ;(competencesData || []).forEach((comp) => {
+            const resId = comp.ressource_id
+            if (!competencesMap.has(resId)) {
+              competencesMap.set(resId, [])
+            }
+            competencesMap.get(resId)!.push({
+              id: comp.id,
+              ressource_id: comp.ressource_id,
+              competence: comp.competence,
+              niveau: comp.niveau,
+              type_comp: comp.type_comp || 'S',
+              created_at: new Date(comp.created_at),
+            })
+          })
+          
+          setCompetencesMapTransferees(competencesMap)
+        }
+      } catch (err) {
+        console.error('[Planning2] Erreur chargement ressources transférées:', err)
+        setRessourcesTransferees([])
+        setCompetencesMapTransferees(new Map())
+      } finally {
+        setLoadingRessourcesTransferees(false)
+      }
+    }
+    
+    loadRessourcesTransferees()
+  }, [site])
+  
+  // Fusionner les ressources actives et les ressources transférées (sans doublons)
   const ressources = useMemo(() => {
     const ressourcesMap = new Map<string, typeof ressourcesActives[0]>()
     
-    // Ajouter toutes les ressources actives (inclut les ETT actifs)
+    // Ajouter toutes les ressources actives
     ressourcesActives.forEach((r) => {
       ressourcesMap.set(r.id, r)
     })
     
-    // Ajouter les ressources ETT inactives (temporaires inactives)
-    ressourcesETTInactives.forEach((r) => {
+    // Ajouter les ressources transférées (si pas déjà présentes)
+    ressourcesTransferees.forEach((r) => {
       if (!ressourcesMap.has(r.id)) {
         ressourcesMap.set(r.id, r)
       }
     })
     
     return Array.from(ressourcesMap.values()).sort((a, b) => a.nom.localeCompare(b.nom))
-  }, [ressourcesActives, ressourcesETTInactives])
+  }, [ressourcesActives, ressourcesTransferees])
   
   // Fusionner les compétences
   const competencesMap = useMemo(() => {
     const competencesMapMerged = new Map(competencesMapActives)
     
-    // Ajouter les compétences des ressources ETT inactives
-    competencesMapETTInactives.forEach((comps, resId) => {
+    // Ajouter les compétences des ressources transférées
+    competencesMapTransferees.forEach((comps, resId) => {
       competencesMapMerged.set(resId, comps)
     })
     
     return competencesMapMerged
-  }, [competencesMapActives, competencesMapETTInactives])
+  }, [competencesMapActives, competencesMapTransferees])
   
-  const loadingRessources = loadingRessourcesActives || loadingRessourcesETTInactives
+  const loadingRessources = loadingRessourcesActives || loadingRessourcesTransferees
 
   // État pour toutes les affectations (toutes affaires)
   const [toutesAffectationsRessources, setToutesAffectationsRessources] = useState<Map<string, Affectation[]>>(new Map())
