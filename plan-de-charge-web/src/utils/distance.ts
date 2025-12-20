@@ -96,7 +96,10 @@ export async function calculateDistance(
     }
   }
 
-  const { profile = 'driving-car', apiProvider = 'openrouteservice' } = options
+  // Utiliser Google Maps par défaut si la clé est disponible, sinon OpenRouteService
+  const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  const defaultProvider = googleApiKey ? 'google' : 'openrouteservice'
+  const { profile = 'driving-car', apiProvider = defaultProvider } = options
 
   try {
     if (apiProvider === 'openrouteservice') {

@@ -70,15 +70,13 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=votre_cle_google_ici
 
 ### 3. Variables d'environnement locales
 
-Pour le développement local, créez un fichier `.env.local` dans `plan-de-charge-web/` :
+Pour le développement local, le fichier `.env.local` dans `plan-de-charge-web/` contient déjà la clé Google Maps :
 
 ```env
-NEXT_PUBLIC_OPENROUTESERVICE_API_KEY=votre_cle_openrouteservice
-# OU
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=votre_cle_google
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyDY57ZffE7f8Homq8E8wybjOi9k21sMsU0
 ```
 
-Pour Vercel, ajoutez les variables dans **Settings** → **Environment Variables**.
+**Important :** Pour Vercel (production), vous devez également ajouter cette variable dans **Settings** → **Environment Variables** de votre projet Vercel.
 
 ## 💾 Saisie des adresses
 
