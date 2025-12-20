@@ -293,64 +293,38 @@ async function calculateDistanceOpenRouteService(
 
 /**
  * Calcule la distance avec Google Maps Distance Matrix API (payant mais plus précis)
+ * Utilise une route API Next.js côté serveur pour éviter les problèmes CORS
  */
 async function calculateDistanceGoogle(
   adresseOrigine: string,
   adresseDestination: string
 ): Promise<DistanceResult> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-
-  if (!apiKey) {
-    return {
-      distanceKm: 0,
-      durationMinutes: 0,
-      success: false,
-      error: 'Clé API Google Maps non configurée. Ajoutez NEXT_PUBLIC_GOOGLE_MAPS_API_KEY dans vos variables d\'environnement.',
-    }
-  }
-
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(adresseOrigine)}&destinations=${encodeURIComponent(adresseDestination)}&key=${apiKey}&units=metric&language=fr`
-    )
+    // Appel à notre route API Next.js qui fait l'appel Google Maps côté serveur
+    const response = await fetch('/api/distance', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        adresseOrigine,
+        adresseDestination,
+      }),
+    })
 
     if (!response.ok) {
-      throw new Error(`Erreur Google Maps: ${response.statusText}`)
+      const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }))
+      throw new Error(errorData.error || `Erreur HTTP: ${response.statusText}`)
     }
 
     const data = await response.json()
 
-    if (data.status === 'OK' && data.rows && data.rows.length > 0) {
-      const element = data.rows[0].elements[0]
-
-      if (element.status === 'OK') {
-        const distance = element.distance.value / 1000 // Convertir en km
-        const duration = element.duration.value / 60 // Convertir en minutes
-
-        return {
-          distanceKm: Math.round(distance * 100) / 100,
-          durationMinutes: Math.round(duration),
-          success: true,
-          route: {
-            distance: element.distance.value, // en mètres
-            duration: element.duration.value, // en secondes
-          },
-        }
-      }
-
-      return {
-        distanceKm: 0,
-        durationMinutes: 0,
-        success: false,
-        error: `Impossible de calculer la distance: ${element.status}`,
-      }
-    }
-
     return {
-      distanceKm: 0,
-      durationMinutes: 0,
-      success: false,
-      error: `Erreur API Google: ${data.status}`,
+      distanceKm: data.distanceKm || 0,
+      durationMinutes: data.durationMinutes || 0,
+      success: data.success || false,
+      error: data.error,
+      route: data.route,
     }
   } catch (error) {
     console.error('Erreur Google Maps:', error)
