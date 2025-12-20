@@ -39,9 +39,9 @@ export default function SitesAdminPage() {
     try {
       await saveSite({
         ...formData,
-        region: formData.region || null,
-        centre_ouest: formData.centre_ouest || null,
-        adresse: formData.adresse || null,
+        region: formData.region || undefined,
+        centre_ouest: formData.centre_ouest || undefined,
+        adresse: formData.adresse || undefined,
       })
       // Réinitialiser le formulaire
       setFormData({
@@ -94,6 +94,7 @@ export default function SitesAdminPage() {
       site_map: '',
       region: '',
       centre_ouest: '',
+      adresse: '',
       actif: true,
     })
     setIsEditing(false)
@@ -286,6 +287,7 @@ export default function SitesAdminPage() {
                       site_map: '',
                       region: '',
                       centre_ouest: '',
+                      adresse: '',
                       actif: true,
                     })
                   }}
