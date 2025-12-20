@@ -234,25 +234,23 @@ export default function TransfertsPage() {
   }
 
   const handleRessourceChange = (selectedRessourceId: string) => {
-    // Mettre à jour l'ID de la ressource immédiatement
-    setFormData((prev) => ({
-      ...prev,
-      ressource_id: selectedRessourceId,
-    }))
-
-    // Essayer de trouver la ressource et mettre à jour le site d'origine
-    // Si les ressources ne sont pas encore chargées, le useEffect s'en chargera
-    if (ressources.length > 0) {
-      const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
-      if (selectedRessource && selectedRessource.site) {
-        // Pré-remplir automatiquement le site d'origine avec le site de référence de la ressource
-        setFormData((prev) => ({
-          ...prev,
-          ressource_id: selectedRessourceId,
-          site_origine: selectedRessource.site,
-        }))
+    // Trouver la ressource sélectionnée
+    const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
+    
+    // Mettre à jour le formulaire avec l'ID de la ressource et le site d'origine si disponible
+    setFormData((prev) => {
+      const newData: typeof prev = {
+        ...prev,
+        ressource_id: selectedRessourceId,
       }
-    }
+      
+      // Si la ressource est trouvée et a un site, pré-remplir le site d'origine
+      if (selectedRessource && selectedRessource.site) {
+        newData.site_origine = selectedRessource.site
+      }
+      
+      return newData
+    })
   }
 
   // useEffect pour mettre à jour le site d'origine si la ressource change et que les ressources sont chargées
