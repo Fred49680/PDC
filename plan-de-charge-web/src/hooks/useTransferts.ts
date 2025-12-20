@@ -133,6 +133,8 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
             statut: string | null
             date_creation: string | null
             created_by: string | null
+            distance_km: number | null
+            duration_minutes: number | null
             ressources: {
               id: string
               nom: string
@@ -150,6 +152,8 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
               statut: (item.statut || 'Planifié') as 'Planifié' | 'Appliqué',
               date_creation: item.date_creation ? new Date(item.date_creation) : new Date(),
               created_by: item.created_by || undefined,
+              distance_km: item.distance_km ?? undefined,
+              duration_minutes: item.duration_minutes ?? undefined,
               ressource: item.ressources
                 ? {
                     id: item.ressources.id,
@@ -210,7 +214,7 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         // Vérifier que la ressource existe et est active
         const { data: ressource, error: ressourceError } = await supabase
           .from('ressources')
-          .select('id, nom, site, actif')
+          .select('id, nom, site, actif, adresse_domicile')
           .eq('id', transfert.ressource_id)
           .single()
 
@@ -233,6 +237,49 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           )
         }
 
+        // Récupérer l'adresse du site de destination
+        const { data: siteDestination, error: siteError } = await supabase
+          .from('sites')
+          .select('adresse')
+          .eq('site', siteDestinationUpper)
+          .single()
+
+        if (siteError) {
+          console.warn('[useTransferts] Erreur récupération adresse du site:', siteError)
+        }
+
+        // Calculer la distance et la durée si les adresses sont disponibles
+        let distanceKm: number | undefined
+        let durationMinutes: number | undefined
+
+        if (ressource.adresse_domicile && siteDestination?.adresse) {
+          try {
+            const { calculateDistance } = await import('@/utils/distance')
+            const distanceResult = await calculateDistance(
+              ressource.adresse_domicile,
+              siteDestination.adresse,
+              { profile: 'driving-car' },
+              true // Valider les adresses
+            )
+
+            if (distanceResult.success) {
+              distanceKm = Math.round(distanceResult.distanceKm * 100) / 100 // Arrondir à 2 décimales
+              durationMinutes = Math.round(distanceResult.durationMinutes)
+              console.log(`[useTransferts] Distance calculée: ${distanceKm} km, Durée: ${durationMinutes} min`)
+            } else {
+              console.warn('[useTransferts] Échec du calcul de distance:', distanceResult.error)
+            }
+          } catch (distanceError) {
+            console.error('[useTransferts] Erreur lors du calcul de distance:', distanceError)
+            // Ne pas bloquer la création du transfert si le calcul échoue
+          }
+        } else {
+          console.log('[useTransferts] Adresses manquantes - calcul de distance ignoré', {
+            hasRessourceAdresse: !!ressource.adresse_domicile,
+            hasSiteAdresse: !!siteDestination?.adresse,
+          })
+        }
+
         // Créer le transfert (sites en majuscules)
         const { data, error: insertError } = await supabase
           .from('transferts')
@@ -243,6 +290,8 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
             date_debut: dateDebut,
             date_fin: dateFin,
             statut: transfert.statut || 'Planifié',
+            distance_km: distanceKm || null,
+            duration_minutes: durationMinutes || null,
           })
           .select(`
             *,
@@ -294,6 +343,8 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           statut: data.statut || 'Planifié',
           date_creation: data.date_creation ? new Date(data.date_creation) : new Date(),
           created_by: data.created_by,
+          distance_km: data.distance_km ?? undefined,
+          duration_minutes: data.duration_minutes ?? undefined,
           ressource: data.ressources
             ? {
                 id: data.ressources.id,
@@ -410,6 +461,8 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           statut: data.statut || 'Planifié',
           date_creation: data.date_creation ? new Date(data.date_creation) : new Date(),
           created_by: data.created_by,
+          distance_km: data.distance_km ?? undefined,
+          duration_minutes: data.duration_minutes ?? undefined,
           ressource: data.ressources
             ? {
                 id: data.ressources.id,

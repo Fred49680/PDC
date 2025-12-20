@@ -25,6 +25,8 @@ import {
   Clock,
   MapPin,
   PlayCircle,
+  Navigation,
+  Timer,
 } from 'lucide-react'
 import type { Transfert } from '@/types/transferts'
 import { Card, CardHeader } from '@/components/UI/Card'
@@ -610,7 +612,7 @@ export default function TransfertsPage() {
                         <h3 className="text-lg font-bold text-gray-800 mb-2">
                           {transfert.ressource?.nom || 'Ressource inconnue'}
                         </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4" />
                             <span className="font-semibold">{transfert.site_origine.toUpperCase()}</span>
@@ -628,6 +630,22 @@ export default function TransfertsPage() {
                             <Clock className="w-4 h-4" />
                             <span>{duree} jour(s) ouvré(s)</span>
                           </div>
+                          {transfert.distance_km !== undefined && transfert.duration_minutes !== undefined && (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <Navigation className="w-4 h-4 text-blue-600" />
+                                <span className="font-semibold text-blue-700">{transfert.distance_km.toFixed(2)} km</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Timer className="w-4 h-4 text-green-600" />
+                                <span className="font-semibold text-green-700">
+                                  {transfert.duration_minutes >= 60
+                                    ? `${Math.floor(transfert.duration_minutes / 60)}h${transfert.duration_minutes % 60 < 10 ? '0' : ''}${transfert.duration_minutes % 60}`
+                                    : `${transfert.duration_minutes} min`}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                           {transfert.ressource && (
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4" />

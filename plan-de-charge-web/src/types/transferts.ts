@@ -12,6 +12,8 @@ export interface Transfert {
   statut: 'Planifié' | 'Appliqué'
   date_creation: Date
   created_by?: string
+  distance_km?: number // Distance en kilomètres entre l'adresse du domicile et le site de destination
+  duration_minutes?: number // Durée du trajet en minutes
   // Relations
   ressource?: {
     id: string
