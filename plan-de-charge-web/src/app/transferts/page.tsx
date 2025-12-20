@@ -12,7 +12,6 @@ import {
   ArrowRightLeft,
   Plus,
   Trash2,
-  Edit2,
   Search,
   AlertCircle,
   X,
@@ -20,8 +19,6 @@ import {
   Filter,
   RefreshCw,
   Calendar,
-  User,
-  Building2,
   Clock,
   MapPin,
   PlayCircle,
@@ -84,9 +81,18 @@ export default function TransfertsPage() {
     statut: 'Planifié' as 'Planifié' | 'Appliqué',
   })
 
-  // Filtrer les transferts par terme de recherche
+  // Filtrer les transferts par terme de recherche et masquer les transferts terminés
   const transfertsFiltres = useMemo(() => {
     let filtered = transferts
+
+    // Masquer les transferts terminés (date_fin < aujourd'hui)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    filtered = filtered.filter((transfert) => {
+      const dateFin = new Date(transfert.date_fin)
+      dateFin.setHours(0, 0, 0, 0)
+      return dateFin >= today
+    })
 
     // Filtre par terme de recherche (nom de ressource)
     if (searchTerm.trim()) {
@@ -597,96 +603,87 @@ export default function TransfertsPage() {
               return (
                 <div
                   key={transfert.id}
-                  className={`bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl transition-all duration-200 ${
+                  onClick={(e) => {
+                    // Ne pas ouvrir le modal si on clique sur le bouton "Appliquer"
+                    if ((e.target as HTMLElement).closest('button[data-action="appliquer"]')) {
+                      return
+                    }
+                    handleEdit(transfert)
+                  }}
+                  className={`bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 hover:shadow-xl hover:bg-white transition-all duration-200 cursor-pointer ${
                     peutAppliquer ? 'border-orange-300 bg-orange-50/50' : ''
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div
-                        className={`px-3 py-1 rounded-lg border ${getStatutColor(transfert.statut)}`}
-                      >
-                        <span className="text-xs font-semibold">{transfert.statut}</span>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-800 mb-2">
-                          {transfert.ressource?.nom || 'Ressource inconnue'}
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
-                            <span className="font-semibold">{transfert.site_origine.toUpperCase()}</span>
-                            <ArrowRightLeft className="w-4 h-4 text-gray-400" />
-                            <span className="font-semibold">{transfert.site_destination.toUpperCase()}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>
-                              Du {format(new Date(transfert.date_debut), 'dd/MM/yyyy', { locale: fr })}{' '}
-                              au {format(new Date(transfert.date_fin), 'dd/MM/yyyy', { locale: fr })}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            <span>{duree} jour(s) ouvré(s)</span>
-                          </div>
-                          {transfert.distance_km !== undefined && transfert.duration_minutes !== undefined && (
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <Navigation className="w-4 h-4 text-blue-600" />
-                                <span className="font-semibold text-blue-700">{transfert.distance_km.toFixed(2)} km</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Timer className="w-4 h-4 text-green-600" />
-                                <span className="font-semibold text-green-700">
-                                  {transfert.duration_minutes >= 60
-                                    ? `${Math.floor(transfert.duration_minutes / 60)}h${transfert.duration_minutes % 60 < 10 ? '0' : ''}${transfert.duration_minutes % 60}`
-                                    : `${transfert.duration_minutes} min`}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                          {transfert.ressource && (
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4" />
-                              <span
-                                className={transfert.ressource.actif ? 'text-green-600' : 'text-red-600'}
-                              >
-                                {transfert.ressource.actif ? 'Actif' : 'Inactif'}
-                              </span>
-                            </div>
-                          )}
+                  <div className="flex items-center gap-4 text-sm">
+                    {/* Statut */}
+                    <div
+                      className={`px-2 py-1 rounded border shrink-0 ${getStatutColor(transfert.statut)}`}
+                    >
+                      <span className="text-xs font-semibold">{transfert.statut}</span>
+                    </div>
+
+                    {/* Nom de la ressource */}
+                    <div className="font-bold text-gray-800 min-w-[150px]">
+                      {transfert.ressource?.nom || 'Ressource inconnue'}
+                    </div>
+
+                    {/* Itinéraire */}
+                    <div className="flex items-center gap-1 text-gray-600 min-w-[180px]">
+                      <MapPin className="w-3 h-3" />
+                      <span className="font-semibold">{transfert.site_origine.toUpperCase()}</span>
+                      <ArrowRightLeft className="w-3 h-3 text-gray-400" />
+                      <span className="font-semibold">{transfert.site_destination.toUpperCase()}</span>
+                    </div>
+
+                    {/* Dates */}
+                    <div className="flex items-center gap-1 text-gray-600 min-w-[200px]">
+                      <Calendar className="w-3 h-3" />
+                      <span>
+                        {format(new Date(transfert.date_debut), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(transfert.date_fin), 'dd/MM/yyyy', { locale: fr })}
+                      </span>
+                    </div>
+
+                    {/* Durée en jours ouvrés */}
+                    <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
+                      <Clock className="w-3 h-3" />
+                      <span>{duree} j. ouvré(s)</span>
+                    </div>
+
+                    {/* Distance et temps de trajet */}
+                    {transfert.distance_km !== undefined && transfert.duration_minutes !== undefined && (
+                      <div className="flex items-center gap-3 text-gray-600 min-w-[140px]">
+                        <div className="flex items-center gap-1">
+                          <Navigation className="w-3 h-3 text-blue-600" />
+                          <span className="font-semibold text-blue-700">{transfert.distance_km.toFixed(2)} km</span>
                         </div>
-                        <div className="mt-2 text-xs text-gray-500">
-                          Créé le {format(new Date(transfert.date_creation), 'dd/MM/yyyy HH:mm', { locale: fr })}
+                        <div className="flex items-center gap-1">
+                          <Timer className="w-3 h-3 text-green-600" />
+                          <span className="font-semibold text-green-700">
+                            {transfert.duration_minutes >= 60
+                              ? `${Math.floor(transfert.duration_minutes / 60)}h${transfert.duration_minutes % 60 < 10 ? '0' : ''}${transfert.duration_minutes % 60}`
+                              : `${transfert.duration_minutes} min`}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {peutAppliquer && (
-                        <button
-                          onClick={() => handleAppliquer(transfert)}
-                          className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Appliquer le transfert"
-                        >
-                          <PlayCircle className="w-5 h-5" />
-                        </button>
-                      )}
+                    )}
+
+                    {/* Bouton Appliquer (si nécessaire) */}
+                    {peutAppliquer && (
                       <button
-                        onClick={() => handleEdit(transfert)}
-                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Modifier le transfert"
+                        data-action="appliquer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAppliquer(transfert)
+                        }}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors shrink-0"
+                        title="Appliquer le transfert"
                       >
-                        <Edit2 className="w-5 h-5" />
+                        <PlayCircle className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(transfert.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Supprimer le transfert"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+                    )}
+
+                    {/* Espace flex pour pousser le contenu */}
+                    <div className="flex-1"></div>
                   </div>
                 </div>
               )
@@ -839,6 +836,27 @@ export default function TransfertsPage() {
                 </div>
 
                 <div className="flex gap-4 pt-4">
+                  {isEditing && (
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm('Êtes-vous sûr de vouloir supprimer ce transfert ?')) {
+                          try {
+                            await deleteTransfert(formData.id)
+                            setShowModal(false)
+                            setIsEditing(false)
+                          } catch (err) {
+                            console.error('[TransfertsPage] Erreur suppression:', err)
+                            alert('Erreur lors de la suppression du transfert')
+                          }
+                        }
+                      }}
+                      className="bg-red-500 hover:bg-red-600 text-white"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Supprimer
+                    </Button>
+                  )}
                   <Button
                     type="submit"
                     className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
