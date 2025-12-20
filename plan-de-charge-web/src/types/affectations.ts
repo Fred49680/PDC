@@ -10,6 +10,7 @@ export interface Ressource {
   responsable?: string
   date_debut_contrat?: Date
   date_fin_contrat?: Date
+  adresse_domicile?: string // Adresse complète du domicile de la ressource
   actif: boolean
   created_at: Date
   updated_at: Date

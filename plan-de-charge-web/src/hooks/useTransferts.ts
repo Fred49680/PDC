@@ -504,15 +504,22 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         const affaireTransfert = `TRANSFERT_${siteDestinationUpper}`
 
         // Vérifier si l'affaire existe, sinon la créer
-        const { data: affaireExistante } = await supabase
+        // Utiliser .limit(1) au lieu de .maybeSingle() pour éviter l'erreur 406 avec les espaces dans les noms
+        const { data: affairesExistantes, error: affaireCheckError } = await supabase
           .from('affaires')
           .select('id')
           .eq('affaire_id', affaireTransfert)
-          .single()
+          .limit(1)
+
+        // Si erreur lors de la vérification, la propager
+        if (affaireCheckError) {
+          console.error('[useTransferts] Erreur vérification affaire transfert:', affaireCheckError)
+          throw affaireCheckError
+        }
 
         let affaireId: string
 
-        if (!affaireExistante) {
+        if (!affairesExistantes || affairesExistantes.length === 0) {
           // Créer l'affaire factice (site en majuscules)
           const { data: nouvelleAffaire, error: affaireError } = await supabase
             .from('affaires')
@@ -526,13 +533,29 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
             .single()
 
           if (affaireError) {
-            console.error('[useTransferts] Erreur création affaire transfert:', affaireError)
-            throw affaireError
-          }
+            // Si l'erreur est une duplication (contrainte unique), réessayer de récupérer l'affaire
+            if (affaireError.code === '23505') {
+              const { data: affaireExistante, error: retryError } = await supabase
+                .from('affaires')
+                .select('id')
+                .eq('affaire_id', affaireTransfert)
+                .limit(1)
 
-          affaireId = nouvelleAffaire.id
+              if (retryError || !affaireExistante || affaireExistante.length === 0) {
+                console.error('[useTransferts] Erreur récupération affaire après duplication:', retryError)
+                throw affaireError
+              }
+
+              affaireId = affaireExistante[0].id
+            } else {
+              console.error('[useTransferts] Erreur création affaire transfert:', affaireError)
+              throw affaireError
+            }
+          } else {
+            affaireId = nouvelleAffaire.id
+          }
         } else {
-          affaireId = affaireExistante.id
+          affaireId = affairesExistantes[0].id
         }
 
         // Créer les affectations pour chaque compétence (site en majuscules)

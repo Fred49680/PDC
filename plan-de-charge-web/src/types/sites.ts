@@ -9,6 +9,7 @@ export interface Site {
   site_map: string
   region: string | null
   centre_ouest: string | null
+  adresse?: string // Adresse complète du site
   actif: boolean
   created_at: Date
   updated_at: Date

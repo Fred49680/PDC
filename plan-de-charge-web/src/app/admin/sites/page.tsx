@@ -26,6 +26,7 @@ export default function SitesAdminPage() {
     site_map: '',
     region: '',
     centre_ouest: '',
+    adresse: '',
     actif: true,
   })
 
@@ -40,6 +41,7 @@ export default function SitesAdminPage() {
         ...formData,
         region: formData.region || null,
         centre_ouest: formData.centre_ouest || null,
+        adresse: formData.adresse || null,
       })
       // Réinitialiser le formulaire
       setFormData({
@@ -49,6 +51,7 @@ export default function SitesAdminPage() {
         site_map: '',
         region: '',
         centre_ouest: '',
+        adresse: '',
         actif: true,
       })
       setIsEditing(false)
@@ -66,6 +69,7 @@ export default function SitesAdminPage() {
       site_map: site.site_map,
       region: site.region || '',
       centre_ouest: site.centre_ouest || '',
+      adresse: site.adresse || '',
       actif: site.actif,
     })
     setIsEditing(true)
@@ -234,6 +238,21 @@ export default function SitesAdminPage() {
                   <option value="Nord Ouest">Nord Ouest</option>
                   <option value="Centre Est">Centre Est</option>
                 </select>
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Adresse du site
+                </label>
+                <textarea
+                  value={formData.adresse}
+                  onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
+                  placeholder="Ex: Centrale Nucléaire de Blayais, 33340 Blaye, France"
+                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Adresse complète du site. Utilisée pour calculer les distances depuis les adresses des ressources.
+                </p>
               </div>
               <div className="md:col-span-2 flex items-center gap-3">
                 <input

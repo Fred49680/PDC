@@ -58,6 +58,7 @@ export default function RessourcesPage() {
     responsable: '',
     date_debut_contrat: '',
     date_fin_contrat: '',
+    adresse_domicile: '',
     actif: true,
     ressource_id: '',
     a_renouveler: '',
@@ -95,7 +96,7 @@ export default function RessourcesPage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<'informations' | 'competences'>('informations')
+  const [activeTab, setActiveTab] = useState<'informations' | 'competences' | 'adresse'>('informations')
 
   // ===== ÉTATS POUR LA GESTION DES INTÉRIMS (onglet Intérim) =====
   const [interimsFilters, setInterimsFilters] = useState({ site: '', aRenouveler: '' })
@@ -219,13 +220,14 @@ export default function RessourcesPage() {
             site: '',
             type_contrat: '',
             responsable: '',
-            date_debut_contrat: '',
-            date_fin_contrat: '',
-            actif: true,
-            ressource_id: '',
-            a_renouveler: '',
-            commentaire: '',
-          })
+          date_debut_contrat: '',
+          date_fin_contrat: '',
+          adresse_domicile: '',
+          actif: true,
+          ressource_id: '',
+          a_renouveler: '',
+          commentaire: '',
+        })
           setIsEditing(false)
           setShowModal(false)
           setActiveTab('informations')
@@ -248,6 +250,7 @@ export default function RessourcesPage() {
         ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
         : '',
       date_fin_contrat: ressource.date_fin_contrat ? format(ressource.date_fin_contrat, 'yyyy-MM-dd') : '',
+      adresse_domicile: ressource.adresse_domicile || '',
       actif: ressource.actif,
       ressource_id: '',
       a_renouveler: '',
@@ -280,6 +283,7 @@ export default function RessourcesPage() {
         ? format(ressource.date_debut_contrat, 'yyyy-MM-dd')
         : '',
       date_fin_contrat: ressource.date_fin_contrat ? format(ressource.date_fin_contrat, 'yyyy-MM-dd') : '',
+      adresse_domicile: ressource.adresse_domicile || '',
       actif: ressource.actif,
       ressource_id: '',
       a_renouveler: '',
@@ -301,13 +305,14 @@ export default function RessourcesPage() {
       site: '',
       type_contrat: '',
       responsable: '',
-      date_debut_contrat: '',
-      date_fin_contrat: '',
-      actif: true,
-      ressource_id: '',
-      a_renouveler: '',
-      commentaire: '',
-    })
+          date_debut_contrat: '',
+          date_fin_contrat: '',
+          adresse_domicile: '',
+          actif: true,
+          ressource_id: '',
+          a_renouveler: '',
+          commentaire: '',
+        })
     setIsEditing(false)
     setShowModal(true)
   }
@@ -636,13 +641,14 @@ export default function RessourcesPage() {
                       site: '',
                       type_contrat: '',
                       responsable: '',
-                      date_debut_contrat: '',
-                      date_fin_contrat: '',
-                      actif: true,
-                      ressource_id: '',
-                      a_renouveler: '',
-                      commentaire: '',
-                    })
+          date_debut_contrat: '',
+          date_fin_contrat: '',
+          adresse_domicile: '',
+          actif: true,
+          ressource_id: '',
+          a_renouveler: '',
+          commentaire: '',
+        })
                     setCompetencesSelection(new Map())
                     setCompetencesPersonnalisees([{ nom: '', principale: false }])
                     setCompetenceFormRessourceId(null)
@@ -680,6 +686,17 @@ export default function RessourcesPage() {
                     }`}
                   >
                     Compétences
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('adresse')}
+                    className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                      activeTab === 'adresse'
+                        ? 'border-green-600 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Adresse
                   </button>
                 </div>
               </div>
@@ -809,13 +826,14 @@ export default function RessourcesPage() {
                           site: '',
                           type_contrat: '',
                           responsable: '',
-                          date_debut_contrat: '',
-                          date_fin_contrat: '',
-                          actif: true,
-                          ressource_id: '',
-                          a_renouveler: '',
-                          commentaire: '',
-                        })
+          date_debut_contrat: '',
+          date_fin_contrat: '',
+          adresse_domicile: '',
+          actif: true,
+          ressource_id: '',
+          a_renouveler: '',
+          commentaire: '',
+        })
                         setCompetencesSelection(new Map())
                         setCompetencesPersonnalisees([{ nom: '', principale: false }])
                         setCompetenceFormRessourceId(null)
@@ -973,6 +991,62 @@ export default function RessourcesPage() {
                     </>
                   )}
                 </div>
+              )}
+
+              {/* Contenu de l'onglet Adresse */}
+              {activeTab === 'adresse' && (
+                <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Adresse du domicile
+                      </label>
+                      <textarea
+                        value={formData.adresse_domicile}
+                        onChange={(e) => setFormData({ ...formData, adresse_domicile: e.target.value })}
+                        placeholder="Ex: 123 Rue Example, 75001 Paris, France"
+                        rows={4}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-sm resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        Indiquez l'adresse complète du domicile de la ressource. Cette adresse sera utilisée pour calculer les distances vers les sites d'affectation.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Boutons d'action */}
+                  <div className="flex items-center justify-end pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setShowModal(false)
+                        setIsEditing(false)
+                        setActiveTab('informations')
+                        setFormData({
+                          id: '',
+                          nom: '',
+                          site: '',
+                          type_contrat: '',
+                          responsable: '',
+                          date_debut_contrat: '',
+                          date_fin_contrat: '',
+                          adresse_domicile: '',
+                          actif: true,
+                          ressource_id: '',
+                          a_renouveler: '',
+                          commentaire: '',
+                        })
+                        setCompetencesSelection(new Map())
+                        setCompetencesPersonnalisees([{ nom: '', principale: false }])
+                        setCompetenceFormRessourceId(null)
+                      }}>
+                        Annuler
+                      </Button>
+                      <Button variant="primary" size="sm" icon={<CheckCircle2 className="w-4 h-4" />} type="submit" className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
+                        {isEditing ? 'Enregistrer' : 'Créer'}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
               )}
             </Card>
           </div>

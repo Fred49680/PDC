@@ -80,6 +80,7 @@ export function useSites(options: UseSitesOptions = {}) {
           site_map: item.site_map,
           region: item.region,
           centre_ouest: item.centre_ouest,
+          adresse: item.adresse || undefined,
           actif: item.actif ?? true,
           created_at: new Date(item.created_at),
           updated_at: new Date(item.updated_at),
@@ -106,6 +107,7 @@ export function useSites(options: UseSitesOptions = {}) {
           site_map: site.site_map,
           region: site.region || null,
           centre_ouest: site.centre_ouest || null,
+          adresse: site.adresse || null,
           actif: site.actif ?? true,
           updated_at: new Date().toISOString(),
         }
