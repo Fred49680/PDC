@@ -238,6 +238,7 @@ export default function TransfertsPage() {
       const selectedRessource = ressources.find((r) => r.id === selectedRessourceId)
       if (selectedRessource && selectedRessource.site) {
         // Pré-remplir automatiquement le site d'origine avec le site de référence de la ressource
+        // Forcer la mise à jour même si le site d'origine est déjà rempli (sauf en mode édition)
         return {
           ...prev,
           ressource_id: selectedRessourceId,
@@ -253,19 +254,26 @@ export default function TransfertsPage() {
   }
 
   // useEffect pour mettre à jour le site d'origine si la ressource change et que les ressources sont chargées
-  // Ne pré-remplit que si le site d'origine est vide (pour ne pas écraser une modification manuelle)
+  // Pré-remplit automatiquement le site d'origine avec le site de référence de la ressource
   useEffect(() => {
-    if (formData.ressource_id && ressources.length > 0 && !formData.site_origine) {
+    if (formData.ressource_id && ressources.length > 0 && !isEditing) {
       const selectedRessource = ressources.find((r) => r.id === formData.ressource_id)
       if (selectedRessource && selectedRessource.site) {
         // Pré-remplir le site d'origine avec le site de référence de la ressource
-        setFormData((prev) => ({
-          ...prev,
-          site_origine: selectedRessource.site,
-        }))
+        // Seulement si on n'est pas en mode édition (pour ne pas écraser une modification manuelle en édition)
+        setFormData((prev) => {
+          // Ne mettre à jour que si le site d'origine est différent ou vide
+          if (prev.site_origine !== selectedRessource.site) {
+            return {
+              ...prev,
+              site_origine: selectedRessource.site,
+            }
+          }
+          return prev
+        })
       }
     }
-  }, [formData.ressource_id, formData.site_origine, ressources])
+  }, [formData.ressource_id, ressources, isEditing])
 
   const handleAppliquer = async (transfert: Transfert) => {
     if (transfert.statut === 'Appliqué') {
@@ -617,7 +625,7 @@ export default function TransfertsPage() {
                         .filter((r) => r.actif)
                         .map((ressource) => ({
                           value: ressource.id,
-                          label: `${ressource.nom} (${ressource.site})`,
+                          label: ressource.nom, // Retirer le site du label car il est géré par le champ "Site d'origine"
                         })),
                     ]}
                   />
