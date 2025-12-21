@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { normalizeDateToUTC, isBusinessDay, getDatesBetween } from '@/utils/calendar'
+import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
 import { addDays, isSameDay } from 'date-fns'
 import type { PeriodeCharge } from '@/types/charge'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -36,28 +36,29 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire depuis affaire_id
-      // Utiliser .ilike() pour une recherche insensible à la casse si nécessaire
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
       const { data: affaireData, error: affaireError } = await supabase
         .from('affaires')
         .select('id')
         .eq('affaire_id', affaireId)
-        .eq('site', site)
+        .eq('site', siteNormalized)
         .maybeSingle()
 
       if (affaireError) {
         console.error('[useCharge] Erreur recherche affaire:', affaireError)
-        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
       }
       
       if (!affaireData) {
-        throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
       }
 
       const { data, error: queryError } = await supabase
         .from('periodes_charge')
         .select('*')
         .eq('affaire_id', affaireData.id)
-        .eq('site', site)
+        .eq('site', siteNormalized)
         .order('date_debut', { ascending: true })
 
       if (queryError) throw queryError
@@ -87,17 +88,20 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
 
     const supabase = getSupabaseClient()
     
-    // Récupérer l'ID de l'affaire pour le filtre Realtime
-    let affaireDbId: string | null = null
-    
-    const setupRealtime = async () => {
-      try {
-        const { data: affaireData } = await supabase
-          .from('affaires')
-          .select('id')
-          .eq('affaire_id', affaireId)
-          .eq('site', site)
-          .single()
+      // Récupérer l'ID de l'affaire pour le filtre Realtime
+      let affaireDbId: string | null = null
+      
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      
+      const setupRealtime = async () => {
+        try {
+          const { data: affaireData } = await supabase
+            .from('affaires')
+            .select('id')
+            .eq('affaire_id', affaireId)
+            .eq('site', siteNormalized)
+            .single()
         
         if (!affaireData) return
         
@@ -196,22 +200,24 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       console.log('[useCharge] Étape 2 - Client Supabase créé')
 
       // Récupérer l'ID de l'affaire
-      console.log('[useCharge] Étape 3 - Recherche de l\'affaire:', { affaireId, site })
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      console.log('[useCharge] Étape 3 - Recherche de l\'affaire:', { affaireId, site, siteNormalized })
       const { data: affaireData, error: affaireError } = await supabase
         .from('affaires')
         .select('id')
         .eq('affaire_id', affaireId)
-        .eq('site', site)
+        .eq('site', siteNormalized)
         .maybeSingle()
 
       if (affaireError) {
         console.error('[useCharge] Étape 3 - ERREUR recherche affaire:', affaireError)
-        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
       }
       
       if (!affaireData) {
         console.error('[useCharge] Étape 3 - Affaire introuvable')
-        throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
       }
       
       console.log('[useCharge] Étape 3 - Affaire trouvée, ID:', affaireData.id)
@@ -220,7 +226,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
       const periodeData: any = {
         affaire_id: affaireData.id,
-        site,
+        site: siteNormalized,
         competence: periode.competence,
         // Normaliser date_debut et date_fin si elles sont des objets Date
         date_debut: periode.date_debut instanceof Date 
@@ -284,9 +290,10 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       // Créer un objet propre avec uniquement les champs nécessaires et correctement formatés
       // Cela évite de propager des valeurs invalides via le spread
+      // Le site est déjà normalisé dans periodeData.site
       const periodeDataClean: any = {
         affaire_id: periodeData.affaire_id,
-        site: periodeData.site,
+        site: periodeData.site, // Déjà normalisé en majuscules
         competence: periodeData.competence,
         date_debut: formatDateForDB(periodeData.date_debut),
         date_fin: formatDateForDB(periodeData.date_fin),
@@ -355,6 +362,20 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       // APPROCHE ALTERNATIVE : Vérifier d'abord si l'enregistrement existe, puis INSERT ou UPDATE
       // Cela évite le problème de l'upsert qui essaie de mettre à jour tous les champs
+      // Le site est déjà normalisé dans periodeDataClean.site
+      
+      // Vérifier que toutes les valeurs requises sont présentes et valides
+      if (!periodeDataClean.affaire_id || !periodeDataClean.site || !periodeDataClean.competence || 
+          !periodeDataClean.date_debut || !periodeDataClean.date_fin) {
+        const missingFields = []
+        if (!periodeDataClean.affaire_id) missingFields.push('affaire_id')
+        if (!periodeDataClean.site) missingFields.push('site')
+        if (!periodeDataClean.competence) missingFields.push('competence')
+        if (!periodeDataClean.date_debut) missingFields.push('date_debut')
+        if (!periodeDataClean.date_fin) missingFields.push('date_fin')
+        throw new Error(`Champs manquants pour la recherche de période: ${missingFields.join(', ')}`)
+      }
+      
       const { data: existingData, error: findError } = await supabase
         .from('periodes_charge')
         .select('id')
@@ -365,10 +386,31 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         .eq('date_fin', periodeDataClean.date_fin)
         .maybeSingle()
       
-      if (findError && findError.code !== 'PGRST116') {
-        // Erreur autre que "not found"
-        console.error('[useCharge] Étape 8 - ERREUR lors de la recherche:', findError)
-        throw findError
+      if (findError) {
+        // Log complet de l'erreur pour diagnostic
+        console.error('[useCharge] Étape 8 - ERREUR lors de la recherche:', {
+          error: findError,
+          code: findError.code,
+          message: findError.message,
+          details: findError.details,
+          hint: findError.hint,
+          status: (findError as any).status,
+          queryParams: {
+            affaire_id: periodeDataClean.affaire_id,
+            site: periodeDataClean.site,
+            competence: periodeDataClean.competence,
+            date_debut: periodeDataClean.date_debut,
+            date_fin: periodeDataClean.date_fin,
+          },
+        })
+        
+        // Si c'est une erreur "not found" (PGRST116), c'est normal, continuer
+        if (findError.code === 'PGRST116') {
+          // C'est normal, pas d'enregistrement trouvé
+        } else {
+          // Autre erreur, la lancer
+          throw findError
+        }
       }
       
       console.log('[useCharge] Étape 8 - Résultat recherche:', existingData ? `Période existante trouvée (ID: ${existingData.id})` : 'Aucune période existante')
@@ -411,6 +453,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         data = updateData
       } else {
         // Nouvel enregistrement : INSERT
+        // Le site est déjà normalisé dans periodeDataClean.site
         const insertData: any = {
           affaire_id: periodeDataClean.affaire_id,
           site: periodeDataClean.site,
@@ -435,12 +478,30 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           'force_weekend_ferie === false': insertData.force_weekend_ferie === false,
         })
         
-        // Vérification finale avant envoi
-        if (insertData.force_weekend_ferie === '' || insertData.force_weekend_ferie === null || insertData.force_weekend_ferie === undefined) {
-          console.error('[useCharge] Étape 10 - ERREUR: force_weekend_ferie invalide avant INSERT!', insertData.force_weekend_ferie)
-          insertData.force_weekend_ferie = false
-          console.log('[useCharge] Étape 10 - force_weekend_ferie corrigé à false')
+        // Vérification finale et FORCAGE du type booléen strict avant envoi
+        // S'assurer que force_weekend_ferie est toujours un booléen strict, jamais une chaîne vide
+        if (typeof insertData.force_weekend_ferie !== 'boolean') {
+          console.error('[useCharge] Étape 10 - ERREUR: force_weekend_ferie n\'est pas un boolean strict!', {
+            value: insertData.force_weekend_ferie,
+            type: typeof insertData.force_weekend_ferie
+          })
+          // Forcer en booléen strict : si c'est une chaîne vide ou null/undefined, false, sinon true
+          insertData.force_weekend_ferie = insertData.force_weekend_ferie === '' || 
+                                           insertData.force_weekend_ferie === null || 
+                                           insertData.force_weekend_ferie === undefined 
+                                           ? false 
+                                           : Boolean(insertData.force_weekend_ferie)
+          console.log('[useCharge] Étape 10 - force_weekend_ferie forcé à:', insertData.force_weekend_ferie, '(type:', typeof insertData.force_weekend_ferie, ')')
         }
+        
+        // Double vérification : s'assurer que c'est vraiment un booléen strict
+        insertData.force_weekend_ferie = Boolean(insertData.force_weekend_ferie)
+        
+        console.log('[useCharge] Étape 10 - Vérification finale avant INSERT:', {
+          'force_weekend_ferie': insertData.force_weekend_ferie,
+          'type': typeof insertData.force_weekend_ferie,
+          'strict boolean check': insertData.force_weekend_ferie === true || insertData.force_weekend_ferie === false
+        })
         
         const { data: insertDataResult, error: insertError } = await supabase
           .from('periodes_charge')
@@ -547,7 +608,102 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       console.error('[useCharge] Erreur deletePeriode:', err)
       throw err
     }
-  }, [loadPeriodes, autoRefresh, enableRealtime])
+  }, [loadPeriodes, autoRefresh, enableRealtime, getSupabaseClient])
+
+  // Fonction pour sauvegarder plusieurs périodes en lot (batch)
+  // Cette fonction désactive les triggers, insère toutes les périodes, puis réactive les triggers et consolide
+  const savePeriodesBatch = useCallback(async (periodes: Partial<PeriodeCharge>[]) => {
+    try {
+      console.log('[useCharge] ========== DEBUT savePeriodesBatch ==========')
+      console.log('[useCharge] Nombre de périodes à sauvegarder:', periodes.length)
+      
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) {
+        console.error('[useCharge] Erreur recherche affaire (savePeriodesBatch):', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+      }
+
+      // Normaliser les dates et les booléens pour chaque période
+      const formatDateForDB = (date: Date | string | undefined): string => {
+        if (!date) return new Date().toISOString().split('T')[0]
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0]
+        }
+        if (typeof date === 'string') {
+          return date.split('T')[0]
+        }
+        return new Date().toISOString().split('T')[0]
+      }
+
+      const normalizeBoolean = (value: any): boolean => {
+        if (value === true || value === 'true' || value === 1 || value === '1') {
+          return true
+        }
+        if (value === false || value === 'false' || value === 0 || value === '0') {
+          return false
+        }
+        return false
+      }
+
+      // Préparer les données pour le batch insert
+      const periodesData = periodes.map((periode) => ({
+        competence: periode.competence || '',
+        date_debut: formatDateForDB(periode.date_debut),
+        date_fin: formatDateForDB(periode.date_fin),
+        nb_ressources: periode.nb_ressources || 0,
+        force_weekend_ferie: normalizeBoolean(periode.force_weekend_ferie),
+      }))
+
+      console.log('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesData.slice(0, 3), null, 2), '... (affiche les 3 premières)')
+
+      // Appeler la fonction RPC batch_insert_periodes_charge
+      // Le site sera normalisé en majuscules dans la fonction RPC
+      const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
+        p_periodes: periodesData,
+        p_affaire_id: affaireId,
+        p_site: siteNormalized,
+      })
+
+      if (rpcError) {
+        console.error('[useCharge] Erreur batch_insert_periodes_charge:', rpcError)
+        throw rpcError
+      }
+
+      console.log('[useCharge] Batch insert réussi')
+
+      // Recharger les périodes pour mettre à jour l'état local
+      if (autoRefresh) {
+        console.log('[useCharge] Rechargement des périodes après batch insert')
+        await loadPeriodes()
+      } else {
+        console.log('[useCharge] Pas de rechargement automatique (autoRefresh: false)')
+      }
+
+      console.log('[useCharge] ========== FIN savePeriodesBatch - SUCCÈS ==========')
+      return data
+    } catch (err) {
+      console.error('[useCharge] ========== FIN savePeriodesBatch - ERREUR ==========')
+      console.error('[useCharge] Erreur complète:', err)
+      setError(err as Error)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, getSupabaseClient])
 
   const consolidate = useCallback(async (competence?: string) => {
     try {
@@ -555,20 +711,22 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
       const { data: affaireData, error: affaireError } = await supabase
         .from('affaires')
         .select('id')
         .eq('affaire_id', affaireId)
-        .eq('site', site)
+        .eq('site', siteNormalized)
         .maybeSingle()
 
       if (affaireError) {
-        console.error('[useCharge] Erreur recherche affaire (savePeriode):', affaireError)
-        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+        console.error('[useCharge] Erreur recherche affaire (consolidate):', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
       }
       
       if (!affaireData) {
-        throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
       }
 
       // Charger toutes les périodes pour cette affaire/site (et compétence si spécifiée)
@@ -576,7 +734,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         .from('periodes_charge')
         .select('*')
         .eq('affaire_id', affaireData.id)
-        .eq('site', site)
+        .eq('site', siteNormalized)
         .order('competence', { ascending: true })
         .order('date_debut', { ascending: true })
 
@@ -663,7 +821,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         for (const periodeForcee of periodesForcees) {
           await supabase.from('periodes_charge').insert({
             affaire_id: affaireData.id,
-            site,
+            site: siteNormalized,
             competence: comp,
             date_debut: normalizeDateToUTC(new Date(periodeForcee.date_debut)),
             date_fin: normalizeDateToUTC(new Date(periodeForcee.date_fin)),
@@ -728,7 +886,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           for (const nouvellePeriode of nouvellesPeriodes) {
             await supabase.from('periodes_charge').insert({
               affaire_id: affaireData.id,
-              site,
+              site: siteNormalized,
               competence: comp,
               date_debut: normalizeDateToUTC(nouvellePeriode.date_debut),
               date_fin: normalizeDateToUTC(nouvellePeriode.date_fin),
@@ -755,6 +913,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
     loading,
     error,
     savePeriode,
+    savePeriodesBatch,
     deletePeriode,
     consolidate,
     refresh: loadPeriodes,
