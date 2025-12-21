@@ -493,35 +493,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           force_weekend_ferie: shouldForceWeekendFerie ? true : false,
         }
         
-        // FORCER une sérialisation/désérialisation JSON propre pour garantir que les booléens restent des booléens
-        // Cela évite tout problème de sérialisation qui pourrait transformer false en chaîne vide
-        const insertDataSerialized = JSON.parse(JSON.stringify(insertData))
+        // Utiliser la fonction RPC PostgreSQL pour éviter les problèmes de sérialisation JSON booléenne
+        // Cette fonction fait l'INSERT directement dans PostgreSQL avec des types stricts
+        console.log('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify(insertData, null, 2))
         
-        // Vérification finale : s'assurer que force_weekend_ferie est bien un booléen strict
-        if (typeof insertDataSerialized.force_weekend_ferie !== 'boolean') {
-          console.warn('[useCharge] Étape 10 - force_weekend_ferie n\'est pas un booléen après sérialisation, correction:', insertDataSerialized.force_weekend_ferie)
-          insertDataSerialized.force_weekend_ferie = insertDataSerialized.force_weekend_ferie === true || insertDataSerialized.force_weekend_ferie === 'true' || insertDataSerialized.force_weekend_ferie === 1
-        }
-        
-        console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertDataSerialized, null, 2))
-        console.log('[useCharge] Étape 10 - INSERT - Types:', {
-          affaire_id: typeof insertDataSerialized.affaire_id,
-          site: typeof insertDataSerialized.site,
-          competence: typeof insertDataSerialized.competence,
-          date_debut: typeof insertDataSerialized.date_debut,
-          date_fin: typeof insertDataSerialized.date_fin,
-          nb_ressources: typeof insertDataSerialized.nb_ressources,
-          force_weekend_ferie: typeof insertDataSerialized.force_weekend_ferie,
-          'force_weekend_ferie value': insertDataSerialized.force_weekend_ferie,
-          'force_weekend_ferie === true': insertDataSerialized.force_weekend_ferie === true,
-          'force_weekend_ferie === false': insertDataSerialized.force_weekend_ferie === false,
+        const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', {
+          p_affaire_id: insertData.affaire_id,
+          p_site: insertData.site,
+          p_competence: insertData.competence,
+          p_date_debut: insertData.date_debut,
+          p_date_fin: insertData.date_fin,
+          p_nb_ressources: insertData.nb_ressources,
+          p_force_weekend_ferie: insertData.force_weekend_ferie,
         })
-        
-        const { data: insertDataResult, error: insertError } = await supabase
-          .from('periodes_charge')
-          .insert(insertDataSerialized)
-          .select()
-          .single()
         
         if (insertError) {
           console.error('[useCharge] Étape 10 - ERREUR insert:', insertError)
@@ -532,12 +516,17 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
             hint: insertError.hint,
             status: (insertError as any).status,
           })
-          console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(insertDataSerialized, null, 2))
+          console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(insertData, null, 2))
           throw insertError
         }
         
-        console.log('[useCharge] Étape 10 - INSERT réussi, données retournées:', JSON.stringify(insertDataResult, null, 2))
-        data = insertDataResult
+        // La fonction RPC retourne un tableau, prendre le premier élément
+        const periodeResult = Array.isArray(insertDataResult) && insertDataResult.length > 0 ? insertDataResult[0] : insertDataResult
+        console.log('[useCharge] Étape 10 - INSERT réussi via RPC, données retournées:', JSON.stringify(periodeResult, null, 2))
+        if (!periodeResult) {
+          throw new Error('La fonction RPC n\'a pas retourné de résultat')
+        }
+        data = periodeResult
       }
       
       console.log('[useCharge] Étape 11 - Transformation des données retournées')
