@@ -183,15 +183,39 @@ export default function TransfertsPage() {
       }
       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const affectationsMapped: AffectationData[] = (affectationsData || []).map((a: any) => ({
-        id: String(a.id),
-        affaire_id: a.affaires?.affaire_id || '',
-        affaire_label: a.affaires?.libelle || '',
-        competence: String(a.competence),
-        date_debut: a.date_debut instanceof Date ? a.date_debut : new Date(String(a.date_debut)),
-        date_fin: a.date_fin instanceof Date ? a.date_fin : new Date(String(a.date_fin)),
-        charge: Number(a.charge),
-      }))
+      const affectationsMapped: AffectationData[] = (affectationsData || [])
+        .map((a: any) => ({
+          id: String(a.id),
+          affaire_id: a.affaires?.affaire_id || '',
+          affaire_label: a.affaires?.libelle || '',
+          competence: String(a.competence),
+          date_debut: a.date_debut instanceof Date ? a.date_debut : new Date(String(a.date_debut)),
+          date_fin: a.date_fin instanceof Date ? a.date_fin : new Date(String(a.date_fin)),
+          charge: Number(a.charge),
+        }))
+        // Filtrer les affectations de transfert (TRANSFERT_*) si des affectations réelles existent pour la même période
+        .filter((aff) => {
+          // Si c'est une affectation de transfert, vérifier s'il existe une affectation réelle pour la même période
+          if (aff.affaire_id.startsWith('TRANSFERT_')) {
+            const hasRealAffectation = affectationsData?.some((a: any) => {
+              const aAffaireId = a.affaires?.affaire_id || ''
+              const aDateDebut = a.date_debut instanceof Date ? a.date_debut : new Date(String(a.date_debut))
+              const aDateFin = a.date_fin instanceof Date ? a.date_fin : new Date(String(a.date_fin))
+              
+              // Vérifier si c'est une affectation réelle (non-TRANSFERT) avec la même compétence et période qui se chevauche
+              return !aAffaireId.startsWith('TRANSFERT_') &&
+                     String(a.competence) === aff.competence &&
+                     aDateDebut <= aff.date_fin &&
+                     aDateFin >= aff.date_debut
+            })
+            
+            // Ne pas afficher l'affectation de transfert si une affectation réelle existe
+            return !hasRealAffectation
+          }
+          
+          // Toujours afficher les affectations réelles
+          return true
+        })
 
       // Dédupliquer les affectations identiques (même affaire, compétence et période)
       // En cas de doublon, on garde la première trouvée

@@ -553,8 +553,46 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         const siteDestinationUpper = siteDestination.trim().toUpperCase()
         const siteOrigineUpper = siteOrigine.trim().toUpperCase()
 
+        // Vérifier s'il existe déjà des affectations réelles (non-TRANSFERT) pour cette période
+        // Si oui, ne pas créer d'affectations de transfert factices
+        const { data: affectationsExistantes, error: checkError } = await supabase
+          .from('affectations')
+          .select('id, affaire_id, affaires!inner(affaire_id)')
+          .eq('ressource_id', ressourceId)
+          .eq('site', siteDestinationUpper)
+          .lte('date_debut', dateFin.toISOString().split('T')[0])
+          .gte('date_fin', dateDebut.toISOString().split('T')[0])
+          .not('affaires.affaire_id', 'like', 'TRANSFERT_%')
+
+        if (checkError) {
+          console.error('[useTransferts] Erreur vérification affectations existantes:', checkError)
+          // Continuer même en cas d'erreur
+        }
+
+        // Si des affectations réelles existent déjà, ne pas créer d'affectations de transfert
+        if (affectationsExistantes && affectationsExistantes.length > 0) {
+          console.log(
+            `[useTransferts] Affectations réelles existantes trouvées (${affectationsExistantes.length}), pas de création d'affectations de transfert`
+          )
+          // Logger quand même dans les alertes
+          try {
+            await createAlerte({
+              type_alerte: 'TRANSFERT_APPLIQUE',
+              ressource_id: ressourceId,
+              site: siteDestinationUpper,
+              date_debut: dateDebut,
+              date_fin: dateFin,
+              action: `Transfert appliqué de ${siteOrigineUpper} vers ${siteDestinationUpper} - Affectations réelles déjà présentes`,
+              prise_en_compte: 'Non',
+            })
+          } catch (alerteError) {
+            console.error('[useTransferts] Erreur création alerte:', alerteError)
+          }
+          return
+        }
+
         // Pour chaque compétence, créer une affectation "générique" sur le site de destination
-        // Utiliser une affaire factice "TRANSFERT" pour tracer
+        // Utiliser une affaire factice "TRANSFERT" pour tracer (seulement si aucune affectation réelle n'existe)
         const affaireTransfert = `TRANSFERT_${siteDestinationUpper}`
 
         // Vérifier si l'affaire existe, sinon la créer
