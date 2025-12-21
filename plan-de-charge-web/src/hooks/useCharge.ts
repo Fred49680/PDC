@@ -36,14 +36,20 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       const supabase = getSupabaseClient()
 
       // Récupérer l'ID de l'affaire depuis affaire_id
+      // Utiliser .ilike() pour une recherche insensible à la casse si nécessaire
       const { data: affaireData, error: affaireError } = await supabase
         .from('affaires')
         .select('id')
         .eq('affaire_id', affaireId)
         .eq('site', site)
-        .single()
+        .maybeSingle()
 
-      if (affaireError || !affaireData) {
+      if (affaireError) {
+        console.error('[useCharge] Erreur recherche affaire:', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 
@@ -191,9 +197,14 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         .select('id')
         .eq('affaire_id', affaireId)
         .eq('site', site)
-        .single()
+        .maybeSingle()
 
-      if (affaireError || !affaireData) {
+      if (affaireError) {
+        console.error('[useCharge] Erreur recherche affaire (savePeriode):', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 
@@ -215,12 +226,27 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       let data: any
       let upsertError: any
       
+      // S'assurer que les dates sont des strings ISO valides
+      const periodeDataClean = {
+        ...periodeData,
+        date_debut: periodeData.date_debut instanceof Date 
+          ? periodeData.date_debut.toISOString().split('T')[0] 
+          : typeof periodeData.date_debut === 'string' 
+            ? periodeData.date_debut.split('T')[0]
+            : periodeData.date_debut,
+        date_fin: periodeData.date_fin instanceof Date
+          ? periodeData.date_fin.toISOString().split('T')[0]
+          : typeof periodeData.date_fin === 'string'
+            ? periodeData.date_fin.split('T')[0]
+            : periodeData.date_fin,
+      }
+      
       // Si on a un ID, essayer un UPDATE direct
-      if (periodeData.id) {
+      if (periodeDataClean.id) {
         const { data: updateData, error: updateError } = await supabase
           .from('periodes_charge')
-          .update(periodeData)
-          .eq('id', periodeData.id)
+          .update(periodeDataClean)
+          .eq('id', periodeDataClean.id)
           .select()
           .single()
         
@@ -230,7 +256,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           // Si l'UPDATE échoue, essayer l'upsert
           const { data: upsertData, error: upsertErr } = await supabase
             .from('periodes_charge')
-            .upsert(periodeData, {
+            .upsert(periodeDataClean, {
               onConflict: 'affaire_id,site,competence,date_debut,date_fin',
             })
             .select()
@@ -243,7 +269,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Pas d'ID, essayer l'upsert directement
         const { data: upsertData, error: upsertErr } = await supabase
           .from('periodes_charge')
-          .upsert(periodeData, {
+          .upsert(periodeDataClean, {
             onConflict: 'affaire_id,site,competence,date_debut,date_fin',
           })
           .select()
@@ -253,17 +279,23 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         upsertError = upsertErr
       }
 
-      // Si erreur 409 (conflict), essayer de récupérer la période existante et la mettre à jour
-      if (upsertError && (upsertError.code === '23505' || upsertError.code === 'PGRST116')) {
-        // Erreur de contrainte unique : chercher la période existante
+      // Si erreur 409 (conflict) ou 400 (bad request), essayer de récupérer la période existante et la mettre à jour
+      if (upsertError && (
+        upsertError.code === '23505' || 
+        upsertError.code === 'PGRST116' || 
+        upsertError.code === 'PGRST301' ||
+        upsertError.status === 400 ||
+        upsertError.status === 409
+      )) {
+        // Erreur de contrainte unique ou requête invalide : chercher la période existante
         const { data: existingData, error: findError } = await supabase
           .from('periodes_charge')
           .select('*')
-          .eq('affaire_id', periodeData.affaire_id)
-          .eq('site', periodeData.site)
-          .eq('competence', periodeData.competence)
-          .eq('date_debut', periodeData.date_debut)
-          .eq('date_fin', periodeData.date_fin)
+          .eq('affaire_id', periodeDataClean.affaire_id)
+          .eq('site', periodeDataClean.site)
+          .eq('competence', periodeDataClean.competence)
+          .eq('date_debut', periodeDataClean.date_debut)
+          .eq('date_fin', periodeDataClean.date_fin)
           .single()
         
         if (!findError && existingData) {
@@ -271,19 +303,24 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           const { data: updateData, error: updateError } = await supabase
             .from('periodes_charge')
             .update({
-              nb_ressources: periodeData.nb_ressources,
-              force_weekend_ferie: periodeData.force_weekend_ferie,
+              nb_ressources: periodeDataClean.nb_ressources,
+              force_weekend_ferie: periodeDataClean.force_weekend_ferie,
             })
             .eq('id', existingData.id)
             .select()
             .single()
           
-          if (updateError) throw updateError
+          if (updateError) {
+            console.error('[useCharge] Erreur update après conflict:', updateError)
+            throw updateError
+          }
           data = updateData
         } else {
+          console.error('[useCharge] Erreur upsert et période non trouvée:', upsertError)
           throw upsertError
         }
       } else if (upsertError) {
+        console.error('[useCharge] Erreur upsert:', upsertError)
         throw upsertError
       }
 
@@ -373,9 +410,14 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         .select('id')
         .eq('affaire_id', affaireId)
         .eq('site', site)
-        .single()
+        .maybeSingle()
 
-      if (affaireError || !affaireData) {
+      if (affaireError) {
+        console.error('[useCharge] Erreur recherche affaire (savePeriode):', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 

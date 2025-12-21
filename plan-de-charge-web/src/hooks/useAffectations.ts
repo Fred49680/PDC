@@ -45,9 +45,14 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         .select('id')
         .eq('affaire_id', affaireId)
         .eq('site', site)
-        .single()
+        .maybeSingle()
 
-      if (affaireError || !affaireData) {
+      if (affaireError) {
+        console.error('[useAffectations] Erreur recherche affaire:', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 
@@ -396,9 +401,14 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         .select('id')
         .eq('affaire_id', affaireId)
         .eq('site', site)
-        .single()
+        .maybeSingle()
 
-      if (affaireError || !affaireData) {
+      if (affaireError) {
+        console.error('[useAffectations] Erreur recherche affaire:', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 
@@ -501,9 +511,14 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         .select('id')
         .eq('affaire_id', affaireId)
         .eq('site', site)
-        .single()
+        .maybeSingle()
 
-      if (affaireError || !affaireData) {
+      if (affaireError) {
+        console.error('[useAffectations] Erreur recherche affaire:', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
 
