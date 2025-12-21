@@ -472,7 +472,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
                                                   periodeDataClean.force_weekend_ferie === '1'
         
         // Créer un objet littéral strict pour éviter toute transformation lors de la sérialisation JSON
-        // On n'inclut force_weekend_ferie que si c'est true, sinon on utilise la valeur par défaut de la DB
+        // TOUJOURS inclure force_weekend_ferie explicitement comme booléen strict
+        // Ne JAMAIS omettre ce champ car Supabase peut le transformer en chaîne vide
         const insertData: {
           affaire_id: string
           site: string
@@ -480,7 +481,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           date_debut: string
           date_fin: string
           nb_ressources: number
-          force_weekend_ferie?: boolean
+          force_weekend_ferie: boolean
         } = {
           affaire_id: periodeDataClean.affaire_id,
           site: periodeDataClean.site,
@@ -488,11 +489,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           date_debut: periodeDataClean.date_debut,
           date_fin: periodeDataClean.date_fin,
           nb_ressources: periodeDataClean.nb_ressources,
-        }
-        
-        // N'inclure force_weekend_ferie que s'il est true (false est la valeur par défaut)
-        if (shouldForceWeekendFerie) {
-          insertData.force_weekend_ferie = true
+          // Toujours inclure explicitement le booléen (true ou false)
+          force_weekend_ferie: shouldForceWeekendFerie ? true : false,
         }
         
         console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertData, null, 2))
