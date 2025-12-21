@@ -693,56 +693,48 @@ export default function TransfertsPage() {
 
         {/* Statistiques - Vignettes sur une ligne */}
         <div className="flex items-center gap-3 flex-wrap">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 flex-1 min-w-[120px]">
-            <CardHeader className="p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-blue-600 font-medium mb-0.5">Total</p>
-                  <p className="text-lg font-bold text-blue-800">{stats.total}</p>
-                </div>
-                <ArrowRightLeft className="w-5 h-5 text-blue-500 flex-shrink-0" />
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-blue-600 font-medium leading-tight">Total</p>
+                <p className="text-base font-bold text-blue-800 leading-tight">{stats.total}</p>
               </div>
-            </CardHeader>
-          </Card>
+              <ArrowRightLeft className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            </div>
+          </div>
 
-          <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200 flex-1 min-w-[120px]">
-            <CardHeader className="p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-yellow-600 font-medium mb-0.5">Planifiés</p>
-                  <p className="text-lg font-bold text-yellow-800">{stats.planifies}</p>
-                </div>
-                <Clock className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-yellow-600 font-medium leading-tight">Planifiés</p>
+                <p className="text-base font-bold text-yellow-800 leading-tight">{stats.planifies}</p>
               </div>
-            </CardHeader>
-          </Card>
+              <Clock className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+            </div>
+          </div>
 
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 flex-1 min-w-[120px]">
-            <CardHeader className="p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-green-600 font-medium mb-0.5">Appliqués</p>
-                  <p className="text-lg font-bold text-green-800">{stats.appliques}</p>
-                </div>
-                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+          <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-green-600 font-medium leading-tight">Appliqués</p>
+                <p className="text-base font-bold text-green-800 leading-tight">{stats.appliques}</p>
               </div>
-            </CardHeader>
-          </Card>
+              <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+            </div>
+          </div>
 
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 flex-1 min-w-[120px]">
-            <CardHeader className="p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-orange-600 font-medium mb-0.5">À appliquer</p>
-                  <p className="text-lg font-bold text-orange-800">{stats.aAppliquer}</p>
-                </div>
-                <PlayCircle className="w-5 h-5 text-orange-500 flex-shrink-0" />
+          <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-orange-600 font-medium leading-tight">À appliquer</p>
+                <p className="text-base font-bold text-orange-800 leading-tight">{stats.aAppliquer}</p>
               </div>
-            </CardHeader>
-          </Card>
+              <PlayCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            </div>
+          </div>
 
           {/* Toggle pour afficher les transferts terminés */}
-          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 px-4 py-3">
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 px-4 py-2.5">
             <span className="text-sm text-gray-600 whitespace-nowrap">Afficher terminés</span>
             <button
               type="button"
