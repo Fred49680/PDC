@@ -229,6 +229,10 @@ export default function Planning2({
   const [competencesMapToutes, setCompetencesMapToutes] = useState<typeof competencesMapActives>(new Map())
   const [loadingToutesRessources, setLoadingToutesRessources] = useState(false)
   
+  // Charger toutes les compétences disponibles (depuis toutes les ressources)
+  const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
+  const [loadingToutesCompetences, setLoadingToutesCompetences] = useState(false)
+  
   useEffect(() => {
     const loadRessourcesTransferees = async () => {
       if (!site) {
@@ -663,7 +667,7 @@ export default function Planning2({
     }
     
     return list
-  }, [periodes, competencesMap, dateDebut, dateFin, affectations, selectedCompetences.size])
+  }, [toutesCompetences, periodes, affectations, selectedCompetences.size])
 
   // Grilles de données
   const grilleCharge = useMemo(() => {
@@ -2915,7 +2919,7 @@ export default function Planning2({
                                       besoin > 0 && (
                                         <div className="text-center py-4 text-sm text-gray-500">
                                           <p>Aucune ressource locale disponible</p>
-                                          <p className="text-xs mt-1 text-indigo-600">Cliquez sur "Besoin" pour affecter une ressource externe</p>
+                                          <p className="text-xs mt-1 text-indigo-600">Cliquez sur &quot;Besoin&quot; pour affecter une ressource externe</p>
                                         </div>
                                       )
                                     )}
