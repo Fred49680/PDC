@@ -153,6 +153,7 @@ export function Planning3({ affaireId, site }: Planning3Props) {
 
       {besoinToDelete && (
         <ConfirmDialog
+          isOpen={true}
           title="Supprimer le besoin"
           message={`Êtes-vous sûr de vouloir supprimer ce besoin pour la compétence "${besoinToDelete.competence}" ?`}
           onConfirm={confirmDelete}
