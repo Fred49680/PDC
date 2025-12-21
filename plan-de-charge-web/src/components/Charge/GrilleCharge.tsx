@@ -8,7 +8,7 @@ import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Plus } from 'lucide-react'
+import { Plus, Calendar, Loader2, X } from 'lucide-react'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import { useToast } from '@/components/UI/Toast'
 
@@ -102,6 +102,14 @@ export function GrilleCharge({
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [showAddCompetence, setShowAddCompetence] = useState(false)
   const [newCompetence, setNewCompetence] = useState('')
+  const [showChargeMasseModal, setShowChargeMasseModal] = useState(false)
+  const [chargeMasseForm, setChargeMasseForm] = useState({
+    competence: '',
+    dateDebut: dateDebut,
+    dateFin: dateFin,
+    nbRessources: 1,
+  })
+  const [isGeneratingChargeMasse, setIsGeneratingChargeMasse] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
     title: string
@@ -510,16 +518,25 @@ export function GrilleCharge({
         </tbody>
       </table>
 
-      {/* Bouton pour ajouter une compétence */}
-      <div className="mt-4 flex items-center gap-2">
+      {/* Boutons d'action */}
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
         {!showAddCompetence ? (
-          <button
-            onClick={() => setShowAddCompetence(true)}
-            className="px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            Ajouter une compétence
-          </button>
+          <>
+            <button
+              onClick={() => setShowAddCompetence(true)}
+              className="px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              Ajouter une compétence
+            </button>
+            <button
+              onClick={() => setShowChargeMasseModal(true)}
+              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              Déclarer charge période
+            </button>
+          </>
         ) : (
           <div className="flex items-center gap-2 flex-wrap">
             <select
@@ -599,6 +616,133 @@ export function GrilleCharge({
         onConfirm={confirmDialog.onConfirm}
         onCancel={confirmDialog.onCancel}
       />
+
+      {/* Modal charge de masse */}
+      {showChargeMasseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Déclarer charge période</h3>
+              <button
+                onClick={() => setShowChargeMasseModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Compétence <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={chargeMasseForm.competence}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, competence: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Sélectionner...</option>
+                  {competencesList.map((comp) => (
+                    <option key={comp} value={comp}>
+                      {comp}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date début <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={chargeMasseForm.dateDebut.toISOString().split('T')[0]}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, dateDebut: new Date(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date fin <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={chargeMasseForm.dateFin.toISOString().split('T')[0]}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, dateFin: new Date(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre de ressources <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={chargeMasseForm.nbRessources}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, nbRessources: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {isGeneratingChargeMasse && (
+                <div className="flex items-center gap-2 text-blue-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Génération en cours...</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowChargeMasseModal(false)}
+                disabled={isGeneratingChargeMasse}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  if (!chargeMasseForm.competence || !chargeMasseForm.dateDebut || !chargeMasseForm.dateFin) {
+                    addToast('Veuillez remplir tous les champs', 'error')
+                    return
+                  }
+                  setIsGeneratingChargeMasse(true)
+                  try {
+                    const dates = getDatesBetween(chargeMasseForm.dateDebut, chargeMasseForm.dateFin)
+                    const periodesACreer = dates
+                      .filter((date) => isBusinessDay(date))
+                      .map((date) => ({
+                        competence: chargeMasseForm.competence,
+                        date_debut: normalizeDateToUTC(date),
+                        date_fin: normalizeDateToUTC(date),
+                        nb_ressources: chargeMasseForm.nbRessources,
+                        force_weekend_ferie: false,
+                      }))
+                    
+                    await Promise.all(periodesACreer.map((p) => savePeriode(p)))
+                    addToast(`${periodesACreer.length} période(s) créée(s)`, 'success')
+                    setShowChargeMasseModal(false)
+                    setChargeMasseForm({ competence: '', dateDebut, dateFin, nbRessources: 1 })
+                  } catch (err) {
+                    console.error('[GrilleCharge] Erreur charge de masse:', err)
+                    addToast('Erreur lors de la création', 'error')
+                  } finally {
+                    setIsGeneratingChargeMasse(false)
+                  }
+                }}
+                disabled={isGeneratingChargeMasse || !chargeMasseForm.competence}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isGeneratingChargeMasse ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Création...
+                  </>
+                ) : (
+                  'Créer'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

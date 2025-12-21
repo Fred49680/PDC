@@ -136,14 +136,14 @@ export function AffectationPanel({
             </p>
           </div>
 
-          {/* Ressources disponibles */}
+          {/* Ressources disponibles - En tuiles */}
           {candidatsDisponibles.length > 0 && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-green-600" />
                 Ressources disponibles ({candidatsDisponibles.length})
               </h3>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {candidatsDisponibles.map((candidat) => {
                   const isSelected = selectedIds.has(candidat.id)
                   return (
@@ -151,40 +151,41 @@ export function AffectationPanel({
                       key={candidat.id}
                       onClick={() => handleToggle(candidat.id)}
                       className={`
-                        p-4 rounded-lg border-2 cursor-pointer transition-all
+                        p-4 rounded-xl border-2 cursor-pointer transition-all shadow-sm hover:shadow-md
                         ${
                           isSelected
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                            ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 shadow-md'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50 bg-white'
                         }
                       `}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggle(candidat.id)}
-                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-800">{candidat.nom}</p>
-                            <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-4 h-4" />
-                                {candidat.site}
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggle(candidat.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 mt-0.5 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-semibold ${isSelected ? 'text-blue-900' : 'text-gray-800'} truncate`}>
+                            {candidat.nom}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="flex items-center gap-1 text-xs text-gray-600">
+                              <MapPin className="w-3 h-3" />
+                              {candidat.site}
+                            </span>
+                            {candidat.isPrincipale && (
+                              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                ⭐ Principale
                               </span>
-                              {candidat.isPrincipale && (
-                                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                                  Principale
-                                </span>
-                              )}
-                              {candidat.necessiteTransfert && (
-                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
-                                  Transfert requis
-                                </span>
-                              )}
-                            </div>
+                            )}
+                            {candidat.necessiteTransfert && (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                🔄 Transfert
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -195,42 +196,38 @@ export function AffectationPanel({
             </div>
           )}
 
-          {/* Ressources indisponibles */}
+          {/* Ressources indisponibles - En tuiles */}
           {candidatsIndisponibles.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-red-600" />
                 Ressources indisponibles ({candidatsIndisponibles.length})
               </h3>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {candidatsIndisponibles.map((candidat) => (
                   <div
                     key={candidat.id}
-                    className="p-4 rounded-lg border-2 border-gray-200 bg-gray-50 opacity-60"
+                    className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 opacity-60"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          disabled
-                          className="w-5 h-5 text-gray-400 rounded"
-                        />
-                        <div>
-                          <p className="font-medium text-gray-600">{candidat.nom}</p>
-                          <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                            {candidat.isAbsente && (
-                              <span className="flex items-center gap-1 text-red-600">
-                                <AlertCircle className="w-4 h-4" />
-                                Absente
-                              </span>
-                            )}
-                            {candidat.hasConflit && (
-                              <span className="flex items-center gap-1 text-red-600">
-                                <AlertCircle className="w-4 h-4" />
-                                Conflit avec autre affaire
-                              </span>
-                            )}
-                          </div>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        disabled
+                        className="w-5 h-5 mt-0.5 text-gray-400 rounded flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-600 truncate">{candidat.nom}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          {candidat.isAbsente && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
+                              ⚠️ Absente
+                            </span>
+                          )}
+                          {candidat.hasConflit && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
+                              ⚠️ Conflit
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

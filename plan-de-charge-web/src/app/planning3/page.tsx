@@ -101,40 +101,37 @@ export default function Planning3Page() {
           </div>
         </div>
 
-        {/* Sélection affaire */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <Target className="w-6 h-6 text-indigo-600" />
-              Sélection affaire
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Sélection affaire - Compactée sur une ligne (modèle Charge) */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Titre compact */}
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <Target className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-base font-semibold text-gray-800">Sélection affaire</h2>
+            </div>
             {/* Numéro de compte */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Numéro de compte
               </label>
               <input
                 type="text"
                 value={numeroCompte}
                 onChange={(e) => setNumeroCompte(e.target.value)}
-                placeholder="Rechercher par numéro..."
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium"
+                placeholder="Rechercher..."
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
               />
             </div>
 
             {/* Responsable */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">Responsable</label>
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Responsable</label>
               <select
                 value={responsable}
                 onChange={(e) => setResponsable(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
               >
-                <option value="">Tous les responsables...</option>
+                <option value="">Tous...</option>
                 {responsablesDisponibles.map((resp) => (
                   <option key={resp} value={resp}>
                     {resp}
@@ -144,16 +141,16 @@ export default function Planning3Page() {
             </div>
 
             {/* Site */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+            <div className="flex-1 min-w-[120px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Site <span className="text-red-500">*</span>
               </label>
               <select
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
               >
-                <option value="">Sélectionner un site...</option>
+                <option value="">Sélectionner...</option>
                 {sitesDisponibles.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -163,8 +160,8 @@ export default function Planning3Page() {
             </div>
 
             {/* Affaire */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Affaire <span className="text-red-500">*</span>
               </label>
               <select
@@ -185,9 +182,9 @@ export default function Planning3Page() {
                   }
                 }}
                 disabled={!site}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
-                <option value="">Sélectionner une affaire...</option>
+                <option value="">Sélectionner...</option>
                 {affairesFiltreesFinales.map((affaire) => (
                   <option key={affaire.id} value={affaire.affaire_id || ''}>
                     {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
@@ -198,9 +195,11 @@ export default function Planning3Page() {
           </div>
         </div>
 
-        {/* Composant Planning3 */}
+        {/* Composant Planning3 (modèle Charge) */}
         {affaireId && site ? (
-          <Planning3 affaireId={affaireId} site={site} />
+          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
+            <Planning3 affaireId={affaireId} site={site} />
+          </div>
         ) : (
           <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
             <div className="flex items-center gap-3">

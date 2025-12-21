@@ -165,3 +165,23 @@ export async function applyAffectationsBatch(
   })) as Affectation[]
 }
 
+/**
+ * Déclencher la consolidation des périodes de charge
+ */
+export async function triggerConsolidationPeriodesCharge(
+  affaireId: string,
+  site: string
+): Promise<void> {
+  const supabase = createClient()
+
+  const { error } = await supabase.rpc('trigger_consolidation_periodes_charge', {
+    p_affaire_id: affaireId,
+    p_site: site,
+  })
+
+  if (error) {
+    console.error('[planning.api] Erreur consolidation:', error)
+    // Ne pas throw pour ne pas bloquer l'UI, la consolidation se fait aussi via trigger
+  }
+}
+

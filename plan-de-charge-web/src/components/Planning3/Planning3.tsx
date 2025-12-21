@@ -13,6 +13,7 @@ import { useToast } from '@/components/UI/Toast'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { periodeToBesoin } from '@/utils/planning/planning.compute'
 import type { PeriodeCharge } from '@/types/charge'
+import { triggerConsolidationPeriodesCharge } from '@/utils/planning/planning.api'
 
 interface Planning3Props {
   affaireId: string
@@ -60,6 +61,15 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     }
   }, [periodes])
 
+  // Consolider à l'ouverture de la page
+  useEffect(() => {
+    if (affaireId && site) {
+      triggerConsolidationPeriodesCharge(affaireId, site).catch((err) => {
+        console.error('[Planning3] Erreur consolidation initiale:', err)
+      })
+    }
+  }, [affaireId, site])
+
   // Calculer les besoins avec couverture
   useEffect(() => {
     if (periodes.length > 0 && affectations.length >= 0) {
@@ -98,9 +108,17 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     }
   }
 
-  const handleAffectationSuccess = () => {
+  const handleAffectationSuccess = async () => {
     refreshAffectations()
     refreshPeriodes()
+    // Consolider après affectation
+    if (affaireId && site) {
+      try {
+        await triggerConsolidationPeriodesCharge(affaireId, site)
+      } catch (err) {
+        console.error('[Planning3] Erreur consolidation après affectation:', err)
+      }
+    }
   }
 
   const loading = loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences
