@@ -246,11 +246,21 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         return false
       }
       
-      const periodeDataClean = {
-        ...periodeData,
+      // Créer un objet propre avec uniquement les champs nécessaires et correctement formatés
+      // Cela évite de propager des valeurs invalides via le spread
+      const periodeDataClean: any = {
+        affaire_id: periodeData.affaire_id,
+        site: periodeData.site,
+        competence: periodeData.competence,
         date_debut: formatDateForDB(periodeData.date_debut),
         date_fin: formatDateForDB(periodeData.date_fin),
+        nb_ressources: periodeData.nb_ressources || 0,
         force_weekend_ferie: normalizeBoolean(periodeData.force_weekend_ferie),
+      }
+      
+      // Ajouter l'ID seulement s'il existe (pour UPDATE)
+      if (periodeData.id) {
+        periodeDataClean.id = periodeData.id
       }
       
       // Si on a un ID, essayer un UPDATE direct
