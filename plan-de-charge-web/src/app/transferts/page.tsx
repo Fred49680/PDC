@@ -691,50 +691,74 @@ export default function TransfertsPage() {
           </div>
         </div>
 
-        {/* Statistiques - Ligne compacte */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-6 flex-wrap">
-              <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-blue-600" />
-                <span className="text-sm text-gray-600">Total:</span>
-                <span className="text-lg font-bold text-blue-800">{stats.total}</span>
+        {/* Statistiques - Vignettes sur une ligne */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 flex-1 min-w-[140px]">
+            <CardHeader className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-blue-600 font-medium mb-1">Total</p>
+                  <p className="text-xl font-bold text-blue-800">{stats.total}</p>
+                </div>
+                <ArrowRightLeft className="w-6 h-6 text-blue-500 flex-shrink-0" />
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-yellow-600" />
-                <span className="text-sm text-gray-600">Planifiés:</span>
-                <span className="text-lg font-bold text-yellow-800">{stats.planifies}</span>
+            </CardHeader>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200 flex-1 min-w-[140px]">
+            <CardHeader className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-yellow-600 font-medium mb-1">Planifiés</p>
+                  <p className="text-xl font-bold text-yellow-800">{stats.planifies}</p>
+                </div>
+                <Clock className="w-6 h-6 text-yellow-500 flex-shrink-0" />
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                <span className="text-sm text-gray-600">Appliqués:</span>
-                <span className="text-lg font-bold text-green-800">{stats.appliques}</span>
+            </CardHeader>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 flex-1 min-w-[140px]">
+            <CardHeader className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-green-600 font-medium mb-1">Appliqués</p>
+                  <p className="text-xl font-bold text-green-800">{stats.appliques}</p>
+                </div>
+                <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />
               </div>
-              <div className="flex items-center gap-2">
-                <PlayCircle className="w-5 h-5 text-orange-600" />
-                <span className="text-sm text-gray-600">À appliquer:</span>
-                <span className="text-lg font-bold text-orange-800">{stats.aAppliquer}</span>
+            </CardHeader>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 flex-1 min-w-[140px]">
+            <CardHeader className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-orange-600 font-medium mb-1">À appliquer</p>
+                  <p className="text-xl font-bold text-orange-800">{stats.aAppliquer}</p>
+                </div>
+                <PlayCircle className="w-6 h-6 text-orange-500 flex-shrink-0" />
               </div>
-            </div>
-            {/* Toggle pour afficher les transferts terminés */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Afficher terminés</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showTermines}
-                onClick={() => setShowTermines(!showTermines)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                  showTermines ? 'bg-blue-600' : 'bg-gray-300'
+            </CardHeader>
+          </Card>
+
+          {/* Toggle pour afficher les transferts terminés */}
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 px-4 py-3">
+            <span className="text-sm text-gray-600 whitespace-nowrap">Afficher terminés</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showTermines}
+              onClick={() => setShowTermines(!showTermines)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                showTermines ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showTermines ? 'translate-x-6' : 'translate-x-1'
                 }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showTermines ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
+              />
+            </button>
           </div>
         </div>
 
