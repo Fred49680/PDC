@@ -231,7 +231,6 @@ export default function Planning2({
   
   // Charger toutes les compétences disponibles (depuis toutes les ressources)
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
-  const [loadingToutesCompetences, setLoadingToutesCompetences] = useState(false)
   
   useEffect(() => {
     const loadRessourcesTransferees = async () => {
@@ -404,7 +403,6 @@ export default function Planning2({
   useEffect(() => {
     const loadToutesCompetences = async () => {
       try {
-        setLoadingToutesCompetences(true)
         const supabase = createClient()
         
         // Récupérer toutes les compétences distinctes depuis ressources_competences
@@ -428,8 +426,6 @@ export default function Planning2({
       } catch (err) {
         console.error('[Planning2] Erreur chargement toutes compétences:', err)
         setToutesCompetences([])
-      } finally {
-        setLoadingToutesCompetences(false)
       }
     }
     
@@ -1716,7 +1712,7 @@ export default function Planning2({
       console.error('[Planning2] Erreur affectation ressource externe:', err)
       addToast('Erreur lors de l\'affectation de la ressource', 'error', 5000)
     }
-  }, [ressourceExterneModal, colonnes, precision, dateFin, absences, toutesAffectationsRessources, affaireId, site, creerTransfert, saveAffectation, refreshAffectations, addToast])
+  }, [ressourceExterneModal, colonnes, precision, absences, toutesAffectationsRessources, affaireId, site, creerTransfert, saveAffectation, refreshAffectations, addToast])
 
   // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
@@ -2000,7 +1996,7 @@ export default function Planning2({
           5000
         )
       }
-    }, [colonnes, precision, savePeriode, consolidateCharge, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh, dateFin])
+    }, [colonnes, precision, savePeriode, consolidateCharge, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
