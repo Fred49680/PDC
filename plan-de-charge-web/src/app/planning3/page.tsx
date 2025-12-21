@@ -32,17 +32,22 @@ export default function Planning3Page() {
     ? affairesActives.filter((a) => a.responsable === responsable)
     : affairesActives
 
-  // Extraire les sites uniques
+  // Extraire les sites uniques depuis les affaires filtrées par responsable
   const sitesDisponibles = Array.from(
     new Set(affairesFiltreesParResponsable.map((a) => a.site).filter(Boolean))
   ).sort()
 
+  // Filtrer les affaires selon le responsable et le site sélectionnés
+  const affairesFiltreesParResponsableEtSite = site
+    ? affairesFiltreesParResponsable.filter((a) => a.site === site)
+    : affairesFiltreesParResponsable
+
   // Filtrer par numéro de compte si renseigné
   const affairesFiltreesFinales = numeroCompte
-    ? affairesFiltreesParResponsable.filter((a) =>
+    ? affairesFiltreesParResponsableEtSite.filter((a) =>
         a.affaire_id && a.affaire_id.toLowerCase().includes(numeroCompte.toLowerCase())
       )
-    : affairesFiltreesParResponsable
+    : affairesFiltreesParResponsableEtSite
 
   // Réinitialiser les filtres en cascade
   useEffect(() => {
