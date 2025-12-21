@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
@@ -12,7 +12,6 @@ import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import { useToast } from '@/components/UI/Toast'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { periodeToBesoin } from '@/utils/planning/planning.compute'
-import type { PeriodeCharge } from '@/types/charge'
 import { triggerConsolidationPeriodesCharge } from '@/utils/planning/planning.api'
 
 interface Planning3Props {
@@ -23,8 +22,6 @@ interface Planning3Props {
 export function Planning3({ affaireId, site }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinToDelete, setBesoinToDelete] = useState<BesoinPeriode | null>(null)
-  const [besoins, setBesoins] = useState<BesoinPeriode[]>([])
-  const [affaireUuid, setAffaireUuid] = useState<string | null>(null)
   const { addToast } = useToast()
 
   // Hooks pour charger les données
@@ -52,13 +49,9 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     site: site || undefined,
   })
 
-  // Récupérer l'UUID de l'affaire depuis les périodes
-  useEffect(() => {
-    if (periodes.length > 0) {
-      setAffaireUuid(periodes[0].affaire_id)
-    } else {
-      setAffaireUuid(null)
-    }
+  // Récupérer l'UUID de l'affaire depuis les périodes (useMemo au lieu de useState + useEffect)
+  const affaireUuid = useMemo(() => {
+    return periodes.length > 0 ? periodes[0].affaire_id : null
   }, [periodes])
 
   // Consolider à l'ouverture de la page
@@ -70,23 +63,20 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     }
   }, [affaireId, site])
 
-  // Calculer les besoins avec couverture
-  useEffect(() => {
+  // Calculer les besoins avec couverture (useMemo au lieu de useState + useEffect)
+  const besoins = useMemo(() => {
     if (periodes.length > 0 && affectations.length >= 0) {
-      const besoinsCalcules = periodes.map((periode) =>
-        periodeToBesoin(periode, affectations)
-      )
-      setBesoins(besoinsCalcules)
-    } else {
-      setBesoins([])
+      return periodes.map((periode) => periodeToBesoin(periode, affectations))
     }
+    return []
   }, [periodes, affectations])
 
   const handleAffecter = (besoin: BesoinPeriode) => {
     setSelectedBesoin(besoin)
   }
 
-  const handleModifier = (besoin: BesoinPeriode) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleModifier = (_besoin: BesoinPeriode) => {
     // TODO: Implémenter la modification
     addToast('Fonctionnalité de modification à venir', 'info')
   }
@@ -102,9 +92,10 @@ export function Planning3({ affaireId, site }: Planning3Props) {
       await deletePeriode(besoinToDelete.id)
       addToast('Besoin supprimé avec succès', 'success')
       setBesoinToDelete(null)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur lors de la suppression:', error)
-      addToast(error.message || 'Erreur lors de la suppression', 'error')
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression'
+      addToast(errorMessage, 'error')
     }
   }
 
