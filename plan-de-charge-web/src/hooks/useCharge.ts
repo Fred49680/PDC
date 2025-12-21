@@ -227,18 +227,21 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       let upsertError: any
       
       // S'assurer que les dates sont des strings ISO valides
+      const formatDateForDB = (date: Date | string | undefined): string => {
+        if (!date) return new Date().toISOString().split('T')[0]
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0]
+        }
+        if (typeof date === 'string') {
+          return date.split('T')[0]
+        }
+        return new Date().toISOString().split('T')[0]
+      }
+      
       const periodeDataClean = {
         ...periodeData,
-        date_debut: periodeData.date_debut instanceof Date 
-          ? periodeData.date_debut.toISOString().split('T')[0] 
-          : typeof periodeData.date_debut === 'string' 
-            ? periodeData.date_debut.split('T')[0]
-            : periodeData.date_debut,
-        date_fin: periodeData.date_fin instanceof Date
-          ? periodeData.date_fin.toISOString().split('T')[0]
-          : typeof periodeData.date_fin === 'string'
-            ? periodeData.date_fin.split('T')[0]
-            : periodeData.date_fin,
+        date_debut: formatDateForDB(periodeData.date_debut),
+        date_fin: formatDateForDB(periodeData.date_fin),
       }
       
       // Si on a un ID, essayer un UPDATE direct
