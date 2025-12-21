@@ -186,12 +186,17 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
   }, [affaireId, site, loadPeriodes])
 
   const savePeriode = useCallback(async (periode: Partial<PeriodeCharge>) => {
+    console.log('[useCharge] ========== DEBUT savePeriode ==========')
+    console.log('[useCharge] Étape 1 - Données d\'entrée brutes:', JSON.stringify(periode, null, 2))
+    
     try {
       setError(null)
 
       const supabase = getSupabaseClient()
+      console.log('[useCharge] Étape 2 - Client Supabase créé')
 
       // Récupérer l'ID de l'affaire
+      console.log('[useCharge] Étape 3 - Recherche de l\'affaire:', { affaireId, site })
       const { data: affaireData, error: affaireError } = await supabase
         .from('affaires')
         .select('id')
@@ -200,13 +205,16 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         .maybeSingle()
 
       if (affaireError) {
-        console.error('[useCharge] Erreur recherche affaire (savePeriode):', affaireError)
+        console.error('[useCharge] Étape 3 - ERREUR recherche affaire:', affaireError)
         throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${site}: ${affaireError.message}`)
       }
       
       if (!affaireData) {
+        console.error('[useCharge] Étape 3 - Affaire introuvable')
         throw new Error(`Affaire ${affaireId} / ${site} introuvable`)
       }
+      
+      console.log('[useCharge] Étape 3 - Affaire trouvée, ID:', affaireData.id)
 
       // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
       // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
@@ -229,6 +237,18 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       if (periode.id) {
         periodeData.id = periode.id
       }
+      
+      console.log('[useCharge] Étape 4 - Données après normalisation initiale:', JSON.stringify(periodeData, null, 2))
+      console.log('[useCharge] Étape 4 - Types:', {
+        affaire_id: typeof periodeData.affaire_id,
+        site: typeof periodeData.site,
+        competence: typeof periodeData.competence,
+        date_debut: typeof periodeData.date_debut,
+        date_fin: typeof periodeData.date_fin,
+        nb_ressources: typeof periodeData.nb_ressources,
+        force_weekend_ferie: typeof periodeData.force_weekend_ferie,
+        'force_weekend_ferie value': periodeData.force_weekend_ferie,
+      })
 
       // Essayer d'abord un upsert
       let data: any
@@ -248,9 +268,17 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       // S'assurer que force_weekend_ferie est toujours un booléen valide
       const normalizeBoolean = (value: any): boolean => {
-        if (value === true || value === 'true' || value === 1 || value === '1') return true
-        if (value === false || value === 'false' || value === 0 || value === '0') return false
+        console.log('[useCharge] normalizeBoolean - Input:', { value, type: typeof value })
+        if (value === true || value === 'true' || value === 1 || value === '1') {
+          console.log('[useCharge] normalizeBoolean - Retourne: true')
+          return true
+        }
+        if (value === false || value === 'false' || value === 0 || value === '0') {
+          console.log('[useCharge] normalizeBoolean - Retourne: false')
+          return false
+        }
         // Si undefined, null, ou chaîne vide, retourner false par défaut
+        console.log('[useCharge] normalizeBoolean - Valeur invalide, retourne: false (défaut)')
         return false
       }
       
@@ -271,8 +299,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         periodeDataClean.id = periodeData.id
       }
       
-      // Log pour debug - vérifier qu'il n'y a pas de chaînes vides dans les booléens
-      console.log('[useCharge] periodeDataClean avant upsert:', JSON.stringify(periodeDataClean, null, 2))
+      console.log('[useCharge] Étape 5 - Données nettoyées (periodeDataClean):', JSON.stringify(periodeDataClean, null, 2))
+      console.log('[useCharge] Étape 5 - Types après nettoyage:', {
+        affaire_id: typeof periodeDataClean.affaire_id,
+        site: typeof periodeDataClean.site,
+        competence: typeof periodeDataClean.competence,
+        date_debut: typeof periodeDataClean.date_debut,
+        date_fin: typeof periodeDataClean.date_fin,
+        nb_ressources: typeof periodeDataClean.nb_ressources,
+        force_weekend_ferie: typeof periodeDataClean.force_weekend_ferie,
+        'force_weekend_ferie === true': periodeDataClean.force_weekend_ferie === true,
+        'force_weekend_ferie === false': periodeDataClean.force_weekend_ferie === false,
+        'force_weekend_ferie value': periodeDataClean.force_weekend_ferie,
+      })
       
       // Vérifier et nettoyer toutes les propriétés pour s'assurer qu'il n'y a pas de chaînes vides
       // et forcer le type boolean pour force_weekend_ferie
@@ -281,25 +320,38 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Si c'est force_weekend_ferie, s'assurer que c'est un boolean strict
         if (key === 'force_weekend_ferie') {
           if (value === '' || value === null || value === undefined) {
-            console.warn(`[useCharge] force_weekend_ferie invalide (${value}), remplacement par false`)
+            console.warn(`[useCharge] Étape 6 - force_weekend_ferie invalide (${value}), remplacement par false`)
             periodeDataClean[key] = false
           } else {
             // Forcer la conversion en boolean strict
+            const oldValue = periodeDataClean[key]
             periodeDataClean[key] = Boolean(value)
+            if (oldValue !== periodeDataClean[key]) {
+              console.log(`[useCharge] Étape 6 - force_weekend_ferie converti: ${oldValue} -> ${periodeDataClean[key]}`)
+            }
           }
         }
         // Si c'est un autre boolean et que la valeur est une chaîne vide, la remplacer par false
         else if (typeof value === 'string' && value === '' && key.includes('boolean')) {
-          console.warn(`[useCharge] Chaîne vide détectée pour ${key}, remplacement par false`)
+          console.warn(`[useCharge] Étape 6 - Chaîne vide détectée pour ${key}, remplacement par false`)
           periodeDataClean[key] = false
         }
       })
       
       // Double vérification : s'assurer que force_weekend_ferie est un boolean strict
       if (typeof periodeDataClean.force_weekend_ferie !== 'boolean') {
-        console.error('[useCharge] force_weekend_ferie n\'est pas un boolean:', typeof periodeDataClean.force_weekend_ferie, periodeDataClean.force_weekend_ferie)
+        console.error('[useCharge] Étape 7 - force_weekend_ferie n\'est pas un boolean:', typeof periodeDataClean.force_weekend_ferie, periodeDataClean.force_weekend_ferie)
         periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
+        console.log('[useCharge] Étape 7 - force_weekend_ferie corrigé:', periodeDataClean.force_weekend_ferie)
       }
+      
+      console.log('[useCharge] Étape 8 - Recherche période existante avec clés:', {
+        affaire_id: periodeDataClean.affaire_id,
+        site: periodeDataClean.site,
+        competence: periodeDataClean.competence,
+        date_debut: periodeDataClean.date_debut,
+        date_fin: periodeDataClean.date_fin,
+      })
       
       // APPROCHE ALTERNATIVE : Vérifier d'abord si l'enregistrement existe, puis INSERT ou UPDATE
       // Cela évite le problème de l'upsert qui essaie de mettre à jour tous les champs
@@ -315,9 +367,11 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       if (findError && findError.code !== 'PGRST116') {
         // Erreur autre que "not found"
-        console.error('[useCharge] Erreur lors de la recherche:', findError)
+        console.error('[useCharge] Étape 8 - ERREUR lors de la recherche:', findError)
         throw findError
       }
+      
+      console.log('[useCharge] Étape 8 - Résultat recherche:', existingData ? `Période existante trouvée (ID: ${existingData.id})` : 'Aucune période existante')
       
       if (existingData) {
         // Enregistrement existant : UPDATE avec seulement les champs modifiables
@@ -325,6 +379,14 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           nb_ressources: periodeDataClean.nb_ressources,
           force_weekend_ferie: periodeDataClean.force_weekend_ferie,
         }
+        
+        console.log('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
+        console.log('[useCharge] Étape 9 - UPDATE - Types:', {
+          nb_ressources: typeof updateDataOnly.nb_ressources,
+          force_weekend_ferie: typeof updateDataOnly.force_weekend_ferie,
+          'force_weekend_ferie value': updateDataOnly.force_weekend_ferie,
+        })
+        console.log('[useCharge] Étape 9 - UPDATE - ID cible:', existingData.id)
         
         const { data: updateData, error: updateError } = await supabase
           .from('periodes_charge')
@@ -334,9 +396,18 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           .single()
         
         if (updateError) {
-          console.error('[useCharge] Erreur update:', updateError)
+          console.error('[useCharge] Étape 9 - ERREUR update:', updateError)
+          console.error('[useCharge] Étape 9 - Détails erreur:', {
+            code: updateError.code,
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+            status: (updateError as any).status,
+          })
           throw updateError
         }
+        
+        console.log('[useCharge] Étape 9 - UPDATE réussi, données retournées:', JSON.stringify(updateData, null, 2))
         data = updateData
       } else {
         // Nouvel enregistrement : INSERT
@@ -350,6 +421,27 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           force_weekend_ferie: periodeDataClean.force_weekend_ferie,
         }
         
+        console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertData, null, 2))
+        console.log('[useCharge] Étape 10 - INSERT - Types:', {
+          affaire_id: typeof insertData.affaire_id,
+          site: typeof insertData.site,
+          competence: typeof insertData.competence,
+          date_debut: typeof insertData.date_debut,
+          date_fin: typeof insertData.date_fin,
+          nb_ressources: typeof insertData.nb_ressources,
+          force_weekend_ferie: typeof insertData.force_weekend_ferie,
+          'force_weekend_ferie value': insertData.force_weekend_ferie,
+          'force_weekend_ferie === true': insertData.force_weekend_ferie === true,
+          'force_weekend_ferie === false': insertData.force_weekend_ferie === false,
+        })
+        
+        // Vérification finale avant envoi
+        if (insertData.force_weekend_ferie === '' || insertData.force_weekend_ferie === null || insertData.force_weekend_ferie === undefined) {
+          console.error('[useCharge] Étape 10 - ERREUR: force_weekend_ferie invalide avant INSERT!', insertData.force_weekend_ferie)
+          insertData.force_weekend_ferie = false
+          console.log('[useCharge] Étape 10 - force_weekend_ferie corrigé à false')
+        }
+        
         const { data: insertDataResult, error: insertError } = await supabase
           .from('periodes_charge')
           .insert(insertData)
@@ -357,73 +449,24 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           .single()
         
         if (insertError) {
-          console.error('[useCharge] Erreur insert:', insertError)
+          console.error('[useCharge] Étape 10 - ERREUR insert:', insertError)
+          console.error('[useCharge] Étape 10 - Détails erreur:', {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            status: (insertError as any).status,
+          })
+          console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(insertData, null, 2))
           throw insertError
         }
+        
+        console.log('[useCharge] Étape 10 - INSERT réussi, données retournées:', JSON.stringify(insertDataResult, null, 2))
         data = insertDataResult
       }
       
-      // Initialiser upsertError à null car nous n'utilisons plus upsert
-      upsertError = null
-
-      // Si erreur 400 (bad request) avec message sur boolean, logger plus d'infos
-      if (upsertError && upsertError.code === '22P02' && upsertError.message?.includes('boolean')) {
-        console.error('[useCharge] Erreur boolean détectée:', {
-          code: upsertError.code,
-          message: upsertError.message,
-          periodeDataClean: JSON.stringify(periodeDataClean, null, 2),
-          types: Object.keys(periodeDataClean).reduce((acc, key) => {
-            acc[key] = typeof periodeDataClean[key]
-            return acc
-          }, {} as Record<string, string>),
-        })
-      }
+      console.log('[useCharge] Étape 11 - Transformation des données retournées')
       
-      // Si erreur 409 (conflict) ou 400 (bad request), essayer de récupérer la période existante et la mettre à jour
-      if (upsertError && (
-        upsertError.code === '23505' || 
-        upsertError.code === 'PGRST116' || 
-        upsertError.code === 'PGRST301' ||
-        upsertError.status === 400 ||
-        upsertError.status === 409
-      )) {
-        // Erreur de contrainte unique ou requête invalide : chercher la période existante
-        const { data: existingData, error: findError } = await supabase
-          .from('periodes_charge')
-          .select('*')
-          .eq('affaire_id', periodeDataClean.affaire_id)
-          .eq('site', periodeDataClean.site)
-          .eq('competence', periodeDataClean.competence)
-          .eq('date_debut', periodeDataClean.date_debut)
-          .eq('date_fin', periodeDataClean.date_fin)
-          .single()
-        
-        if (!findError && existingData) {
-          // Mettre à jour la période existante
-          const { data: updateData, error: updateError } = await supabase
-            .from('periodes_charge')
-            .update({
-              nb_ressources: periodeDataClean.nb_ressources,
-              force_weekend_ferie: periodeDataClean.force_weekend_ferie,
-            })
-            .eq('id', existingData.id)
-            .select()
-            .single()
-          
-          if (updateError) {
-            console.error('[useCharge] Erreur update après conflict:', updateError)
-            throw updateError
-          }
-          data = updateData
-        } else {
-          console.error('[useCharge] Erreur upsert et période non trouvée:', upsertError)
-          throw upsertError
-        }
-      } else if (upsertError) {
-        console.error('[useCharge] Erreur upsert:', upsertError)
-        throw upsertError
-      }
-
       // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
       // Cela évite que le rechargement écrase les valeurs en cours de saisie
       const periodeAvecDates = {
@@ -435,6 +478,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
       } as PeriodeCharge
 
+      console.log('[useCharge] Étape 12 - Mise à jour optimiste de l\'état local')
       // Mettre à jour optimistement periodes (remplacer ou ajouter la période)
       setPeriodes((prev) => {
         const newPeriodes = [...prev]
@@ -459,16 +503,22 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
       // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
       if (autoRefresh && !enableRealtime) {
+        console.log('[useCharge] Étape 13 - Rechargement des périodes (autoRefresh activé, Realtime désactivé)')
         await loadPeriodes()
+      } else {
+        console.log('[useCharge] Étape 13 - Pas de rechargement (autoRefresh:', autoRefresh, ', Realtime:', enableRealtime, ')')
       }
 
+      console.log('[useCharge] ========== FIN savePeriode - SUCCÈS ==========')
       return periodeAvecDates
     } catch (err) {
+      console.error('[useCharge] ========== FIN savePeriode - ERREUR ==========')
+      console.error('[useCharge] Erreur complète:', err)
+      console.error('[useCharge] Stack trace:', (err as Error)?.stack)
       setError(err as Error)
-      console.error('[useCharge] Erreur savePeriode:', err)
       throw err
     }
-  }, [affaireId, site, loadPeriodes, autoRefresh, enableRealtime])
+  }, [affaireId, site, loadPeriodes, autoRefresh, enableRealtime, getSupabaseClient])
 
   const deletePeriode = useCallback(async (periodeId: string) => {
     try {
