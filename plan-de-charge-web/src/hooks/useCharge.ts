@@ -343,6 +343,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         upsertError = upsertErr
       }
 
+      // Si erreur 400 (bad request) avec message sur boolean, logger plus d'infos
+      if (upsertError && upsertError.code === '22P02' && upsertError.message?.includes('boolean')) {
+        console.error('[useCharge] Erreur boolean détectée:', {
+          code: upsertError.code,
+          message: upsertError.message,
+          periodeDataClean: JSON.stringify(periodeDataClean, null, 2),
+          types: Object.keys(periodeDataClean).reduce((acc, key) => {
+            acc[key] = typeof periodeDataClean[key]
+            return acc
+          }, {} as Record<string, string>),
+        })
+      }
+      
       // Si erreur 409 (conflict) ou 400 (bad request), essayer de récupérer la période existante et la mettre à jour
       if (upsertError && (
         upsertError.code === '23505' || 
