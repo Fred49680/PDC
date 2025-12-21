@@ -275,14 +275,31 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       console.log('[useCharge] periodeDataClean avant upsert:', JSON.stringify(periodeDataClean, null, 2))
       
       // Vérifier et nettoyer toutes les propriétés pour s'assurer qu'il n'y a pas de chaînes vides
+      // et forcer le type boolean pour force_weekend_ferie
       Object.keys(periodeDataClean).forEach((key) => {
         const value = periodeDataClean[key]
-        // Si c'est un boolean et que la valeur est une chaîne vide, la remplacer par false
-        if (typeof value === 'string' && value === '' && (key.includes('boolean') || key === 'force_weekend_ferie')) {
+        // Si c'est force_weekend_ferie, s'assurer que c'est un boolean strict
+        if (key === 'force_weekend_ferie') {
+          if (value === '' || value === null || value === undefined) {
+            console.warn(`[useCharge] force_weekend_ferie invalide (${value}), remplacement par false`)
+            periodeDataClean[key] = false
+          } else {
+            // Forcer la conversion en boolean strict
+            periodeDataClean[key] = Boolean(value)
+          }
+        }
+        // Si c'est un autre boolean et que la valeur est une chaîne vide, la remplacer par false
+        else if (typeof value === 'string' && value === '' && key.includes('boolean')) {
           console.warn(`[useCharge] Chaîne vide détectée pour ${key}, remplacement par false`)
           periodeDataClean[key] = false
         }
       })
+      
+      // Double vérification : s'assurer que force_weekend_ferie est un boolean strict
+      if (typeof periodeDataClean.force_weekend_ferie !== 'boolean') {
+        console.error('[useCharge] force_weekend_ferie n\'est pas un boolean:', typeof periodeDataClean.force_weekend_ferie, periodeDataClean.force_weekend_ferie)
+        periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
+      }
       
       // Si on a un ID, essayer un UPDATE direct
       if (periodeDataClean.id) {
@@ -297,10 +314,12 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           data = updateData
         } else {
           // Si l'UPDATE échoue, essayer l'upsert
+          // Utiliser ignoreDuplicates: false pour forcer la mise à jour en cas de conflit
           const { data: upsertData, error: upsertErr } = await supabase
             .from('periodes_charge')
             .upsert(periodeDataClean, {
               onConflict: 'affaire_id,site,competence,date_debut,date_fin',
+              ignoreDuplicates: false,
             })
             .select()
             .single()
@@ -310,10 +329,12 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         }
       } else {
         // Pas d'ID, essayer l'upsert directement
+        // Utiliser ignoreDuplicates: false pour forcer la mise à jour en cas de conflit
         const { data: upsertData, error: upsertErr } = await supabase
           .from('periodes_charge')
           .upsert(periodeDataClean, {
             onConflict: 'affaire_id,site,competence,date_debut,date_fin',
+            ignoreDuplicates: false,
           })
           .select()
           .single()
