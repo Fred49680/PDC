@@ -209,10 +209,11 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       }
 
       // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
-      const periodeData = {
-        ...periode,
+      // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
+      const periodeData: any = {
         affaire_id: affaireData.id,
         site,
+        competence: periode.competence,
         // Normaliser date_debut et date_fin si elles sont des objets Date
         date_debut: periode.date_debut instanceof Date 
           ? normalizeDateToUTC(periode.date_debut)
@@ -220,6 +221,13 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         date_fin: periode.date_fin instanceof Date
           ? normalizeDateToUTC(periode.date_fin)
           : periode.date_fin,
+        nb_ressources: periode.nb_ressources || 0,
+        force_weekend_ferie: periode.force_weekend_ferie,
+      }
+      
+      // Ajouter l'ID seulement s'il existe
+      if (periode.id) {
+        periodeData.id = periode.id
       }
 
       // Essayer d'abord un upsert
@@ -262,6 +270,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       if (periodeData.id) {
         periodeDataClean.id = periodeData.id
       }
+      
+      // Log pour debug - vérifier qu'il n'y a pas de chaînes vides dans les booléens
+      console.log('[useCharge] periodeDataClean avant upsert:', JSON.stringify(periodeDataClean, null, 2))
+      
+      // Vérifier et nettoyer toutes les propriétés pour s'assurer qu'il n'y a pas de chaînes vides
+      Object.keys(periodeDataClean).forEach((key) => {
+        const value = periodeDataClean[key]
+        // Si c'est un boolean et que la valeur est une chaîne vide, la remplacer par false
+        if (typeof value === 'string' && value === '' && (key.includes('boolean') || key === 'force_weekend_ferie')) {
+          console.warn(`[useCharge] Chaîne vide détectée pour ${key}, remplacement par false`)
+          periodeDataClean[key] = false
+        }
+      })
       
       // Si on a un ID, essayer un UPDATE direct
       if (periodeDataClean.id) {
