@@ -691,121 +691,106 @@ export default function TransfertsPage() {
           </div>
         </div>
 
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-600 font-medium">Total</p>
-                  <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
-                </div>
-                <ArrowRightLeft className="w-8 h-8 text-blue-500" />
+        {/* Statistiques - Ligne compacte */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+                <span className="text-sm text-gray-600">Total:</span>
+                <span className="text-lg font-bold text-blue-800">{stats.total}</span>
               </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-yellow-600 font-medium">Planifiés</p>
-                  <p className="text-2xl font-bold text-yellow-800">{stats.planifies}</p>
-                </div>
-                <Clock className="w-8 h-8 text-yellow-500" />
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-yellow-600" />
+                <span className="text-sm text-gray-600">Planifiés:</span>
+                <span className="text-lg font-bold text-yellow-800">{stats.planifies}</span>
               </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-green-600 font-medium">Appliqués</p>
-                  <p className="text-2xl font-bold text-green-800">{stats.appliques}</p>
-                </div>
-                <CheckCircle2 className="w-8 h-8 text-green-500" />
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                <span className="text-sm text-gray-600">Appliqués:</span>
+                <span className="text-lg font-bold text-green-800">{stats.appliques}</span>
               </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-600 font-medium">À appliquer</p>
-                  <p className="text-2xl font-bold text-orange-800">{stats.aAppliquer}</p>
-                </div>
-                <PlayCircle className="w-8 h-8 text-orange-500" />
+              <div className="flex items-center gap-2">
+                <PlayCircle className="w-5 h-5 text-orange-600" />
+                <span className="text-sm text-gray-600">À appliquer:</span>
+                <span className="text-lg font-bold text-orange-800">{stats.aAppliquer}</span>
               </div>
-            </CardHeader>
-          </Card>
+            </div>
+            {/* Toggle pour afficher les transferts terminés */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Afficher terminés</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showTermines}
+                onClick={() => setShowTermines(!showTermines)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  showTermines ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showTermines ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Actions et filtres */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  type="text"
-                  placeholder="Rechercher par nom de ressource..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full"
-                />
-              </div>
-              <Select
-                value={filters.siteOrigine}
-                onChange={(e) => setFilters({ ...filters, siteOrigine: e.target.value.toUpperCase() || '' })}
-                className="w-full sm:w-48"
-                options={[
-                  { value: '', label: 'Tous les sites origine' },
-                  ...sitesList.map((site) => ({
-                    value: site.site.toUpperCase(),
-                    label: site.site.toUpperCase(), // Affichage en majuscules
-                  })),
-                ]}
+        {/* Actions et filtres - Ligne compacte */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Rechercher..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 h-9 text-sm"
               />
-              <Select
-                value={filters.siteDestination}
-                onChange={(e) => setFilters({ ...filters, siteDestination: e.target.value.toUpperCase() || '' })}
-                className="w-full sm:w-48"
-                options={[
-                  { value: '', label: 'Tous les sites destination' },
-                  ...sitesList.map((site) => ({
-                    value: site.site.toUpperCase(),
-                    label: site.site.toUpperCase(), // Affichage en majuscules
-                  })),
-                ]}
-              />
-              <Select
-                value={filters.statut}
-                onChange={(e) => setFilters({ ...filters, statut: e.target.value })}
-                className="w-full sm:w-48"
-                options={[
-                  { value: '', label: 'Tous les statuts' },
-                  { value: 'Planifié', label: 'Planifié' },
-                  { value: 'Appliqué', label: 'Appliqué' },
-                ]}
-              />
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showTermines}
-                  onChange={(e) => setShowTermines(e.target.checked)}
-                  className="w-4 h-4 rounded accent-blue-600"
-                />
-                <span>Afficher les transferts terminés</span>
-              </label>
             </div>
-            <div className="flex gap-2">
+            <Select
+              value={filters.siteOrigine}
+              onChange={(e) => setFilters({ ...filters, siteOrigine: e.target.value.toUpperCase() || '' })}
+              className="w-auto min-w-[140px]"
+              options={[
+                { value: '', label: 'Tous sites origine' },
+                ...sitesList.map((site) => ({
+                  value: site.site.toUpperCase(),
+                  label: site.site.toUpperCase(),
+                })),
+              ]}
+            />
+            <Select
+              value={filters.siteDestination}
+              onChange={(e) => setFilters({ ...filters, siteDestination: e.target.value.toUpperCase() || '' })}
+              className="w-auto min-w-[140px]"
+              options={[
+                { value: '', label: 'Tous sites destination' },
+                ...sitesList.map((site) => ({
+                  value: site.site.toUpperCase(),
+                  label: site.site.toUpperCase(),
+                })),
+              ]}
+            />
+            <Select
+              value={filters.statut}
+              onChange={(e) => setFilters({ ...filters, statut: e.target.value })}
+              className="w-auto min-w-[120px]"
+              options={[
+                { value: '', label: 'Tous statuts' },
+                { value: 'Planifié', label: 'Planifié' },
+                { value: 'Appliqué', label: 'Appliqué' },
+              ]}
+            />
+            <div className="flex gap-2 ml-auto">
               <Button
                 onClick={handleApplicationManuelle}
-                className="bg-blue-500 hover:bg-blue-600 text-white"
+                className="bg-blue-500 hover:bg-blue-600 text-white h-9 px-3 text-sm"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                 Appliquer auto
               </Button>
               <Button
@@ -822,10 +807,10 @@ export default function TransfertsPage() {
                   setIsEditing(false)
                   setShowModal(true)
                 }}
-                className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
+                className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white h-9 px-3 text-sm"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Nouveau transfert
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Nouveau
               </Button>
             </div>
           </div>
