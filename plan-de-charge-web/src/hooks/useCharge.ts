@@ -7,6 +7,22 @@ import { addDays, isSameDay } from 'date-fns'
 import type { PeriodeCharge } from '@/types/charge'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
+// Type pour les données brutes retournées par Supabase
+interface PeriodeChargeRaw {
+  id: string
+  affaire_id: string
+  site: string
+  competence: string
+  date_debut: string
+  date_fin: string
+  nb_ressources: number
+  force_weekend_ferie?: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string
+  updated_by?: string
+}
+
 interface UseChargeOptions {
   affaireId: string
   site: string
@@ -64,7 +80,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       if (queryError) throw queryError
 
       // Convertir les dates de string ISO en Date
-      const periodesAvecDates = (data || []).map((p: any) => ({
+      const periodesAvecDates = (data || []).map((p: PeriodeChargeRaw) => ({
         ...p,
         date_debut: p.date_debut ? new Date(p.date_debut) : new Date(),
         date_fin: p.date_fin ? new Date(p.date_fin) : new Date(),
@@ -80,7 +96,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
     } finally {
       setLoading(false)
     }
-  }, [affaireId, site])
+  }, [affaireId, site, getSupabaseClient])
 
   // Abonnement Realtime pour les périodes de charge
   useEffect(() => {
@@ -123,7 +139,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
               
               // Mise à jour optimiste
               if (payload.eventType === 'INSERT' && payload.new) {
-                const newPeriode = payload.new as any
+                const newPeriode = payload.new as PeriodeChargeRaw
                 setPeriodes((prev) => {
                   const exists = prev.some((p) => p.id === newPeriode.id)
                   if (exists) return prev
@@ -140,24 +156,30 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
                   )
                 })
               } else if (payload.eventType === 'UPDATE' && payload.new) {
-                const updatedPeriode = payload.new as any
+                const updatedPeriode = payload.new as PeriodeChargeRaw
                 setPeriodes((prev) =>
                   prev.map((p) =>
                     p.id === updatedPeriode.id
                       ? {
-                          ...p,
-                          ...updatedPeriode,
+                          id: updatedPeriode.id,
+                          affaire_id: updatedPeriode.affaire_id,
+                          site: updatedPeriode.site,
+                          competence: updatedPeriode.competence,
                           date_debut: new Date(updatedPeriode.date_debut),
                           date_fin: new Date(updatedPeriode.date_fin),
+                          nb_ressources: updatedPeriode.nb_ressources,
                           force_weekend_ferie: updatedPeriode.force_weekend_ferie === true,
+                          created_at: new Date(updatedPeriode.created_at),
                           updated_at: new Date(updatedPeriode.updated_at),
+                          created_by: updatedPeriode.created_by,
+                          updated_by: updatedPeriode.updated_by,
                         }
                       : p
                   )
                 )
               } else if (payload.eventType === 'DELETE' && payload.old) {
-                const deletedId = (payload.old as any).id
-                setPeriodes((prev) => prev.filter((p) => p.id !== deletedId))
+                const deletedPeriode = payload.old as PeriodeChargeRaw
+                setPeriodes((prev) => prev.filter((p) => p.id !== deletedPeriode.id))
               }
             }
           )
@@ -224,17 +246,26 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
 
       // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
       // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
-      const periodeData: any = {
+      const periodeData: {
+        id?: string
+        affaire_id: string
+        site: string
+        competence: string
+        date_debut: Date | string
+        date_fin: Date | string
+        nb_ressources: number
+        force_weekend_ferie?: boolean | string | number
+      } = {
         affaire_id: affaireData.id,
         site: siteNormalized,
-        competence: periode.competence,
+        competence: periode.competence || '',
         // Normaliser date_debut et date_fin si elles sont des objets Date
-        date_debut: periode.date_debut instanceof Date 
+        date_debut: (periode.date_debut instanceof Date 
           ? normalizeDateToUTC(periode.date_debut)
-          : periode.date_debut,
-        date_fin: periode.date_fin instanceof Date
+          : periode.date_debut) || new Date(),
+        date_fin: (periode.date_fin instanceof Date
           ? normalizeDateToUTC(periode.date_fin)
-          : periode.date_fin,
+          : periode.date_fin) || new Date(),
         nb_ressources: periode.nb_ressources || 0,
         force_weekend_ferie: periode.force_weekend_ferie,
       }
@@ -257,8 +288,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       })
 
       // Essayer d'abord un upsert
-      let data: any
-      let upsertError: any
+      let data: PeriodeChargeRaw
       
       // S'assurer que les dates sont des strings ISO valides
       const formatDateForDB = (date: Date | string | undefined): string => {
@@ -273,7 +303,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       }
       
       // S'assurer que force_weekend_ferie est toujours un booléen valide
-      const normalizeBoolean = (value: any): boolean => {
+      const normalizeBoolean = (value: unknown): boolean => {
         console.log('[useCharge] normalizeBoolean - Input:', { value, type: typeof value })
         if (value === true || value === 'true' || value === 1 || value === '1') {
           console.log('[useCharge] normalizeBoolean - Retourne: true')
@@ -291,7 +321,16 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Créer un objet propre avec uniquement les champs nécessaires et correctement formatés
       // Cela évite de propager des valeurs invalides via le spread
       // Le site est déjà normalisé dans periodeData.site
-      const periodeDataClean: any = {
+      const periodeDataClean: {
+        id?: string
+        affaire_id: string
+        site: string
+        competence: string
+        date_debut: string
+        date_fin: string
+        nb_ressources: number
+        force_weekend_ferie?: boolean
+      } = {
         affaire_id: periodeData.affaire_id,
         site: periodeData.site, // Déjà normalisé en majuscules
         competence: periodeData.competence,
@@ -320,30 +359,10 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         'force_weekend_ferie value': periodeDataClean.force_weekend_ferie,
       })
       
-      // Vérifier et nettoyer toutes les propriétés pour s'assurer qu'il n'y a pas de chaînes vides
-      // et forcer le type boolean pour force_weekend_ferie
-      Object.keys(periodeDataClean).forEach((key) => {
-        const value = periodeDataClean[key]
-        // Si c'est force_weekend_ferie, s'assurer que c'est un boolean strict
-        if (key === 'force_weekend_ferie') {
-          if (value === '' || value === null || value === undefined) {
-            console.warn(`[useCharge] Étape 6 - force_weekend_ferie invalide (${value}), remplacement par false`)
-            periodeDataClean[key] = false
-          } else {
-            // Forcer la conversion en boolean strict
-            const oldValue = periodeDataClean[key]
-            periodeDataClean[key] = Boolean(value)
-            if (oldValue !== periodeDataClean[key]) {
-              console.log(`[useCharge] Étape 6 - force_weekend_ferie converti: ${oldValue} -> ${periodeDataClean[key]}`)
-            }
-          }
-        }
-        // Si c'est un autre boolean et que la valeur est une chaîne vide, la remplacer par false
-        else if (typeof value === 'string' && value === '' && key.includes('boolean')) {
-          console.warn(`[useCharge] Étape 6 - Chaîne vide détectée pour ${key}, remplacement par false`)
-          periodeDataClean[key] = false
-        }
-      })
+      // S'assurer que force_weekend_ferie est un boolean strict
+      if (periodeDataClean.force_weekend_ferie !== undefined) {
+        periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
+      }
       
       // Double vérification : s'assurer que force_weekend_ferie est un boolean strict
       if (typeof periodeDataClean.force_weekend_ferie !== 'boolean') {
@@ -394,7 +413,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           message: findError.message,
           details: findError.details,
           hint: findError.hint,
-          status: (findError as any).status,
+            status: (findError as { status?: number }).status,
           queryParams: {
             affaire_id: periodeDataClean.affaire_id,
             site: periodeDataClean.site,
@@ -418,10 +437,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       if (existingData) {
         // Enregistrement existant : UPDATE avec seulement les champs modifiables
         // Déterminer la valeur booléenne (true ou false)
-        const shouldForceWeekendFerieUpdate: boolean = periodeDataClean.force_weekend_ferie === true || 
-                                                        periodeDataClean.force_weekend_ferie === 'true' || 
-                                                        periodeDataClean.force_weekend_ferie === 1 ||
-                                                        periodeDataClean.force_weekend_ferie === '1'
+        const shouldForceWeekendFerieUpdate: boolean = periodeDataClean.force_weekend_ferie === true
         
         // Créer un objet littéral strict avec le booléen explicite
         const updateDataOnly: {
@@ -454,7 +470,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
             message: updateError.message,
             details: updateError.details,
             hint: updateError.hint,
-            status: (updateError as any).status,
+            status: (updateError as { status?: number }).status,
           })
           throw updateError
         }
@@ -466,10 +482,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Le site est déjà normalisé dans periodeDataClean.site
         // FORCER le booléen AVANT de créer l'objet pour éviter toute transformation lors de la sérialisation
         // Déterminer si force_weekend_ferie doit être true (sinon on l'omet pour utiliser la valeur par défaut)
-        const shouldForceWeekendFerie: boolean = periodeDataClean.force_weekend_ferie === true || 
-                                                  periodeDataClean.force_weekend_ferie === 'true' || 
-                                                  periodeDataClean.force_weekend_ferie === 1 ||
-                                                  periodeDataClean.force_weekend_ferie === '1'
+        const shouldForceWeekendFerie: boolean = periodeDataClean.force_weekend_ferie === true
         
         // Créer un objet littéral strict pour éviter toute transformation lors de la sérialisation JSON
         // TOUJOURS inclure force_weekend_ferie explicitement comme booléen strict
@@ -516,7 +529,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
             message: insertError.message,
             details: insertError.details,
             hint: insertError.hint,
-            status: (insertError as any).status,
+            status: (insertError as { status?: number }).status,
           })
           console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(insertData, null, 2))
           throw insertError
@@ -656,7 +669,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         return new Date().toISOString().split('T')[0]
       }
 
-      const normalizeBoolean = (value: any): boolean => {
+      const normalizeBoolean = (value: unknown): boolean => {
         if (value === true || value === 'true' || value === 1 || value === '1') {
           return true
         }
@@ -757,8 +770,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       }
 
       // Grouper par compétence
-      const periodesParCompetence = new Map<string, typeof allPeriodes>()
-      allPeriodes.forEach((p: any) => {
+      const periodesParCompetence = new Map<string, PeriodeCharge[]>()
+      allPeriodes.forEach((p: PeriodeCharge) => {
         const comp = p.competence
         if (!periodesParCompetence.has(comp)) {
           periodesParCompetence.set(comp, [])
@@ -769,10 +782,10 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Pour chaque compétence, consolider les périodes
       for (const [comp, periodesComp] of periodesParCompetence.entries()) {
         // *** NOUVEAU : Séparer les périodes avec force_weekend_ferie=true (ne pas les consolider) ***
-        const periodesForcees: typeof allPeriodes = []
-        const periodesNormales: typeof allPeriodes = []
+        const periodesForcees: PeriodeCharge[] = []
+        const periodesNormales: PeriodeCharge[] = []
 
-        periodesComp.forEach((p: any) => {
+        periodesComp.forEach((p: PeriodeCharge) => {
           if (p.force_weekend_ferie === true) {
             // Période forcée : la garder telle quelle (ligne séparée)
             periodesForcees.push(p)
@@ -785,7 +798,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // *** NOUVEAU : Déplier jour par jour (jours ouvrés uniquement) SEULEMENT pour les périodes normales ***
         const joursParCharge = new Map<string, number>() // Clé: date ISO (YYYY-MM-DD), Valeur: nb_ressources
 
-        periodesNormales.forEach((p: any) => {
+        periodesNormales.forEach((p: PeriodeCharge) => {
           const dateDebut = new Date(p.date_debut)
           const dateFin = new Date(p.date_fin)
           const nbRessources = p.nb_ressources || 0
@@ -911,7 +924,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       console.error('[useCharge] Erreur consolidate:', err)
       throw err
     }
-  }, [affaireId, site, loadPeriodes])
+  }, [affaireId, site, loadPeriodes, getSupabaseClient])
 
   return {
     periodes,
