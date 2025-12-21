@@ -395,6 +395,42 @@ export default function Planning2({
     
     loadToutesRessources()
   }, [])
+
+  // Charger toutes les compétences distinctes depuis la base de données
+  useEffect(() => {
+    const loadToutesCompetences = async () => {
+      try {
+        setLoadingToutesCompetences(true)
+        const supabase = createClient()
+        
+        // Récupérer toutes les compétences distinctes depuis ressources_competences
+        const { data: competencesData, error: competencesError } = await supabase
+          .from('ressources_competences')
+          .select('competence')
+          .not('competence', 'is', null)
+        
+        if (competencesError) throw competencesError
+        
+        // Extraire les compétences uniques et les trier
+        const competencesSet = new Set<string>()
+        ;(competencesData || []).forEach((item) => {
+          if (item.competence && item.competence.trim()) {
+            competencesSet.add(item.competence.trim())
+          }
+        })
+        
+        const competencesList = Array.from(competencesSet).sort()
+        setToutesCompetences(competencesList)
+      } catch (err) {
+        console.error('[Planning2] Erreur chargement toutes compétences:', err)
+        setToutesCompetences([])
+      } finally {
+        setLoadingToutesCompetences(false)
+      }
+    }
+    
+    loadToutesCompetences()
+  }, [])
   
   // Fusionner les ressources actives et les ressources transférées (sans doublons)
   const ressources = useMemo(() => {
@@ -584,17 +620,16 @@ export default function Planning2({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Liste des compétences
+  // Liste des compétences - Utiliser toutes les compétences disponibles depuis la base
   const competencesList = useMemo(() => {
-    const compSet = new Set<string>()
-    // Ajouter les compétences depuis les périodes (charge)
+    // Utiliser toutes les compétences chargées depuis la base de données
+    // Cela inclut toutes les compétences, même si aucune ressource locale ne les possède
+    const compSet = new Set<string>(toutesCompetences)
+    
+    // Ajouter aussi les compétences depuis les périodes et affectations (au cas où elles ne seraient pas encore dans la liste)
     periodes.forEach(p => { if (p.competence) compSet.add(p.competence) })
-    // Ajouter les compétences depuis les affectations (même sans ressources locales)
     affectations.forEach(a => { if (a.competence) compSet.add(a.competence) })
-    // Ajouter les compétences depuis les ressources locales
-    competencesMap.forEach((comps) => {
-      comps.forEach(comp => { if (comp.competence) compSet.add(comp.competence) })
-    })
+    
     const list = Array.from(compSet).sort()
     
     // Auto-sélectionner celles avec des données
