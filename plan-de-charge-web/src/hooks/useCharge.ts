@@ -417,9 +417,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       if (existingData) {
         // Enregistrement existant : UPDATE avec seulement les champs modifiables
-        const updateDataOnly: any = {
+        // FORCER le booléen AVANT de créer l'objet
+        const forceWeekendFerieUpdate: boolean = periodeDataClean.force_weekend_ferie === true || 
+                                                  periodeDataClean.force_weekend_ferie === 'true' || 
+                                                  periodeDataClean.force_weekend_ferie === 1
+                                                  ? true 
+                                                  : false
+        
+        const updateDataOnly: {
+          nb_ressources: number
+          force_weekend_ferie: boolean
+        } = {
           nb_ressources: periodeDataClean.nb_ressources,
-          force_weekend_ferie: periodeDataClean.force_weekend_ferie,
+          force_weekend_ferie: forceWeekendFerieUpdate, // Booléen strict garanti
         }
         
         console.log('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
@@ -454,14 +464,31 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       } else {
         // Nouvel enregistrement : INSERT
         // Le site est déjà normalisé dans periodeDataClean.site
-        const insertData: any = {
+        // FORCER le booléen AVANT de créer l'objet pour éviter toute transformation lors de la sérialisation
+        const forceWeekendFerieFinal: boolean = periodeDataClean.force_weekend_ferie === true || 
+                                                 periodeDataClean.force_weekend_ferie === 'true' || 
+                                                 periodeDataClean.force_weekend_ferie === 1
+                                                 ? true 
+                                                 : false
+        
+        // Créer un objet complètement propre avec uniquement les valeurs nécessaires
+        // Ne pas utiliser de spread qui pourrait propager des valeurs invalides
+        const insertData: {
+          affaire_id: string
+          site: string
+          competence: string
+          date_debut: string
+          date_fin: string
+          nb_ressources: number
+          force_weekend_ferie: boolean
+        } = {
           affaire_id: periodeDataClean.affaire_id,
           site: periodeDataClean.site,
           competence: periodeDataClean.competence,
           date_debut: periodeDataClean.date_debut,
           date_fin: periodeDataClean.date_fin,
           nb_ressources: periodeDataClean.nb_ressources,
-          force_weekend_ferie: periodeDataClean.force_weekend_ferie,
+          force_weekend_ferie: forceWeekendFerieFinal, // Booléen strict garanti
         }
         
         console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertData, null, 2))
@@ -476,31 +503,6 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           'force_weekend_ferie value': insertData.force_weekend_ferie,
           'force_weekend_ferie === true': insertData.force_weekend_ferie === true,
           'force_weekend_ferie === false': insertData.force_weekend_ferie === false,
-        })
-        
-        // Vérification finale et FORCAGE du type booléen strict avant envoi
-        // S'assurer que force_weekend_ferie est toujours un booléen strict, jamais une chaîne vide
-        if (typeof insertData.force_weekend_ferie !== 'boolean') {
-          console.error('[useCharge] Étape 10 - ERREUR: force_weekend_ferie n\'est pas un boolean strict!', {
-            value: insertData.force_weekend_ferie,
-            type: typeof insertData.force_weekend_ferie
-          })
-          // Forcer en booléen strict : si c'est une chaîne vide ou null/undefined, false, sinon true
-          insertData.force_weekend_ferie = insertData.force_weekend_ferie === '' || 
-                                           insertData.force_weekend_ferie === null || 
-                                           insertData.force_weekend_ferie === undefined 
-                                           ? false 
-                                           : Boolean(insertData.force_weekend_ferie)
-          console.log('[useCharge] Étape 10 - force_weekend_ferie forcé à:', insertData.force_weekend_ferie, '(type:', typeof insertData.force_weekend_ferie, ')')
-        }
-        
-        // Double vérification : s'assurer que c'est vraiment un booléen strict
-        insertData.force_weekend_ferie = Boolean(insertData.force_weekend_ferie)
-        
-        console.log('[useCharge] Étape 10 - Vérification finale avant INSERT:', {
-          'force_weekend_ferie': insertData.force_weekend_ferie,
-          'type': typeof insertData.force_weekend_ferie,
-          'strict boolean check': insertData.force_weekend_ferie === true || insertData.force_weekend_ferie === false
         })
         
         const { data: insertDataResult, error: insertError } = await supabase
