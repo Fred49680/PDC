@@ -2535,15 +2535,15 @@ export default function Planning2({
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
-                <Sparkles className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl">
+                <Sparkles className="w-9 h-9 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   Planning 2.0
                 </h1>
-                <p className="text-sm text-gray-600">Vue moderne et intuitive</p>
+                <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Vue moderne et intuitive pour la gestion des charges et affectations</p>
               </div>
             </div>
 
