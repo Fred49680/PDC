@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
+import { useRessources } from '@/hooks/useRessources'
 import { businessDaysBetween, getDatesBetween, formatSemaineISO } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { Plus } from 'lucide-react'
 
 interface GrilleChargeProps {
   affaireId: string
@@ -28,8 +30,15 @@ export function GrilleCharge({
     enableRealtime: true, // Realtime géré directement dans useCharge
   })
 
+  const { competences: competencesRessources } = useRessources({
+    site,
+    actif: true,
+  })
+
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   const [competences, setCompetences] = useState<string[]>([])
+  const [showAddCompetence, setShowAddCompetence] = useState(false)
+  const [newCompetence, setNewCompetence] = useState('')
   
   // Debounce pour les sauvegardes (éviter trop de requêtes)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -82,10 +91,26 @@ export function GrilleCharge({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Extraire les compétences uniques
+  // Extraire les compétences disponibles depuis les ressources
+  const competencesDisponibles = useMemo(() => {
+    const comps = new Set<string>()
+    // Ajouter les compétences des ressources (competencesRessources est une Map<string, RessourceCompetence[]>)
+    competencesRessources.forEach((compsRessource) => {
+      compsRessource.forEach((comp) => {
+        comps.add(comp.competence)
+      })
+    })
+    // Ajouter les compétences déjà utilisées dans les périodes
+    periodes.forEach((p) => comps.add(p.competence))
+    return Array.from(comps).sort()
+  }, [competencesRessources, periodes])
+
+  // Extraire les compétences affichées dans la grille (celles qui ont des périodes + celles ajoutées manuellement)
   useEffect(() => {
     const comps = new Set<string>()
     periodes.forEach((p) => comps.add(p.competence))
+    // Garder les compétences déjà dans la liste même si elles n'ont pas de période
+    competences.forEach((comp) => comps.add(comp))
     setCompetences(Array.from(comps).sort())
   }, [periodes])
 
@@ -252,10 +277,90 @@ export function GrilleCharge({
         </tbody>
       </table>
 
-      <div className="mt-4 flex gap-2">
+      {/* Bouton pour ajouter une compétence */}
+      <div className="mt-4 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {!showAddCompetence ? (
+            <button
+              onClick={() => setShowAddCompetence(true)}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Ajouter une compétence
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <select
+                value={newCompetence}
+                onChange={(e) => setNewCompetence(e.target.value)}
+                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCompetence) {
+                    if (!competences.includes(newCompetence)) {
+                      setCompetences([...competences, newCompetence].sort())
+                    }
+                    setNewCompetence('')
+                    setShowAddCompetence(false)
+                  }
+                }}
+              >
+                <option value="">Sélectionner une compétence...</option>
+                {competencesDisponibles
+                  .filter((comp) => !competences.includes(comp))
+                  .map((comp) => (
+                    <option key={comp} value={comp}>
+                      {comp}
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="text"
+                value={newCompetence}
+                onChange={(e) => setNewCompetence(e.target.value)}
+                placeholder="Ou saisir une nouvelle compétence"
+                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCompetence.trim()) {
+                    const comp = newCompetence.trim()
+                    if (!competences.includes(comp)) {
+                      setCompetences([...competences, comp].sort())
+                    }
+                    setNewCompetence('')
+                    setShowAddCompetence(false)
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (newCompetence.trim()) {
+                    const comp = newCompetence.trim()
+                    if (!competences.includes(comp)) {
+                      setCompetences([...competences, comp].sort())
+                    }
+                    setNewCompetence('')
+                    setShowAddCompetence(false)
+                  }
+                }}
+                disabled={!newCompetence.trim()}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                Ajouter
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddCompetence(false)
+                  setNewCompetence('')
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+              >
+                Annuler
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => consolidate()}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
         >
           Consolider
         </button>
