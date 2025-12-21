@@ -1,6 +1,6 @@
 -- Migration: Fix récursion infinie dans la consolidation
--- Description: Évite la récursion infinie en désactivant temporairement les triggers
--- et en utilisant une variable de session pour détecter les appels récursifs
+-- Description: Évite la récursion infinie en utilisant une variable de session
+-- pour détecter les appels récursifs (session_replication_role non disponible dans Supabase)
 
 -- Fonction de consolidation pour une compétence spécifique (corrigée)
 CREATE OR REPLACE FUNCTION consolidate_periodes_charge_for_competence(
@@ -12,9 +12,6 @@ RETURNS VOID AS $$
 DECLARE
   v_periodes_consolidees RECORD;
 BEGIN
-  -- Désactiver temporairement les triggers pour éviter la récursion
-  SET LOCAL session_replication_role = 'replica';
-  
   -- Créer une table temporaire pour stocker les jours avec leurs charges
   CREATE TEMP TABLE IF NOT EXISTS temp_periodes_consolidation (
     date_jour DATE,
@@ -33,7 +30,8 @@ BEGIN
     AND site = UPPER(p_site)
     AND competence = p_competence;
 
-  -- Supprimer les périodes existantes pour cette combinaison (ne déclenchera pas le trigger)
+  -- Supprimer les périodes existantes pour cette combinaison
+  -- Le trigger ne se déclenchera pas car app.consolidating = true
   DELETE FROM periodes_charge
   WHERE affaire_id = p_affaire_id
     AND site = UPPER(p_site)
@@ -71,9 +69,6 @@ BEGIN
 
   -- Nettoyer la table temporaire
   DROP TABLE IF EXISTS temp_periodes_consolidation;
-  
-  -- Réactiver les triggers (automatique à la fin de la transaction)
-  RESET session_replication_role;
 END;
 $$ LANGUAGE plpgsql;
 
