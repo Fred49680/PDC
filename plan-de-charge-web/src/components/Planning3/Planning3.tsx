@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import { useToast } from '@/components/UI/Toast'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { periodeToBesoin } from '@/utils/planning/planning.compute'
-import { triggerConsolidationPeriodesCharge } from '@/utils/planning/planning.api'
+// Note: triggerConsolidationPeriodesCharge retiré - la consolidation se fait automatiquement via les triggers SQL
 
 interface Planning3Props {
   affaireId: string
@@ -54,14 +54,8 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     return periodes.length > 0 ? periodes[0].affaire_id : null
   }, [periodes])
 
-  // Consolider à l'ouverture de la page
-  useEffect(() => {
-    if (affaireId && site) {
-      triggerConsolidationPeriodesCharge(affaireId, site).catch((err) => {
-        console.error('[Planning3] Erreur consolidation initiale:', err)
-      })
-    }
-  }, [affaireId, site])
+  // Note: La consolidation se fait automatiquement via les triggers SQL
+  // Plus besoin d'appel manuel qui causait une récursion infinie
 
   // Calculer les besoins avec couverture (useMemo au lieu de useState + useEffect)
   const besoins = useMemo(() => {
@@ -102,14 +96,8 @@ export function Planning3({ affaireId, site }: Planning3Props) {
   const handleAffectationSuccess = async () => {
     refreshAffectations()
     refreshPeriodes()
-    // Consolider après affectation
-    if (affaireId && site) {
-      try {
-        await triggerConsolidationPeriodesCharge(affaireId, site)
-      } catch (err) {
-        console.error('[Planning3] Erreur consolidation après affectation:', err)
-      }
-    }
+    // La consolidation se fait automatiquement via les triggers SQL
+    // après chaque INSERT/UPDATE/DELETE sur periodes_charge
   }
 
   const loading = loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences
