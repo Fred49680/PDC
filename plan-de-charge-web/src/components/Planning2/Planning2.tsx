@@ -3051,11 +3051,12 @@ export default function Planning2({
                     </p>
                     <div className="flex items-center gap-2">
                       <label htmlFor="dateFinExterne" className="text-gray-600 text-sm">
-                        Date de fin :
+                        Date de fin : <span className="text-red-500">*</span>
                       </label>
                       <input
                         id="dateFinExterne"
                         type="date"
+                        required
                         value={ressourceExterneModal.dateFinInput || ''}
                         onChange={(e) => {
                           setRessourceExterneModal(prev => ({
@@ -3069,6 +3070,11 @@ export default function Planning2({
                         className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
                     </div>
+                    {!ressourceExterneModal.dateFinInput && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ Veuillez sélectionner une date de fin pour afficher les ressources disponibles
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -3082,7 +3088,16 @@ export default function Planning2({
 
             {/* Liste des ressources externes */}
             <div className="flex-1 overflow-y-auto mb-4">
-              {loadingToutesRessources ? (
+              {!ressourceExterneModal.dateFinInput ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">
+                      Sélectionnez une date de fin pour afficher les ressources disponibles
+                    </p>
+                  </div>
+                </div>
+              ) : loadingToutesRessources ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
                 </div>
@@ -3104,7 +3119,7 @@ export default function Planning2({
                             : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
                         }`}
                         onClick={() => {
-                          if (!estDejaSelectionnee) {
+                          if (!estDejaSelectionnee && ressourceExterneModal.dateFinInput) {
                             handleSelectionRessourceExterne(ressource.id, ressource.nom, ressource.site)
                           }
                         }}
