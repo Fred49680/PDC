@@ -1,0 +1,314 @@
+---
+alwaysApply: true
+---
+PRD — Planning v3
+Gestion des besoins et affectations par Affaire / Compétence / Période
+1. Objectif produit (corrigé)
+
+Permettre de planifier, par AFFAIRE, les besoins en ressources par compétence et par période, puis d’y affecter des ressources :
+
+sans conflit multi-affaires,
+
+en respectant absences, jours ouvrés, transferts,
+
+avec une interface lisible, robuste et performante,
+
+sans grille “Excel” lourde à maintenir.
+
+2. Périmètre fonctionnel
+Inclus
+
+Besoins par affaire
+
+Plusieurs périodes par compétence et par affaire
+
+Affectations liées à une affaire
+
+Détection :
+
+absences
+
+conflits inter-affaires
+
+week-ends / jours fériés
+
+Ressources :
+
+locales
+
+transférées
+
+externes
+
+Création / extension automatique des transferts
+
+Actions de masse (besoins et affectations)
+
+Consolidation automatique des périodes
+
+Exclus (volontairement)
+
+Édition en grille JOUR×RESSOURCE
+
+Double-clic caché
+
+Logique métier dispersée dans les composants UI
+
+3. Modèle conceptuel (clé du sujet)
+Axe principal
+AFFAIRE
+ └── COMPÉTENCE
+      └── PÉRIODE DE BESOIN (0..n)
+           └── AFFECTATIONS (0..n ressources)
+
+
+👉 Une compétence peut avoir plusieurs périodes distinctes pour une même affaire
+👉 Une ressource peut être affectée à une seule affaire à la fois
+
+4. Modèle de données (frontend & backend)
+4.1 Besoin (corrigé)
+type BesoinPeriode = {
+  id: string
+
+  affaireId: string
+  site: string
+
+  competence: string
+
+  dateDebut: Date
+  dateFin: Date
+
+  nbRessources: number
+
+  couverture: {
+    affecte: number
+    manque: number
+    surplus: number
+  }
+}
+
+Contraintes
+
+(affaireId, competence, dateDebut, dateFin) unique
+
+Les périodes peuvent se chevaucher entre compétences, jamais dans une même compétence consolidée
+
+4.2 Affectation
+type Affectation = {
+  id: string
+
+  affaireId: string
+  site: string
+
+  ressourceId: string
+  competence: string
+
+  dateDebut: Date
+  dateFin: Date
+
+  charge: number // v1 = 1
+}
+
+5. Vue principale — Besoins par Affaire
+5.1 Structure écran
+Affaire XYZ — Site ABC
+────────────────────────────
+[Compétence A]
+  • 02/01 → 10/01 | Besoin 2 | Affecté 1 | ❌
+  • 15/01 → 25/01 | Besoin 1 | Affecté 1 | ✅
+
+[Compétence B]
+  • 05/01 → 20/01 | Besoin 3 | Affecté 2 | ⚠️
+
+5.2 Comportement
+
+Groupement par compétence
+
+Chaque période est indépendante
+
+Indicateur clair :
+
+🟢 OK
+
+🟠 Sous-affecté
+
+🔴 Sur-affecté
+
+Actions visibles sur chaque période :
+
+[Affecter]
+
+[Modifier]
+
+[Supprimer]
+
+5.3 Règles métier (besoins)
+
+Un besoin :
+
+appartient à UNE affaire
+
+concerne UNE compétence
+
+couvre une période continue
+
+Les jours non ouvrés sont exclus à la création
+
+Les périodes sont consolidées automatiquement
+
+Une compétence peut avoir N périodes
+
+6. Panneau latéral — Affectation (par période de besoin)
+6.1 Déclenchement
+
+Clic sur [Affecter] d’une période donnée.
+
+Contexte injecté :
+
+{
+  affaireId,
+  site,
+  competence,
+  dateDebut,
+  dateFin,
+  nbRessourcesRequises
+}
+
+6.2 Ressources candidates
+
+Filtrées par :
+
+compétence
+
+disponibilité sur la période
+
+absence
+
+conflits avec autres affaires
+
+type RessourceCandidat = {
+  id: string
+  nom: string
+  site: string
+
+  isPrincipale: boolean
+  isAbsente: boolean
+  hasConflit: boolean
+  necessiteTransfert: boolean
+
+  selectable: boolean
+}
+
+6.3 Règles de sélection
+
+Une ressource :
+
+❌ ne peut pas être affectée à 2 affaires simultanément
+
+❌ ne peut pas être affectée pendant une absence
+
+✅ peut nécessiter un transfert (auto-créé)
+
+Sélection multi-ressources
+
+Compteur dynamique : 2 / 3 ressources sélectionnées
+
+6.4 Validation
+
+À la validation :
+
+Vérification finale (absences + conflits)
+
+Création / extension des transferts
+
+Création des affectations
+
+Consolidation
+
+Refresh vue besoins
+
+👉 Transaction logique “tout ou rien”
+
+7. Actions de masse (corrigées)
+7.1 Création de besoins de masse
+
+Depuis l’affaire :
+
+Modal :
+
+compétence
+
+date début
+
+date fin
+
+nb ressources
+
+Règles :
+
+uniquement jours ouvrés
+
+consolidation automatique
+
+création de 1..N périodes selon les règles métier
+
+7.2 Affectation automatique (par période)
+
+Depuis le panneau d’affectation :
+
+Bouton [Auto-affecter]
+
+Ordre de priorité v1 :
+
+Ressources du site
+
+Compétence principale
+
+Pas de conflit
+
+Pas de transfert requis
+
+Sinon transfert externe
+
+8. Architecture technique (mise à jour)
+8.1 Organisation du code
+/planning
+ ├─ planning.rules.ts       // jours ouvrés, conflits, absences
+ ├─ planning.compute.ts    // couverture, candidats
+ ├─ planning.api.ts        // Supabase RPC
+ ├─ BesoinsList.tsx
+ ├─ BesoinCard.tsx
+ ├─ AffectationPanel.tsx
+ └─ PlanningAffairePage.tsx
+
+8.2 Backend (fortement recommandé)
+
+RPC Supabase :
+
+get_besoins_affaire(affaire_id, start, end)
+
+get_couverture_besoin(besoin_id)
+
+get_ressources_candidates(besoin_id)
+
+apply_affectations_batch(payload)
+
+create_or_extend_transfert(...)
+
+9. Critères de succès
+
+1 affaire compréhensible en < 10 secondes
+
+Pas de grille massive
+
+Pas de double-clic
+
+Pas de recalcul lourd côté front
+
+Zéro conflit possible à la validation
+
+10. Conclusion franche
+
+👉 Le besoin par affaire + plusieurs périodes par compétence est maintenant nativement intégré.
+👉 Ce PRD est aligné avec ton modèle actuel, sans te piéger dans une UI ingérable.
+👉 Tu peux coder par itération, sans casser ta v2.
