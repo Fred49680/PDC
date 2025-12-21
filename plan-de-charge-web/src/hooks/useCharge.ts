@@ -301,11 +301,21 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
       }
       
-      // Si on a un ID, essayer un UPDATE direct
+      // IMPORTANT : Ne jamais inclure l'ID dans l'upsert, cela peut causer des problèmes
+      // Créer un objet sans ID pour l'upsert
+      const periodeDataForUpsert = { ...periodeDataClean }
+      delete periodeDataForUpsert.id
+      
+      // Si on a un ID, essayer un UPDATE direct avec seulement les champs modifiables
       if (periodeDataClean.id) {
+        const updateDataOnly: any = {
+          nb_ressources: periodeDataClean.nb_ressources,
+          force_weekend_ferie: periodeDataClean.force_weekend_ferie,
+        }
+        
         const { data: updateData, error: updateError } = await supabase
           .from('periodes_charge')
-          .update(periodeDataClean)
+          .update(updateDataOnly)
           .eq('id', periodeDataClean.id)
           .select()
           .single()
@@ -313,11 +323,11 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         if (!updateError) {
           data = updateData
         } else {
-          // Si l'UPDATE échoue, essayer l'upsert
+          // Si l'UPDATE échoue, essayer l'upsert sans ID
           // Utiliser ignoreDuplicates: false pour forcer la mise à jour en cas de conflit
           const { data: upsertData, error: upsertErr } = await supabase
             .from('periodes_charge')
-            .upsert(periodeDataClean, {
+            .upsert(periodeDataForUpsert, {
               onConflict: 'affaire_id,site,competence,date_debut,date_fin',
               ignoreDuplicates: false,
             })
@@ -332,7 +342,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Utiliser ignoreDuplicates: false pour forcer la mise à jour en cas de conflit
         const { data: upsertData, error: upsertErr } = await supabase
           .from('periodes_charge')
-          .upsert(periodeDataClean, {
+          .upsert(periodeDataForUpsert, {
             onConflict: 'affaire_id,site,competence,date_debut,date_fin',
             ignoreDuplicates: false,
           })
