@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
 import { useRessources } from '@/hooks/useRessources'
+import { createClient } from '@/lib/supabase/client'
 import { businessDaysBetween, getDatesBetween, formatSemaineISO } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
@@ -30,19 +31,93 @@ export function GrilleCharge({
     enableRealtime: true, // Realtime géré directement dans useCharge
   })
 
-  const { competences: competencesRessources } = useRessources({
+  const { competences: competencesRessources, loading: loadingRessources } = useRessources({
     site,
     actif: true,
   })
 
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   const [competences, setCompetences] = useState<string[]>([])
+  const [competencesDisponibles, setCompetencesDisponibles] = useState<string[]>([])
   const [showAddCompetence, setShowAddCompetence] = useState(false)
   const [newCompetence, setNewCompetence] = useState('')
   
   // Debounce pour les sauvegardes (éviter trop de requêtes)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSavesRef = useRef<Map<string, { competence: string; col: typeof colonnes[0]; value: number }>>(new Map())
+
+  // Charger toutes les compétences disponibles depuis la base de données
+  useEffect(() => {
+    const loadCompetences = async () => {
+      try {
+        const supabase = createClient()
+        
+        // Charger les compétences depuis les ressources actives du site
+        const { data: ressourcesData, error: ressourcesError } = await supabase
+          .from('ressources')
+          .select('id')
+          .eq('site', site)
+          .eq('actif', true)
+
+        if (ressourcesError) throw ressourcesError
+
+        if (ressourcesData && ressourcesData.length > 0) {
+          const ressourceIds = ressourcesData.map((r) => r.id)
+          
+          const { data: competencesData, error: competencesError } = await supabase
+            .from('ressources_competences')
+            .select('competence')
+            .in('ressource_id', ressourceIds)
+
+          if (competencesError) throw competencesError
+
+          // Extraire les compétences uniques
+          const comps = new Set<string>()
+          if (competencesData) {
+            competencesData.forEach((comp) => {
+              if (comp.competence) {
+                comps.add(comp.competence)
+              }
+            })
+          }
+
+          // Ajouter aussi les compétences déjà utilisées dans les périodes
+          periodes.forEach((p) => {
+            if (p.competence) {
+              comps.add(p.competence)
+            }
+          })
+
+          const compsArray = Array.from(comps).sort()
+          setCompetencesDisponibles(compsArray)
+          console.log('[GrilleCharge] Compétences chargées:', compsArray.length, compsArray)
+        } else {
+          // Si pas de ressources, au moins charger les compétences des périodes existantes
+          const comps = new Set<string>()
+          periodes.forEach((p) => {
+            if (p.competence) {
+              comps.add(p.competence)
+            }
+          })
+          setCompetencesDisponibles(Array.from(comps).sort())
+        }
+      } catch (error) {
+        console.error('[GrilleCharge] Erreur chargement compétences:', error)
+        // En cas d'erreur, au moins charger les compétences des périodes
+        const comps = new Set<string>()
+        periodes.forEach((p) => {
+          if (p.competence) {
+            comps.add(p.competence)
+          }
+        })
+        setCompetencesDisponibles(Array.from(comps).sort())
+      }
+    }
+
+    if (site) {
+      loadCompetences()
+    }
+  }, [site, periodes])
 
   // Générer les colonnes selon la précision
   const colonnes = useMemo(() => {
@@ -91,19 +166,6 @@ export function GrilleCharge({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Extraire les compétences disponibles depuis les ressources
-  const competencesDisponibles = useMemo(() => {
-    const comps = new Set<string>()
-    // Ajouter les compétences des ressources (competencesRessources est une Map<string, RessourceCompetence[]>)
-    competencesRessources.forEach((compsRessource) => {
-      compsRessource.forEach((comp) => {
-        comps.add(comp.competence)
-      })
-    })
-    // Ajouter les compétences déjà utilisées dans les périodes
-    periodes.forEach((p) => comps.add(p.competence))
-    return Array.from(comps).sort()
-  }, [competencesRessources, periodes])
 
   // Extraire les compétences affichées dans la grille (celles qui ont des périodes + celles ajoutées manuellement)
   useEffect(() => {
