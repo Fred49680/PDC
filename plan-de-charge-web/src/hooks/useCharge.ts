@@ -493,23 +493,33 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           force_weekend_ferie: shouldForceWeekendFerie ? true : false,
         }
         
-        console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertData, null, 2))
+        // FORCER une sérialisation/désérialisation JSON propre pour garantir que les booléens restent des booléens
+        // Cela évite tout problème de sérialisation qui pourrait transformer false en chaîne vide
+        const insertDataSerialized = JSON.parse(JSON.stringify(insertData))
+        
+        // Vérification finale : s'assurer que force_weekend_ferie est bien un booléen strict
+        if (typeof insertDataSerialized.force_weekend_ferie !== 'boolean') {
+          console.warn('[useCharge] Étape 10 - force_weekend_ferie n\'est pas un booléen après sérialisation, correction:', insertDataSerialized.force_weekend_ferie)
+          insertDataSerialized.force_weekend_ferie = insertDataSerialized.force_weekend_ferie === true || insertDataSerialized.force_weekend_ferie === 'true' || insertDataSerialized.force_weekend_ferie === 1
+        }
+        
+        console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertDataSerialized, null, 2))
         console.log('[useCharge] Étape 10 - INSERT - Types:', {
-          affaire_id: typeof insertData.affaire_id,
-          site: typeof insertData.site,
-          competence: typeof insertData.competence,
-          date_debut: typeof insertData.date_debut,
-          date_fin: typeof insertData.date_fin,
-          nb_ressources: typeof insertData.nb_ressources,
-          force_weekend_ferie: typeof insertData.force_weekend_ferie,
-          'force_weekend_ferie value': insertData.force_weekend_ferie,
-          'force_weekend_ferie === true': insertData.force_weekend_ferie === true,
-          'force_weekend_ferie === false': insertData.force_weekend_ferie === false,
+          affaire_id: typeof insertDataSerialized.affaire_id,
+          site: typeof insertDataSerialized.site,
+          competence: typeof insertDataSerialized.competence,
+          date_debut: typeof insertDataSerialized.date_debut,
+          date_fin: typeof insertDataSerialized.date_fin,
+          nb_ressources: typeof insertDataSerialized.nb_ressources,
+          force_weekend_ferie: typeof insertDataSerialized.force_weekend_ferie,
+          'force_weekend_ferie value': insertDataSerialized.force_weekend_ferie,
+          'force_weekend_ferie === true': insertDataSerialized.force_weekend_ferie === true,
+          'force_weekend_ferie === false': insertDataSerialized.force_weekend_ferie === false,
         })
         
         const { data: insertDataResult, error: insertError } = await supabase
           .from('periodes_charge')
-          .insert(insertData)
+          .insert(insertDataSerialized)
           .select()
           .single()
         
