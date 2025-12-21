@@ -41,9 +41,11 @@ export function Planning3({ affaireId, site }: Planning3Props) {
       enableRealtime: true,
     })
 
+  // Charger TOUTES les ressources actives (pas seulement du site) pour permettre les transferts
+  // Le modal AffectationPanel doit pouvoir afficher les ressources d'autres sites
   const { ressources, competences, loading: loadingRessources } = useRessources({
-    site,
     actif: true,
+    // site non spécifié = charger toutes les ressources de tous les sites
   })
 
   // Charger toutes les compétences distinctes (hors site) comme dans Planning2
@@ -87,8 +89,10 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     loadToutesCompetences()
   }, [])
 
+  // Charger TOUTES les absences (pas seulement du site) pour vérifier les disponibilités
+  // des ressources d'autres sites dans le modal AffectationPanel
   const { absences, loading: loadingAbsences } = useAbsences({
-    site: site || undefined,
+    // site non spécifié = charger toutes les absences de tous les sites
   })
 
   // Récupérer l'UUID de l'affaire depuis les périodes (useMemo au lieu de useState + useEffect)
