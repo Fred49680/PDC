@@ -121,13 +121,15 @@ export function getRessourcesCandidates(
       affaireId
     )
 
-    // Vérifier si un transfert est nécessaire
-    const necessiteTransfert = ressource.site !== besoin.site
+    // Vérifier si un transfert est nécessaire (ressource d'un autre site)
+    const necessiteTransfert = ressource.site.toUpperCase() !== besoin.site.toUpperCase()
 
     // La ressource est sélectionnable si :
     // - Elle a la compétence
     // - Elle n'est pas absente
     // - Elle n'a pas de conflit
+    // Note: Les ressources nécessitant un transfert sont maintenant sélectionnables
+    // (le transfert sera créé automatiquement lors de l'affectation)
     const selectable = hasCompetence && !isAbs && !hasConflit
 
     return {

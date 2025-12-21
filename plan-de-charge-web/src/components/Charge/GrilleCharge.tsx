@@ -90,7 +90,7 @@ export function GrilleCharge({
   onDateDebutChange,
   onDateFinChange,
 }: GrilleChargeProps) {
-  const { periodes, loading, error, savePeriode } = useCharge({
+  const { periodes, loading, error, savePeriode, savePeriodesBatch } = useCharge({
     affaireId,
     site,
     enableRealtime: true,
@@ -716,7 +716,8 @@ export function GrilleCharge({
                         force_weekend_ferie: false,
                       }))
                     
-                    await Promise.all(periodesACreer.map((p) => savePeriode(p)))
+                    // Utiliser savePeriodesBatch au lieu de Promise.all pour éviter les conflits de triggers
+                    await savePeriodesBatch(periodesACreer)
                     addToast(`${periodesACreer.length} période(s) créée(s)`, 'success')
                     setShowChargeMasseModal(false)
                     setChargeMasseForm({ competence: '', dateDebut, dateFin, nbRessources: 1 })

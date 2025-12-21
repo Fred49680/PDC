@@ -494,8 +494,10 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         }
         
         // Utiliser la fonction RPC PostgreSQL pour éviter les problèmes de sérialisation JSON booléenne
-        // Cette fonction fait l'INSERT directement dans PostgreSQL avec des types stricts
-        console.log('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify(insertData, null, 2))
+        // Cette fonction accepte TEXT pour force_weekend_ferie pour éviter les problèmes de sérialisation
+        // Convertir le booléen en chaîne pour éviter les problèmes de sérialisation JSON
+        const forceWeekendFerieText = insertData.force_weekend_ferie ? 'true' : 'false'
+        console.log('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify({ ...insertData, force_weekend_ferie: forceWeekendFerieText }, null, 2))
         
         const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', {
           p_affaire_id: insertData.affaire_id,
@@ -504,7 +506,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           p_date_debut: insertData.date_debut,
           p_date_fin: insertData.date_fin,
           p_nb_ressources: insertData.nb_ressources,
-          p_force_weekend_ferie: insertData.force_weekend_ferie,
+          p_force_weekend_ferie: forceWeekendFerieText, // Envoyer comme chaîne
         })
         
         if (insertError) {
