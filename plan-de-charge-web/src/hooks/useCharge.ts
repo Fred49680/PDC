@@ -522,7 +522,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
             hint: insertError.hint,
             status: (insertError as any).status,
           })
-          console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(insertData, null, 2))
+          console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(insertDataSerialized, null, 2))
           throw insertError
         }
         
