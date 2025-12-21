@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
-import { format, addMonths, startOfMonth, endOfMonth } from 'date-fns'
-import { BarChart3, AlertCircle, Target } from 'lucide-react'
+import { format, addMonths, startOfMonth, endOfMonth, addDays, addWeeks, subDays, subWeeks, subMonths, addMonths as addMonthsFn } from 'date-fns'
+import { BarChart3, AlertCircle, Target, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import type { Precision } from '@/types/charge'
 import { useAffaires } from '@/hooks/useAffaires'
+import { formatSemaineISO } from '@/utils/calendar'
 
 // Forcer le rendu dynamique pour éviter le pré-rendu statique
 export const dynamic = 'force-dynamic'
@@ -206,43 +207,142 @@ export default function ChargePage() {
             </div>
           </div>
 
-          {/* Paramètres de période */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-200">
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Date début
-              </label>
-              <input
-                type="date"
-                value={format(dateDebut, 'yyyy-MM-dd')}
-                onChange={(e) => setDateDebut(new Date(e.target.value))}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Date fin
-              </label>
-              <input
-                type="date"
-                value={format(dateFin, 'yyyy-MM-dd')}
-                onChange={(e) => setDateFin(new Date(e.target.value))}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Précision
-              </label>
-              <select
-                value={precision}
-                onChange={(e) => setPrecision(e.target.value as Precision)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
-              >
-                <option value="JOUR">Jour</option>
-                <option value="SEMAINE">Semaine</option>
-                <option value="MOIS">Mois</option>
-              </select>
+          {/* Navigation et paramètres de période (comme Planning2) */}
+          <div className="pt-6 border-t border-gray-200">
+            <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+              {/* Navigation avec flèches */}
+              <div className="flex items-center gap-2 bg-white/60 backdrop-blur rounded-xl p-1 shadow-md">
+                <button
+                  onClick={() => {
+                    let newDateDebut: Date
+                    let newDateFin: Date
+                    
+                    if (precision === 'JOUR') {
+                      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+                      newDateDebut = subDays(dateDebut, diffDays + 1)
+                      newDateFin = subDays(dateFin, diffDays + 1)
+                    } else if (precision === 'SEMAINE') {
+                      const monthStart = startOfMonth(dateDebut)
+                      const previousMonthStart = subMonths(monthStart, 1)
+                      const dayOfWeekNew = previousMonthStart.getDay()
+                      const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+                      newDateDebut = new Date(previousMonthStart)
+                      newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+                      newDateFin = endOfMonth(previousMonthStart)
+                    } else if (precision === 'MOIS') {
+                      const monthStart = startOfMonth(dateDebut)
+                      newDateDebut = subMonths(monthStart, 1)
+                      newDateFin = endOfMonth(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
+                    } else {
+                      newDateDebut = subWeeks(dateDebut, 1)
+                      newDateFin = subWeeks(dateFin, 1)
+                    }
+                    
+                    setDateDebut(newDateDebut)
+                    setDateFin(newDateFin)
+                  }}
+                  className="p-2 hover:bg-blue-100 rounded-lg transition-all text-blue-600"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div className="px-4 py-2 text-center min-w-[200px] relative group">
+                  <div className="font-semibold text-gray-800 pointer-events-none">
+                    {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
+                  </div>
+                  <div className="text-xs text-gray-500 flex items-center justify-center gap-1 pointer-events-none">
+                    <Calendar className="w-3 h-3" />
+                    {formatSemaineISO(dateDebut)}
+                  </div>
+                  <input
+                    type="date"
+                    value={dateDebut.toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const dateStr = e.target.value
+                        const newDateDebut = new Date(dateStr + 'T12:00:00')
+                        if (isNaN(newDateDebut.getTime())) return
+                        
+                        setDateDebut(newDateDebut)
+                        let newDateFin: Date
+                        if (precision === 'SEMAINE') {
+                          const monthStart = startOfMonth(newDateDebut)
+                          const weekStart = new Date(monthStart)
+                          const dayOfWeek = weekStart.getDay() || 7
+                          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+                          weekStart.setDate(weekStart.getDate() - daysToMonday)
+                          newDateFin = endOfMonth(monthStart)
+                          setDateDebut(weekStart)
+                        } else if (precision === 'MOIS') {
+                          const monthStart = startOfMonth(newDateDebut)
+                          newDateFin = endOfMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1))
+                        } else {
+                          const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+                          newDateFin = new Date(newDateDebut.getTime() + diffDays * 24 * 60 * 60 * 1000)
+                        }
+                        setDateFin(newDateFin)
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    style={{ fontSize: '16px' }}
+                    title="Cliquez pour modifier la date de début"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    let newDateDebut: Date
+                    let newDateFin: Date
+                    
+                    if (precision === 'JOUR') {
+                      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+                      newDateDebut = addDays(dateDebut, diffDays + 1)
+                      newDateFin = addDays(dateFin, diffDays + 1)
+                    } else if (precision === 'SEMAINE') {
+                      const currentMonthEnd = endOfMonth(dateFin)
+                      const nextMonthStart = addMonthsFn(startOfMonth(currentMonthEnd), 1)
+                      const dayOfWeekNew = nextMonthStart.getDay()
+                      const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+                      newDateDebut = new Date(nextMonthStart)
+                      newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+                      newDateFin = endOfMonth(nextMonthStart)
+                    } else if (precision === 'MOIS') {
+                      const monthStart = startOfMonth(dateDebut)
+                      newDateDebut = addMonthsFn(monthStart, 1)
+                      newDateFin = endOfMonth(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
+                    } else {
+                      newDateDebut = addWeeks(dateDebut, 1)
+                      newDateFin = addWeeks(dateFin, 1)
+                    }
+                    
+                    if (isNaN(newDateDebut.getTime()) || isNaN(newDateFin.getTime())) {
+                      console.error('[ChargePage] Dates invalides calculées', { newDateDebut, newDateFin })
+                      return
+                    }
+                    
+                    setDateDebut(newDateDebut)
+                    setDateFin(newDateFin)
+                  }}
+                  className="p-2 hover:bg-blue-100 rounded-lg transition-all text-blue-600"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Précision */}
+              <div className="flex items-center gap-1 bg-white/60 backdrop-blur rounded-xl p-1 shadow-md">
+                {(['JOUR', 'SEMAINE', 'MOIS'] as Precision[]).map((prec) => (
+                  <button
+                    key={prec}
+                    onClick={() => setPrecision(prec)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      precision === prec
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {prec.charAt(0) + prec.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -256,6 +356,8 @@ export default function ChargePage() {
               dateDebut={dateDebut}
               dateFin={dateFin}
               precision={precision}
+              onDateDebutChange={setDateDebut}
+              onDateFinChange={setDateFin}
             />
           </div>
         )}

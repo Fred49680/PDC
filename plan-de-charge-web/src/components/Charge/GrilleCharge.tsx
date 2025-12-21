@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
-import { useRessources } from '@/hooks/useRessources'
 import { createClient } from '@/lib/supabase/client'
-import { businessDaysBetween, getDatesBetween, formatSemaineISO } from '@/utils/calendar'
+import { businessDaysBetween, getDatesBetween, formatSemaineISO, normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
+import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Plus } from 'lucide-react'
+import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
+import { useToast } from '@/components/UI/Toast'
 
 interface GrilleChargeProps {
   affaireId: string
@@ -16,7 +18,68 @@ interface GrilleChargeProps {
   dateDebut: Date
   dateFin: Date
   precision: Precision
+  onDateDebutChange?: (newDateDebut: Date) => void
+  onDateFinChange?: (newDateFin: Date) => void
 }
+
+interface ColonneDate {
+  date: Date
+  label: string
+  shortLabel: string
+  isWeekend: boolean
+  isHoliday: boolean
+  semaineISO: string
+  weekStart?: Date
+  weekEnd?: Date
+}
+
+// Fonction pour obtenir le format semaine ISO avec année : "01-2026"
+const getSemaineISOWithYear = (date: Date): string => {
+  // Calculer le lundi de la semaine ISO
+  const dayOfWeek = date.getDay() || 7 // 0 = dimanche -> 7
+  const weekStart = new Date(date)
+  weekStart.setDate(date.getDate() - dayOfWeek + 1)
+  
+  // Calculer l'année ISO (année du jeudi de cette semaine)
+  const thursday = new Date(weekStart)
+  thursday.setDate(weekStart.getDate() + 3)
+  const isoYear = thursday.getFullYear()
+  
+  // Calculer le numéro de semaine ISO
+  const jan4 = new Date(isoYear, 0, 4)
+  const jan4Day = jan4.getDay() || 7
+  const jan4WeekStart = new Date(jan4)
+  jan4WeekStart.setDate(jan4.getDate() - jan4Day + 1)
+  
+  const diffTime = weekStart.getTime() - jan4WeekStart.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  const weekNumber = Math.floor(diffDays / 7) + 1
+  
+  if (weekNumber < 1) {
+    const prevJan4 = new Date(isoYear - 1, 0, 4)
+    const prevJan4Day = prevJan4.getDay() || 7
+    const prevJan4WeekStart = new Date(prevJan4)
+    prevJan4WeekStart.setDate(prevJan4.getDate() - prevJan4Day + 1)
+    const prevDiffTime = weekStart.getTime() - prevJan4WeekStart.getTime()
+    const prevDiffDays = Math.floor(prevDiffTime / (1000 * 60 * 60 * 24))
+    const prevWeekNumber = Math.floor(prevDiffDays / 7) + 1
+    return `${prevWeekNumber.toString().padStart(2, '0')}-${isoYear - 1}`
+  } else if (weekNumber > 52) {
+    const nextJan4 = new Date(isoYear + 1, 0, 4)
+    const nextJan4Day = nextJan4.getDay() || 7
+    const nextJan4WeekStart = new Date(nextJan4)
+    nextJan4WeekStart.setDate(nextJan4.getDate() - nextJan4Day + 1)
+    
+    if (weekStart >= nextJan4WeekStart) {
+      return `01-${isoYear + 1}`
+    }
+    return `53-${isoYear}`
+  }
+  
+  return `${weekNumber.toString().padStart(2, '0')}-${isoYear}`
+}
+
+const isWeekend = (date: Date): boolean => [0, 6].includes(date.getDay())
 
 export function GrilleCharge({
   affaireId,
@@ -24,202 +87,250 @@ export function GrilleCharge({
   dateDebut,
   dateFin,
   precision,
+  onDateDebutChange,
+  onDateFinChange,
 }: GrilleChargeProps) {
   const { periodes, loading, error, savePeriode, consolidate } = useCharge({
     affaireId,
     site,
-    enableRealtime: true, // Realtime géré directement dans useCharge
+    enableRealtime: true,
   })
 
-  const { competences: competencesRessources, loading: loadingRessources } = useRessources({
-    site,
-    actif: true,
-  })
-
+  const { addToast } = useToast()
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   const [competences, setCompetences] = useState<string[]>([])
-  const [competencesDisponibles, setCompetencesDisponibles] = useState<string[]>([])
+  const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [showAddCompetence, setShowAddCompetence] = useState(false)
   const [newCompetence, setNewCompetence] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+    onCancel: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    onCancel: () => {},
+  })
   
-  // Debounce pour les sauvegardes (éviter trop de requêtes)
+  // Debounce pour les sauvegardes
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const pendingSavesRef = useRef<Map<string, { competence: string; col: typeof colonnes[0]; value: number }>>(new Map())
+  const pendingSavesRef = useRef<Map<string, { competence: string; col: ColonneDate; value: number }>>(new Map())
 
-  // Charger toutes les compétences disponibles depuis la base de données
+  // Charger toutes les compétences distinctes depuis la base de données (comme Planning2)
   useEffect(() => {
-    const loadCompetences = async () => {
+    const loadToutesCompetences = async () => {
       try {
         const supabase = createClient()
         
-        // Charger les compétences depuis les ressources actives du site
-        const { data: ressourcesData, error: ressourcesError } = await supabase
-          .from('ressources')
-          .select('id')
-          .eq('site', site)
-          .eq('actif', true)
-
-        if (ressourcesError) throw ressourcesError
-
-        if (ressourcesData && ressourcesData.length > 0) {
-          const ressourceIds = ressourcesData.map((r) => r.id)
-          
-          const { data: competencesData, error: competencesError } = await supabase
-            .from('ressources_competences')
-            .select('competence')
-            .in('ressource_id', ressourceIds)
-
-          if (competencesError) throw competencesError
-
-          // Extraire les compétences uniques
-          const comps = new Set<string>()
-          if (competencesData) {
-            competencesData.forEach((comp) => {
-              if (comp.competence) {
-                comps.add(comp.competence)
-              }
-            })
-          }
-
-          // Ajouter aussi les compétences déjà utilisées dans les périodes
-          periodes.forEach((p) => {
-            if (p.competence) {
-              comps.add(p.competence)
-            }
-          })
-
-          const compsArray = Array.from(comps).sort()
-          setCompetencesDisponibles(compsArray)
-          console.log('[GrilleCharge] Compétences chargées:', compsArray.length, compsArray)
-        } else {
-          // Si pas de ressources, au moins charger les compétences des périodes existantes
-          const comps = new Set<string>()
-          periodes.forEach((p) => {
-            if (p.competence) {
-              comps.add(p.competence)
-            }
-          })
-          setCompetencesDisponibles(Array.from(comps).sort())
-        }
-      } catch (error) {
-        console.error('[GrilleCharge] Erreur chargement compétences:', error)
-        // En cas d'erreur, au moins charger les compétences des périodes
-        const comps = new Set<string>()
-        periodes.forEach((p) => {
-          if (p.competence) {
-            comps.add(p.competence)
+        // Récupérer toutes les compétences distinctes depuis ressources_competences
+        const { data: competencesData, error: competencesError } = await supabase
+          .from('ressources_competences')
+          .select('competence')
+          .not('competence', 'is', null)
+        
+        if (competencesError) throw competencesError
+        
+        // Extraire les compétences uniques et les trier
+        const competencesSet = new Set<string>()
+        ;(competencesData || []).forEach((item) => {
+          if (item.competence && item.competence.trim()) {
+            competencesSet.add(item.competence.trim())
           }
         })
-        setCompetencesDisponibles(Array.from(comps).sort())
+        
+        const competencesList = Array.from(competencesSet).sort()
+        setToutesCompetences(competencesList)
+      } catch (err) {
+        console.error('[GrilleCharge] Erreur chargement toutes compétences:', err)
+        setToutesCompetences([])
       }
     }
+    
+    loadToutesCompetences()
+  }, [])
 
-    if (site) {
-      loadCompetences()
-    }
-  }, [site, periodes])
-
-  // Générer les colonnes selon la précision
+  // Générer les colonnes selon la précision (comme Planning2)
   const colonnes = useMemo(() => {
-    const cols: { date: Date; label: string; weekStart?: Date; weekEnd?: Date }[] = []
-
-    switch (precision) {
-      case 'JOUR':
-        const dates = getDatesBetween(dateDebut, dateFin)
-        dates.forEach((date) => {
-          cols.push({
-            date,
-            label: format(date, 'dd/MM', { locale: fr }),
-          })
+    const cols: ColonneDate[] = []
+    
+    if (precision === 'JOUR') {
+      const dates = getDatesBetween(dateDebut, dateFin)
+      dates.forEach((date) => {
+        const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' })
+        const day = date.getDate().toString().padStart(2, '0')
+        const month = date.toLocaleDateString('fr-FR', { month: 'short' })
+        cols.push({
+          date,
+          label: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+          shortLabel: `${dayName} ${day} ${month}`,
+          isWeekend: isWeekend(date),
+          isHoliday: isFrenchHoliday(date),
+          semaineISO: formatSemaineISO(date),
         })
-        break
-
-      case 'SEMAINE':
-        let currentWeek = startOfWeek(dateDebut, { weekStartsOn: 1 })
-        while (currentWeek <= dateFin) {
-          const weekEnd = addDays(currentWeek, 6)
-          cols.push({
-            date: currentWeek,
-            label: `${format(currentWeek, 'dd/MM')} - ${format(weekEnd, 'dd/MM')}`,
-            weekStart: currentWeek,
-            weekEnd,
-          })
-          currentWeek = addWeeks(currentWeek, 1)
-        }
-        break
-
-      case 'MOIS':
-        let currentMonth = startOfMonth(dateDebut)
-        while (currentMonth <= dateFin) {
-          const monthEnd = endOfMonth(currentMonth)
-          cols.push({
-            date: currentMonth,
-            label: format(currentMonth, 'MMMM yyyy', { locale: fr }),
-            weekStart: currentMonth,
-            weekEnd: monthEnd,
-          })
-          currentMonth = addMonths(currentMonth, 1)
-        }
-        break
+      })
+    } else if (precision === 'SEMAINE') {
+      const currentDate = new Date(dateDebut)
+      const dayOfWeek = currentDate.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      currentDate.setDate(currentDate.getDate() - daysToMonday)
+      
+      while (currentDate <= dateFin) {
+        const weekStart = new Date(currentDate)
+        const weekEnd = new Date(currentDate)
+        weekEnd.setDate(weekEnd.getDate() + 6)
+        
+        cols.push({
+          date: weekStart,
+          label: `${weekStart.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} - ${weekEnd.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`,
+          shortLabel: getSemaineISOWithYear(weekStart),
+          isWeekend: false,
+          isHoliday: false,
+          semaineISO: formatSemaineISO(weekStart),
+          weekStart,
+          weekEnd,
+        })
+        
+        currentDate.setDate(currentDate.getDate() + 7)
+      }
+    } else if (precision === 'MOIS') {
+      // Pour MOIS, toujours afficher 12 mois glissants à partir de dateDebut
+      const monthStart = new Date(dateDebut)
+      monthStart.setDate(1)
+      
+      for (let i = 0; i < 12; i++) {
+        const currentMonth = new Date(monthStart)
+        currentMonth.setMonth(monthStart.getMonth() + i)
+        
+        const monthShort = currentMonth.toLocaleDateString('fr-FR', { month: 'short' })
+        const monthShortClean = monthShort.replace(/\.$/, '')
+        const year = currentMonth.getFullYear()
+        const monthEnd = endOfMonth(currentMonth)
+        
+        cols.push({
+          date: currentMonth,
+          label: currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+          shortLabel: `${monthShortClean}.${year}`,
+          isWeekend: false,
+          isHoliday: false,
+          semaineISO: formatSemaineISO(currentMonth),
+          weekStart: currentMonth,
+          weekEnd: monthEnd,
+        })
+      }
     }
-
+    
     return cols
   }, [dateDebut, dateFin, precision])
 
 
+  // Liste des compétences - Utiliser toutes les compétences disponibles depuis la base (comme Planning2)
+  const competencesList = useMemo(() => {
+    const compSet = new Set<string>(toutesCompetences)
+    periodes.forEach(p => { if (p.competence) compSet.add(p.competence) })
+    return Array.from(compSet).sort()
+  }, [toutesCompetences, periodes])
+
   // Extraire les compétences affichées dans la grille (celles qui ont des périodes + celles ajoutées manuellement)
   useEffect(() => {
     setCompetences((prevCompetences) => {
-      const comps = new Set<string>(prevCompetences) // Garder les compétences déjà ajoutées manuellement
-      periodes.forEach((p) => comps.add(p.competence)) // Ajouter celles des périodes
+      const comps = new Set<string>(prevCompetences)
+      periodes.forEach((p) => comps.add(p.competence))
       return Array.from(comps).sort()
     })
   }, [periodes])
 
-  // Construire la grille depuis les périodes
+  // Construire la grille depuis les périodes (comme Planning2 avec gestion week-end/férié)
   useEffect(() => {
     const newGrille = new Map<string, number>()
 
     periodes.forEach((periode) => {
-      const key = `${periode.competence}|${periode.date_debut}|${periode.date_fin}`
-      newGrille.set(key, periode.nb_ressources)
-
-      // Pour chaque colonne, vérifier si la période chevauche
-      colonnes.forEach((col) => {
-        const colDate = col.weekStart || col.date
-        const colEnd = col.weekEnd || col.date
-
-        if (
-          new Date(periode.date_debut) <= colEnd &&
-          new Date(periode.date_fin) >= colDate
-        ) {
-          const cellKey = `${periode.competence}|${col.date.getTime()}`
+      const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
+      const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
+      
+      colonnes.forEach((col, idx) => {
+        const colDate = normalizeDateToUTC(col.date)
+        let correspond = false
+        
+        if (precision === 'JOUR') {
+          correspond = periodeDateDebut <= colDate && periodeDateFin >= colDate
+          if (correspond && (col.isWeekend || col.isHoliday)) {
+            if (periode.force_weekend_ferie !== true) return
+          }
+        } else if (precision === 'SEMAINE') {
+          const dayOfWeek = col.date.getDay()
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+          const weekStart = new Date(col.date)
+          weekStart.setDate(weekStart.getDate() - daysToMonday)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekEnd.getDate() + 6)
+          const weekStartUTC = normalizeDateToUTC(weekStart)
+          const weekEndUTC = normalizeDateToUTC(weekEnd)
+          correspond = periodeDateDebut <= weekEndUTC && periodeDateFin >= weekStartUTC
+        } else if (precision === 'MOIS') {
+          const monthStart = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+          const monthEnd = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+          const monthStartUTC = normalizeDateToUTC(monthStart)
+          const monthEndUTC = normalizeDateToUTC(monthEnd)
+          correspond = periodeDateDebut <= monthEndUTC && periodeDateFin >= monthStartUTC
+        }
+        
+        if (correspond) {
+          const cellKey = `${periode.competence}|${idx}`
           newGrille.set(cellKey, periode.nb_ressources)
         }
       })
     })
 
     setGrille(newGrille)
-  }, [periodes, colonnes])
+  }, [periodes, colonnes, precision])
 
   // Mise à jour optimiste de la grille locale
-  const updateGrilleLocal = useCallback((competence: string, col: typeof colonnes[0], value: number) => {
+  const updateGrilleLocal = useCallback((competence: string, col: ColonneDate, value: number) => {
     setGrille((prev) => {
       const newGrille = new Map(prev)
-      const cellKey = `${competence}|${col.date.getTime()}`
+      const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+      const cellKey = `${competence}|${colIndex}`
       newGrille.set(cellKey, value)
       return newGrille
     })
+  }, [colonnes])
+
+  // Confirmation async (comme Planning2)
+  const confirmAsync = useCallback((title: string, message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        isOpen: true,
+        title,
+        message,
+        onConfirm: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+          resolve(true)
+        },
+        onCancel: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+          resolve(false)
+        },
+      })
+    })
   }, [])
 
-  // Sauvegarde avec debounce et batch
-  const handleCellChange = useCallback((competence: string, col: typeof colonnes[0], value: number) => {
+  // Sauvegarde avec debounce et batch (comme Planning2 avec gestion week-end/férié)
+  const handleCellChange = useCallback(async (competence: string, colIndex: number, value: number) => {
+    const col = colonnes[colIndex]
+    if (!col) return
+
+    const cellKey = `${competence}|${colIndex}`
+    const nbRessources = Math.max(0, Math.floor(value))
+    
     // Mise à jour optimiste immédiate
-    updateGrilleLocal(competence, col, value)
+    updateGrilleLocal(competence, col, nbRessources)
 
     // Stocker la sauvegarde en attente
-    const cellKey = `${competence}|${col.date.getTime()}`
-    pendingSavesRef.current.set(cellKey, { competence, col, value })
+    pendingSavesRef.current.set(cellKey, { competence, col, value: nbRessources })
 
     // Annuler le timeout précédent
     if (saveTimeoutRef.current) {
@@ -231,28 +342,63 @@ export function GrilleCharge({
       const saves = Array.from(pendingSavesRef.current.values())
       pendingSavesRef.current.clear()
 
-      // Sauvegarder toutes les modifications en batch
       try {
         await Promise.all(
-          saves.map(({ competence, col, value }) => {
-            const dateDebutPeriode = col.weekStart || col.date
-            const dateFinPeriode = col.weekEnd || col.date
+          saves.map(async ({ competence, col, value }) => {
+            let dateDebutPeriode: Date
+            let dateFinPeriode: Date
+            let forceWeekendFerie = false
+            
+            if (precision === 'JOUR') {
+              dateDebutPeriode = normalizeDateToUTC(col.date)
+              dateFinPeriode = normalizeDateToUTC(col.date)
+              
+              if (value > 0 && (col.isWeekend || col.isHoliday)) {
+                const confirme = await confirmAsync(
+                  'Attention',
+                  `Vous souhaitez enregistrer une charge un ${col.isWeekend ? 'week-end' : 'jour férié'} (${col.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}).\n\nVoulez-vous continuer ?`
+                )
+                if (!confirme) {
+                  // Annuler la modification
+                  updateGrilleLocal(competence, col, 0)
+                  return
+                }
+                forceWeekendFerie = true
+              }
+            } else if (precision === 'SEMAINE') {
+              const dayOfWeek = col.date.getDay()
+              const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+              dateDebutPeriode = new Date(col.date)
+              dateDebutPeriode.setDate(dateDebutPeriode.getDate() - daysToMonday)
+              dateFinPeriode = new Date(dateDebutPeriode)
+              dateFinPeriode.setDate(dateFinPeriode.getDate() + 6)
+              dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+              dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+            } else if (precision === 'MOIS') {
+              dateDebutPeriode = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+              dateFinPeriode = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+              if (dateFinPeriode > dateFin) dateFinPeriode = new Date(dateFin)
+              dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+              dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+            } else {
+              dateDebutPeriode = normalizeDateToUTC(col.date)
+              dateFinPeriode = normalizeDateToUTC(col.date)
+            }
 
             return savePeriode({
               competence,
               date_debut: dateDebutPeriode,
               date_fin: dateFinPeriode,
               nb_ressources: value,
+              force_weekend_ferie: forceWeekendFerie,
             })
           })
         )
       } catch (err) {
         console.error('[GrilleCharge] Erreur batch save:', err)
-        // En cas d'erreur, recharger depuis le serveur
-        // (useCharge se chargera du rechargement via Realtime)
       }
     }, 500)
-  }, [savePeriode, updateGrilleLocal])
+  }, [savePeriode, updateGrilleLocal, precision, dateFin, colonnes, confirmAsync])
 
   // Nettoyage du timeout au démontage
   useEffect(() => {
@@ -290,9 +436,16 @@ export function GrilleCharge({
             {colonnes.map((col, idx) => (
               <th
                 key={idx}
-                className="border border-gray-300 p-2 bg-gray-100 font-semibold text-center min-w-[100px]"
+                className={`border border-gray-300 p-2 font-semibold text-center min-w-[100px] ${
+                  col.isWeekend ? 'bg-blue-100' :
+                  col.isHoliday ? 'bg-pink-100' :
+                  'bg-gray-100'
+                }`}
               >
-                {col.label}
+                <div className="text-xs">{col.shortLabel}</div>
+                {precision === 'SEMAINE' && (
+                  <div className="text-xs text-gray-500 mt-1">{col.semaineISO}</div>
+                )}
               </th>
             ))}
             <th className="border border-gray-300 p-2 bg-gray-100 font-semibold">
@@ -302,8 +455,8 @@ export function GrilleCharge({
         </thead>
         <tbody>
           {competences.map((comp) => {
-            const total = colonnes.reduce((sum, col) => {
-              const cellKey = `${comp}|${col.date.getTime()}`
+            const total = colonnes.reduce((sum, col, idx) => {
+              const cellKey = `${comp}|${idx}`
               return sum + (grille.get(cellKey) || 0)
             }, 0)
 
@@ -311,19 +464,26 @@ export function GrilleCharge({
               <tr key={comp}>
                 <td className="border border-gray-300 p-2 font-medium">{comp}</td>
                 {colonnes.map((col, idx) => {
-                  const cellKey = `${comp}|${col.date.getTime()}`
+                  const cellKey = `${comp}|${idx}`
                   const value = grille.get(cellKey) || 0
 
                   return (
-                    <td key={idx} className="border border-gray-300 p-1">
+                    <td 
+                      key={idx} 
+                      className={`border border-gray-300 p-1 ${
+                        col.isWeekend ? 'bg-blue-50' :
+                        col.isHoliday ? 'bg-pink-50' :
+                        ''
+                      }`}
+                    >
                       <input
                         type="number"
                         min="0"
-                        step="0.1"
+                        step="1"
                         value={value}
                         onChange={(e) => {
                           const newValue = parseFloat(e.target.value) || 0
-                          handleCellChange(comp, col, newValue)
+                          handleCellChange(comp, idx, newValue)
                         }}
                         className="w-full text-center border-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -331,7 +491,7 @@ export function GrilleCharge({
                   )
                 })}
                 <td className="border border-gray-300 p-2 text-center font-semibold">
-                  {total.toFixed(1)} H
+                  {total.toFixed(0)}
                 </td>
               </tr>
             )
@@ -367,7 +527,7 @@ export function GrilleCharge({
                 }}
               >
                 <option value="">Sélectionner une compétence...</option>
-                {competencesDisponibles
+                {competencesList
                   .filter((comp) => !competences.includes(comp))
                   .map((comp) => (
                     <option key={comp} value={comp}>
@@ -427,6 +587,15 @@ export function GrilleCharge({
           Consolider
         </button>
       </div>
+
+      {/* Dialog de confirmation */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={confirmDialog.onCancel}
+      />
     </div>
   )
 }
