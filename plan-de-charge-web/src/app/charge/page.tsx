@@ -111,13 +111,13 @@ export default function ChargePage() {
           </div>
         </div>
 
-        {/* Sélection affaire - Compactée sur une ligne */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-4">
+        {/* Sélection affaire - Compactée sur une ligne (modèle Transferts) */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
           <div className="flex items-center gap-4 flex-wrap">
             {/* Titre compact */}
             <div className="flex items-center gap-2 min-w-[140px]">
-              <Target className="w-5 h-5 text-blue-600" />
-              <h2 className="text-lg font-bold text-gray-800">Sélection affaire</h2>
+              <Target className="w-4 h-4 text-blue-600" />
+              <h2 className="text-base font-semibold text-gray-800">Sélection affaire</h2>
             </div>
             {/* Numéro de compte */}
             <div className="flex-1 min-w-[150px]">
@@ -205,8 +205,8 @@ export default function ChargePage() {
           </div>
 
           {/* Navigation et paramètres de période (comme Planning2) */}
-          <div className="pt-4 mt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+          <div className="pt-3 mt-3 border-t border-gray-200">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               {/* Navigation avec flèches */}
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur rounded-xl p-1 shadow-md">
                 <button
@@ -344,9 +344,9 @@ export default function ChargePage() {
           </div>
         </div>
 
-        {/* Grille de charge */}
+        {/* Grille de charge (modèle Transferts) */}
         {affaireId && site && (
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-200/50">
+          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
             <GrilleCharge
               affaireId={affaireId}
               site={site}

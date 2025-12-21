@@ -90,7 +90,7 @@ export function GrilleCharge({
   onDateDebutChange,
   onDateFinChange,
 }: GrilleChargeProps) {
-  const { periodes, loading, error, savePeriode, consolidate } = useCharge({
+  const { periodes, loading, error, savePeriode } = useCharge({
     affaireId,
     site,
     enableRealtime: true,
@@ -511,92 +511,84 @@ export function GrilleCharge({
       </table>
 
       {/* Bouton pour ajouter une compétence */}
-      <div className="mt-4 flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          {!showAddCompetence ? (
-            <button
-              onClick={() => setShowAddCompetence(true)}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              Ajouter une compétence
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <select
-                value={newCompetence}
-                onChange={(e) => setNewCompetence(e.target.value)}
-                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newCompetence) {
-                    if (!competences.includes(newCompetence)) {
-                      setCompetences([...competences, newCompetence].sort())
-                    }
-                    setNewCompetence('')
-                    setShowAddCompetence(false)
+      <div className="mt-4 flex items-center gap-2">
+        {!showAddCompetence ? (
+          <button
+            onClick={() => setShowAddCompetence(true)}
+            className="px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter une compétence
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={newCompetence}
+              onChange={(e) => setNewCompetence(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newCompetence) {
+                  if (!competences.includes(newCompetence)) {
+                    setCompetences([...competences, newCompetence].sort())
                   }
-                }}
-              >
-                <option value="">Sélectionner une compétence...</option>
-                {competencesList
-                  .filter((comp) => !competences.includes(comp))
-                  .map((comp) => (
-                    <option key={comp} value={comp}>
-                      {comp}
-                    </option>
-                  ))}
-              </select>
-              <input
-                type="text"
-                value={newCompetence}
-                onChange={(e) => setNewCompetence(e.target.value)}
-                placeholder="Ou saisir une nouvelle compétence"
-                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newCompetence.trim()) {
-                    const comp = newCompetence.trim()
-                    if (!competences.includes(comp)) {
-                      setCompetences([...competences, comp].sort())
-                    }
-                    setNewCompetence('')
-                    setShowAddCompetence(false)
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  if (newCompetence.trim()) {
-                    const comp = newCompetence.trim()
-                    if (!competences.includes(comp)) {
-                      setCompetences([...competences, comp].sort())
-                    }
-                    setNewCompetence('')
-                    setShowAddCompetence(false)
-                  }
-                }}
-                disabled={!newCompetence.trim()}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-              >
-                Ajouter
-              </button>
-              <button
-                onClick={() => {
-                  setShowAddCompetence(false)
                   setNewCompetence('')
-                }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
-              >
-                Annuler
-              </button>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={() => consolidate()}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-        >
-          Consolider
-        </button>
+                  setShowAddCompetence(false)
+                }
+              }}
+            >
+              <option value="">Sélectionner une compétence...</option>
+              {competencesList
+                .filter((comp) => !competences.includes(comp))
+                .map((comp) => (
+                  <option key={comp} value={comp}>
+                    {comp}
+                  </option>
+                ))}
+            </select>
+            <input
+              type="text"
+              value={newCompetence}
+              onChange={(e) => setNewCompetence(e.target.value)}
+              placeholder="Ou saisir une nouvelle compétence"
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[200px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newCompetence.trim()) {
+                  const comp = newCompetence.trim()
+                  if (!competences.includes(comp)) {
+                    setCompetences([...competences, comp].sort())
+                  }
+                  setNewCompetence('')
+                  setShowAddCompetence(false)
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (newCompetence.trim()) {
+                  const comp = newCompetence.trim()
+                  if (!competences.includes(comp)) {
+                    setCompetences([...competences, comp].sort())
+                  }
+                  setNewCompetence('')
+                  setShowAddCompetence(false)
+                }
+              }}
+              disabled={!newCompetence.trim()}
+              className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            >
+              Ajouter
+            </button>
+            <button
+              onClick={() => {
+                setShowAddCompetence(false)
+                setNewCompetence('')
+              }}
+              className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              Annuler
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Dialog de confirmation */}
