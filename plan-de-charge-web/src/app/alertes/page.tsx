@@ -105,16 +105,20 @@ export default function AlertesPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* En-tête */}
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl shadow-xl p-8 text-white">
-          <div className="flex items-center justify-between">
+        {/* En-tête moderne */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-xl">
+              <AlertCircle className="w-9 h-9 text-white" />
+            </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Alertes</h1>
-              <p className="text-amber-100">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+                Alertes
+              </h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
                 {alertesFiltrees.length} alerte(s) {filtrePriseEnCompte || filtreCourrierStatut ? 'filtrée(s)' : 'au total'}
               </p>
             </div>
-            <AlertCircle className="w-16 h-16 text-white/80" />
           </div>
         </div>
 

@@ -136,17 +136,17 @@ export default function Planning2Page() {
   return (
     <Layout>
       <div className="space-y-8">
-        {/* En-tête avec raccourcis */}
-        <div className="flex items-center justify-between">
+        {/* En-tête moderne */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl">
+              <Sparkles className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Planning 2.0
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
                 Vue moderne et intuitive pour la gestion des charges et affectations
               </p>
             </div>
