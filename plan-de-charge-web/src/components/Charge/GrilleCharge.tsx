@@ -107,11 +107,11 @@ export function GrilleCharge({
 
   // Extraire les compétences affichées dans la grille (celles qui ont des périodes + celles ajoutées manuellement)
   useEffect(() => {
-    const comps = new Set<string>()
-    periodes.forEach((p) => comps.add(p.competence))
-    // Garder les compétences déjà dans la liste même si elles n'ont pas de période
-    competences.forEach((comp) => comps.add(comp))
-    setCompetences(Array.from(comps).sort())
+    setCompetences((prevCompetences) => {
+      const comps = new Set<string>(prevCompetences) // Garder les compétences déjà ajoutées manuellement
+      periodes.forEach((p) => comps.add(p.competence)) // Ajouter celles des périodes
+      return Array.from(comps).sort()
+    })
   }, [periodes])
 
   // Construire la grille depuis les périodes
