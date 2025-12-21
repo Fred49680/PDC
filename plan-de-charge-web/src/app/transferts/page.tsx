@@ -39,6 +39,7 @@ export const dynamic = 'force-dynamic'
 export default function TransfertsPage() {
   const [filters, setFilters] = useState({ siteOrigine: '', siteDestination: '', statut: '' })
   const [searchTerm, setSearchTerm] = useState('')
+  const [showTermines, setShowTermines] = useState(false) // Option pour afficher les transferts terminés
 
   // Mémoriser l'objet options pour éviter les re-renders infinis
   const transfertsOptions = useMemo(
@@ -317,18 +318,20 @@ export default function TransfertsPage() {
     }
   }
 
-  // Filtrer les transferts par terme de recherche et masquer les transferts terminés
+  // Filtrer les transferts par terme de recherche et optionnellement masquer les transferts terminés
   const transfertsFiltres = useMemo(() => {
     let filtered = transferts
 
-    // Masquer les transferts terminés (date_fin < aujourd'hui)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    filtered = filtered.filter((transfert) => {
-      const dateFin = new Date(transfert.date_fin)
-      dateFin.setHours(0, 0, 0, 0)
-      return dateFin >= today
-    })
+    // Masquer les transferts terminés (date_fin < aujourd'hui) seulement si showTermines est false
+    if (!showTermines) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      filtered = filtered.filter((transfert) => {
+        const dateFin = new Date(transfert.date_fin)
+        dateFin.setHours(0, 0, 0, 0)
+        return dateFin >= today
+      })
+    }
 
     // Filtre par terme de recherche (nom de ressource)
     if (searchTerm.trim()) {
@@ -340,7 +343,7 @@ export default function TransfertsPage() {
     }
 
     return filtered
-  }, [transferts, searchTerm])
+  }, [transferts, searchTerm, showTermines])
 
   // Mémoriser les options des sites pour éviter les re-renders
   // Normaliser tout en majuscules pour le traitement et l'affichage
@@ -787,6 +790,15 @@ export default function TransfertsPage() {
                   { value: 'Appliqué', label: 'Appliqué' },
                 ]}
               />
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showTermines}
+                  onChange={(e) => setShowTermines(e.target.checked)}
+                  className="w-4 h-4 rounded accent-blue-600"
+                />
+                <span>Afficher les transferts terminés</span>
+              </label>
             </div>
             <div className="flex gap-2">
               <Button
