@@ -301,13 +301,26 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
       }
       
-      // IMPORTANT : Ne jamais inclure l'ID dans l'upsert, cela peut causer des problèmes
-      // Créer un objet sans ID pour l'upsert
-      const periodeDataForUpsert = { ...periodeDataClean }
-      delete periodeDataForUpsert.id
+      // APPROCHE ALTERNATIVE : Vérifier d'abord si l'enregistrement existe, puis INSERT ou UPDATE
+      // Cela évite le problème de l'upsert qui essaie de mettre à jour tous les champs
+      const { data: existingData, error: findError } = await supabase
+        .from('periodes_charge')
+        .select('id')
+        .eq('affaire_id', periodeDataClean.affaire_id)
+        .eq('site', periodeDataClean.site)
+        .eq('competence', periodeDataClean.competence)
+        .eq('date_debut', periodeDataClean.date_debut)
+        .eq('date_fin', periodeDataClean.date_fin)
+        .maybeSingle()
       
-      // Si on a un ID, essayer un UPDATE direct avec seulement les champs modifiables
-      if (periodeDataClean.id) {
+      if (findError && findError.code !== 'PGRST116') {
+        // Erreur autre que "not found"
+        console.error('[useCharge] Erreur lors de la recherche:', findError)
+        throw findError
+      }
+      
+      if (existingData) {
+        // Enregistrement existant : UPDATE avec seulement les champs modifiables
         const updateDataOnly: any = {
           nb_ressources: periodeDataClean.nb_ressources,
           force_weekend_ferie: periodeDataClean.force_weekend_ferie,
@@ -316,42 +329,42 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         const { data: updateData, error: updateError } = await supabase
           .from('periodes_charge')
           .update(updateDataOnly)
-          .eq('id', periodeDataClean.id)
+          .eq('id', existingData.id)
           .select()
           .single()
         
-        if (!updateError) {
-          data = updateData
-        } else {
-          // Si l'UPDATE échoue, essayer l'upsert sans ID
-          // Utiliser ignoreDuplicates: false pour forcer la mise à jour en cas de conflit
-          const { data: upsertData, error: upsertErr } = await supabase
-            .from('periodes_charge')
-            .upsert(periodeDataForUpsert, {
-              onConflict: 'affaire_id,site,competence,date_debut,date_fin',
-              ignoreDuplicates: false,
-            })
-            .select()
-            .single()
-          
-          data = upsertData
-          upsertError = upsertErr
+        if (updateError) {
+          console.error('[useCharge] Erreur update:', updateError)
+          throw updateError
         }
+        data = updateData
       } else {
-        // Pas d'ID, essayer l'upsert directement
-        // Utiliser ignoreDuplicates: false pour forcer la mise à jour en cas de conflit
-        const { data: upsertData, error: upsertErr } = await supabase
+        // Nouvel enregistrement : INSERT
+        const insertData: any = {
+          affaire_id: periodeDataClean.affaire_id,
+          site: periodeDataClean.site,
+          competence: periodeDataClean.competence,
+          date_debut: periodeDataClean.date_debut,
+          date_fin: periodeDataClean.date_fin,
+          nb_ressources: periodeDataClean.nb_ressources,
+          force_weekend_ferie: periodeDataClean.force_weekend_ferie,
+        }
+        
+        const { data: insertDataResult, error: insertError } = await supabase
           .from('periodes_charge')
-          .upsert(periodeDataForUpsert, {
-            onConflict: 'affaire_id,site,competence,date_debut,date_fin',
-            ignoreDuplicates: false,
-          })
+          .insert(insertData)
           .select()
           .single()
         
-        data = upsertData
-        upsertError = upsertErr
+        if (insertError) {
+          console.error('[useCharge] Erreur insert:', insertError)
+          throw insertError
+        }
+        data = insertDataResult
       }
+      
+      // Initialiser upsertError à null car nous n'utilisons plus upsert
+      upsertError = null
 
       // Si erreur 400 (bad request) avec message sur boolean, logger plus d'infos
       if (upsertError && upsertError.code === '22P02' && upsertError.message?.includes('boolean')) {
