@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
@@ -44,6 +45,47 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     site,
     actif: true,
   })
+
+  // Charger toutes les compétences distinctes (hors site) comme dans Planning2
+  // Note: Actuellement non utilisé mais disponible pour futures fonctionnalités
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
+  const [loadingCompetences, setLoadingCompetences] = useState(true)
+
+  useEffect(() => {
+    const loadToutesCompetences = async () => {
+      try {
+        setLoadingCompetences(true)
+        const supabase = createClient()
+        
+        // Récupérer toutes les compétences distinctes depuis ressources_competences
+        const { data: competencesData, error: competencesError } = await supabase
+          .from('ressources_competences')
+          .select('competence')
+          .not('competence', 'is', null)
+        
+        if (competencesError) throw competencesError
+        
+        // Extraire les compétences uniques et les trier
+        const competencesSet = new Set<string>()
+        ;(competencesData || []).forEach((item) => {
+          if (item.competence && item.competence.trim()) {
+            competencesSet.add(item.competence.trim())
+          }
+        })
+        
+        const competencesList = Array.from(competencesSet).sort()
+        setToutesCompetences(competencesList)
+      } catch (err) {
+        console.error('[Planning3] Erreur chargement toutes compétences:', err)
+        setToutesCompetences([])
+      } finally {
+        setLoadingCompetences(false)
+      }
+    }
+    
+    loadToutesCompetences()
+  }, [])
 
   const { absences, loading: loadingAbsences } = useAbsences({
     site: site || undefined,
@@ -100,7 +142,7 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     // après chaque INSERT/UPDATE/DELETE sur periodes_charge
   }
 
-  const loading = loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences
+  const loading = loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences || loadingCompetences
 
   if (loading) {
     return (
