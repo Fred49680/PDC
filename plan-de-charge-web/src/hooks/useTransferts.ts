@@ -79,12 +79,12 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           lastOptionsRef.current = optionsKey
         }
 
-        // Charger les transferts avec jointure sur ressources
+        // Charger les transferts avec jointure sur ressources (LEFT JOIN pour inclure même si ressource n'existe pas)
         let query = supabase
           .from('transferts')
           .select(`
             *,
-            ressources (
+            ressources!left (
               id,
               nom,
               site,
