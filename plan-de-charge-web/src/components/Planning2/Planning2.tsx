@@ -2854,27 +2854,27 @@ export default function Planning2({
                                   }`}>
                                     {compData.ressources.length > 0 ? (
                                       compData.ressources.map((ressource) => {
-                                      const isAffecte = ressource.affectations.get(idx) || false
-                                      const absence = precision === 'JOUR' ? getAbsenceForDate(ressource.id, col.date) : null
-                                      const absenceColorClass = absence ? getAbsenceColor(absence.type) : ''
-                                      
-                                      return (
-                                        <RessourceCell
-                                          key={ressource.id}
-                                          ressource={ressource}
-                                          isAffecte={isAffecte}
-                                          absence={absence}
-                                          absenceColorClass={absenceColorClass}
-                                          isOver={isOver}
-                                          totalAffecteCol={totalAffecteCol}
-                                          besoin={besoin}
-                                          competence={compData.competence}
-                                          colIndex={idx}
-                                          onAffectationChange={handleAffectationChange}
-                                          onAffectationMasse={handleAffectationMasse}
-                                        />
-                                      )
-                                    }))
+                                        const isAffecte = ressource.affectations.get(idx) || false
+                                        const absence = precision === 'JOUR' ? getAbsenceForDate(ressource.id, col.date) : null
+                                        const absenceColorClass = absence ? getAbsenceColor(absence.type) : ''
+                                        
+                                        return (
+                                          <RessourceCell
+                                            key={ressource.id}
+                                            ressource={ressource}
+                                            isAffecte={isAffecte}
+                                            absence={absence}
+                                            absenceColorClass={absenceColorClass}
+                                            isOver={isOver}
+                                            totalAffecteCol={totalAffecteCol}
+                                            besoin={besoin}
+                                            competence={compData.competence}
+                                            colIndex={idx}
+                                            onAffectationChange={handleAffectationChange}
+                                            onAffectationMasse={handleAffectationMasse}
+                                          />
+                                        )
+                                      })
                                     ) : (
                                       // Message si pas de ressources locales mais besoin > 0
                                       besoin > 0 && (
