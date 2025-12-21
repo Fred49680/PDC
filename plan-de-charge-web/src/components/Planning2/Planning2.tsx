@@ -667,7 +667,7 @@ export default function Planning2({
     }
     
     return list
-  }, [toutesCompetences, periodes, affectations, selectedCompetences.size])
+  }, [toutesCompetences, periodes, affectations, dateDebut, dateFin, selectedCompetences.size])
 
   // Grilles de données
   const grilleCharge = useMemo(() => {
@@ -2000,7 +2000,7 @@ export default function Planning2({
           5000
         )
       }
-    }, [colonnes, precision, savePeriode, consolidateCharge, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh])
+    }, [colonnes, precision, savePeriode, consolidateCharge, refreshCharge, openChargeMasseModal, confirmAsync, addToast, autoRefresh, setAutoRefresh, dateFin])
 
   // Affectation de masse : affecter sur toutes les colonnes avec besoin (uniquement jours ouvrés)
   const handleAffectationMasse = useCallback(async (competence: string, ressourceId: string) => {
