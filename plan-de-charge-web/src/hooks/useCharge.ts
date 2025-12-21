@@ -238,10 +238,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         return new Date().toISOString().split('T')[0]
       }
       
+      // S'assurer que force_weekend_ferie est toujours un booléen valide
+      const normalizeBoolean = (value: any): boolean => {
+        if (value === true || value === 'true' || value === 1 || value === '1') return true
+        if (value === false || value === 'false' || value === 0 || value === '0') return false
+        // Si undefined, null, ou chaîne vide, retourner false par défaut
+        return false
+      }
+      
       const periodeDataClean = {
         ...periodeData,
         date_debut: formatDateForDB(periodeData.date_debut),
         date_fin: formatDateForDB(periodeData.date_fin),
+        force_weekend_ferie: normalizeBoolean(periodeData.force_weekend_ferie),
       }
       
       // Si on a un ID, essayer un UPDATE direct
