@@ -20,16 +20,18 @@ export default function ChargePage() {
   return (
     <Layout>
       <div className="space-y-8">
-        {/* En-tête avec icône */}
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-            <BarChart3 className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Gestion de la Charge
-            </h1>
-            <p className="text-gray-600 mt-1 text-sm sm:text-base">Définissez les besoins en ressources par compétence</p>
+        {/* En-tête moderne */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-xl">
+              <BarChart3 className="w-9 h-9 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Gestion de la Charge
+              </h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Définissez les besoins en ressources par compétence</p>
+            </div>
           </div>
         </div>
 

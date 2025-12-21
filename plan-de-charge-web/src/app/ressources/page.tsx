@@ -521,7 +521,7 @@ export default function RessourcesPage() {
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 Gestion des Ressources
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">Créez et gérez les ressources et leurs compétences</p>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Créez et gérez les ressources et leurs compétences</p>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
