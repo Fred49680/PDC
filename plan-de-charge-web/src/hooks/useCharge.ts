@@ -417,18 +417,20 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       if (existingData) {
         // Enregistrement existant : UPDATE avec seulement les champs modifiables
-        // FORCER le booléen AVANT de créer l'objet
-        // Utiliser !! pour garantir un booléen strict
-        const forceWeekendFerieUpdate: boolean = !!(periodeDataClean.force_weekend_ferie === true || 
-                                                     periodeDataClean.force_weekend_ferie === 'true' || 
-                                                     periodeDataClean.force_weekend_ferie === 1 ||
-                                                     periodeDataClean.force_weekend_ferie === '1')
+        // Déterminer la valeur booléenne (true ou false)
+        const shouldForceWeekendFerieUpdate: boolean = periodeDataClean.force_weekend_ferie === true || 
+                                                        periodeDataClean.force_weekend_ferie === 'true' || 
+                                                        periodeDataClean.force_weekend_ferie === 1 ||
+                                                        periodeDataClean.force_weekend_ferie === '1'
         
-        // Reconstruire l'objet avec Object.assign pour éviter tout problème de sérialisation
-        const updateDataOnly = Object.assign({}, {
-          nb_ressources: Number(periodeDataClean.nb_ressources),
-          force_weekend_ferie: Boolean(forceWeekendFerieUpdate), // Double conversion pour garantir le booléen strict
-        })
+        // Créer un objet littéral strict avec le booléen explicite
+        const updateDataOnly: {
+          nb_ressources: number
+          force_weekend_ferie: boolean
+        } = {
+          nb_ressources: periodeDataClean.nb_ressources,
+          force_weekend_ferie: shouldForceWeekendFerieUpdate ? true : false, // Booléens littéraux stricts
+        }
         
         console.log('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
         console.log('[useCharge] Étape 9 - UPDATE - Types:', {
@@ -463,23 +465,35 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Nouvel enregistrement : INSERT
         // Le site est déjà normalisé dans periodeDataClean.site
         // FORCER le booléen AVANT de créer l'objet pour éviter toute transformation lors de la sérialisation
-        // Utiliser !! pour garantir un booléen strict
-        const forceWeekendFerieFinal: boolean = !!(periodeDataClean.force_weekend_ferie === true || 
-                                                    periodeDataClean.force_weekend_ferie === 'true' || 
-                                                    periodeDataClean.force_weekend_ferie === 1 ||
-                                                    periodeDataClean.force_weekend_ferie === '1')
+        // Déterminer si force_weekend_ferie doit être true (sinon on l'omet pour utiliser la valeur par défaut)
+        const shouldForceWeekendFerie: boolean = periodeDataClean.force_weekend_ferie === true || 
+                                                  periodeDataClean.force_weekend_ferie === 'true' || 
+                                                  periodeDataClean.force_weekend_ferie === 1 ||
+                                                  periodeDataClean.force_weekend_ferie === '1'
         
-        // Créer un objet complètement propre avec uniquement les valeurs nécessaires
-        // Reconstruire l'objet avec Object.assign pour éviter tout problème de référence/sérialisation
-        const insertData = Object.assign({}, {
-          affaire_id: String(periodeDataClean.affaire_id),
-          site: String(periodeDataClean.site),
-          competence: String(periodeDataClean.competence),
-          date_debut: String(periodeDataClean.date_debut),
-          date_fin: String(periodeDataClean.date_fin),
-          nb_ressources: Number(periodeDataClean.nb_ressources),
-          force_weekend_ferie: Boolean(forceWeekendFerieFinal), // Double conversion pour garantir le booléen strict
-        })
+        // Créer un objet littéral strict pour éviter toute transformation lors de la sérialisation JSON
+        // On n'inclut force_weekend_ferie que si c'est true, sinon on utilise la valeur par défaut de la DB
+        const insertData: {
+          affaire_id: string
+          site: string
+          competence: string
+          date_debut: string
+          date_fin: string
+          nb_ressources: number
+          force_weekend_ferie?: boolean
+        } = {
+          affaire_id: periodeDataClean.affaire_id,
+          site: periodeDataClean.site,
+          competence: periodeDataClean.competence,
+          date_debut: periodeDataClean.date_debut,
+          date_fin: periodeDataClean.date_fin,
+          nb_ressources: periodeDataClean.nb_ressources,
+        }
+        
+        // N'inclure force_weekend_ferie que s'il est true (false est la valeur par défaut)
+        if (shouldForceWeekendFerie) {
+          insertData.force_weekend_ferie = true
+        }
         
         console.log('[useCharge] Étape 10 - INSERT - Données à envoyer:', JSON.stringify(insertData, null, 2))
         console.log('[useCharge] Étape 10 - INSERT - Types:', {
