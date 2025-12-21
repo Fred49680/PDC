@@ -25,6 +25,7 @@ import {
   PlayCircle,
   Navigation,
   Timer,
+  Archive,
 } from 'lucide-react'
 import type { Transfert } from '@/types/transferts'
 import { Card, CardHeader } from '@/components/UI/Card'
@@ -374,7 +375,14 @@ export default function TransfertsPage() {
       return t.statut === 'Planifié' && dateDebut <= today
     }).length
 
-    return { total, planifies, appliques, aAppliquer }
+    // Compter les transferts terminés (date_fin < aujourd'hui)
+    const termines = transferts.filter((t) => {
+      const dateFin = new Date(t.date_fin)
+      dateFin.setHours(0, 0, 0, 0)
+      return dateFin < today
+    }).length
+
+    return { total, planifies, appliques, aAppliquer, termines }
   }, [transferts])
 
   // Vérification automatique au chargement de la page
@@ -730,6 +738,16 @@ export default function TransfertsPage() {
                 <p className="text-base font-bold text-orange-800 leading-tight">{stats.aAppliquer}</p>
               </div>
               <PlayCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 font-medium leading-tight">Terminés</p>
+                <p className="text-base font-bold text-gray-800 leading-tight">{stats.termines}</p>
+              </div>
+              <Archive className="w-4 h-4 text-gray-500 flex-shrink-0" />
             </div>
           </div>
 
