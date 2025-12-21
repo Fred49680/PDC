@@ -587,7 +587,11 @@ export default function Planning2({
   // Liste des compétences
   const competencesList = useMemo(() => {
     const compSet = new Set<string>()
+    // Ajouter les compétences depuis les périodes (charge)
     periodes.forEach(p => { if (p.competence) compSet.add(p.competence) })
+    // Ajouter les compétences depuis les affectations (même sans ressources locales)
+    affectations.forEach(a => { if (a.competence) compSet.add(a.competence) })
+    // Ajouter les compétences depuis les ressources locales
     competencesMap.forEach((comps) => {
       comps.forEach(comp => { if (comp.competence) compSet.add(comp.competence) })
     })
@@ -2815,8 +2819,8 @@ export default function Planning2({
                                   <div 
                                     onDoubleClick={() => handleChargeMasse(compData.competence, idx)}
                                     onClick={(e) => {
-                                      // Clic simple pour sélectionner une ressource externe
-                                      if (e.detail === 1 && besoin > 0) {
+                                      // Clic simple pour sélectionner une ressource externe (même si besoin = 0)
+                                      if (e.detail === 1) {
                                         ouvrirModalRessourceExterne(compData.competence, idx)
                                       }
                                     }}
@@ -2841,14 +2845,15 @@ export default function Planning2({
                                   </div>
                                 </div>
 
-                                {/* Ressources - Affichées uniquement si besoin > 0 */}
-                                {besoin > 0 && (
+                                {/* Ressources - Affichées si besoin > 0 ou s'il y a des ressources locales */}
+                                {(besoin > 0 || compData.ressources.length > 0) && (
                                   <div className={`space-y-1.5 max-h-[400px] overflow-y-auto overflow-x-hidden rounded-xl p-2 ${
                                     col.isWeekend ? 'bg-blue-50' :
                                     col.isHoliday ? 'bg-pink-50' :
                                     ''
                                   }`}>
-                                    {compData.ressources.map((ressource) => {
+                                    {compData.ressources.length > 0 ? (
+                                      compData.ressources.map((ressource) => {
                                       const isAffecte = ressource.affectations.get(idx) || false
                                       const absence = precision === 'JOUR' ? getAbsenceForDate(ressource.id, col.date) : null
                                       const absenceColorClass = absence ? getAbsenceColor(absence.type) : ''
@@ -2869,7 +2874,16 @@ export default function Planning2({
                                           onAffectationMasse={handleAffectationMasse}
                                         />
                                       )
-                                    })}
+                                    }))
+                                    ) : (
+                                      // Message si pas de ressources locales mais besoin > 0
+                                      besoin > 0 && (
+                                        <div className="text-center py-4 text-sm text-gray-500">
+                                          <p>Aucune ressource locale disponible</p>
+                                          <p className="text-xs mt-1 text-indigo-600">Cliquez sur "Besoin" pour affecter une ressource externe</p>
+                                        </div>
+                                      )
+                                    )}
                                   </div>
                                 )}
                               </div>
