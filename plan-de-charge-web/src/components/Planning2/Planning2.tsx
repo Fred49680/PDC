@@ -1514,28 +1514,29 @@ export default function Planning2({
           })
         }
         
-        // Vérifier si un transfert existe déjà pour cette période
+        // Vérifier si un transfert existe déjà pour cette ressource et ces sites
         const { data: transfertsExistant } = await supabaseClient
           .from('transferts')
-          .select('id, date_debut, date_fin')
+          .select('id, date_debut, date_fin, statut')
           .eq('ressource_id', ressourceId)
           .eq('site_origine', ressourceSite.toUpperCase())
           .eq('site_destination', site.toUpperCase())
         
         let transfertExiste = false
         if (transfertsExistant && transfertsExistant.length > 0) {
-          // Vérifier si un transfert couvre déjà cette période
+          // Chercher un transfert qui chevauche ou est proche de la période
           for (const t of transfertsExistant) {
             const tDateDebut = new Date(t.date_debut)
             const tDateFin = new Date(t.date_fin)
-            // Si le transfert existant couvre ou chevauche la période, on l'étend si nécessaire
+            
+            // Si le transfert existant chevauche la période (même partiellement), on l'étend
             if (tDateDebut <= dateFinTransfert && tDateFin >= dateDebutTransfert) {
-              // Étendre le transfert existant si nécessaire
+              // Étendre le transfert existant pour couvrir toute la période
               const nouvelleDateDebut = tDateDebut < dateDebutTransfert ? tDateDebut : dateDebutTransfert
               const nouvelleDateFin = tDateFin > dateFinTransfert ? tDateFin : dateFinTransfert
               
               // Mettre à jour le transfert existant
-              await supabaseClient
+              const { error: updateError } = await supabaseClient
                 .from('transferts')
                 .update({
                   date_debut: nouvelleDateDebut.toISOString().split('T')[0],
@@ -1543,8 +1544,49 @@ export default function Planning2({
                 })
                 .eq('id', t.id)
               
+              if (updateError) {
+                console.error('[Planning2] Erreur mise à jour transfert existant:', updateError)
+                addToast('Erreur lors de la mise à jour du transfert existant', 'error', 5000)
+                return
+              }
+              
               transfertExiste = true
               break
+            }
+          }
+          
+          // Si aucun transfert ne chevauche, vérifier s'il y a un transfert très proche (à fusionner)
+          if (!transfertExiste) {
+            for (const t of transfertsExistant) {
+              const tDateDebut = new Date(t.date_debut)
+              const tDateFin = new Date(t.date_fin)
+              
+              // Si les périodes sont adjacentes (moins de 7 jours d'écart), fusionner
+              const joursAvant = Math.abs((dateDebutTransfert.getTime() - tDateFin.getTime()) / (1000 * 60 * 60 * 24))
+              const joursApres = Math.abs((dateFinTransfert.getTime() - tDateDebut.getTime()) / (1000 * 60 * 60 * 24))
+              
+              if (joursAvant <= 7 || joursApres <= 7) {
+                // Fusionner les périodes
+                const nouvelleDateDebut = tDateDebut < dateDebutTransfert ? tDateDebut : dateDebutTransfert
+                const nouvelleDateFin = tDateFin > dateFinTransfert ? tDateFin : dateFinTransfert
+                
+                const { error: updateError } = await supabaseClient
+                  .from('transferts')
+                  .update({
+                    date_debut: nouvelleDateDebut.toISOString().split('T')[0],
+                    date_fin: nouvelleDateFin.toISOString().split('T')[0]
+                  })
+                  .eq('id', t.id)
+                
+                if (updateError) {
+                  console.error('[Planning2] Erreur fusion transfert:', updateError)
+                  addToast('Erreur lors de la fusion du transfert', 'error', 5000)
+                  return
+                }
+                
+                transfertExiste = true
+                break
+              }
             }
           }
         }
