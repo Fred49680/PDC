@@ -867,6 +867,9 @@ export default function Planning2({
     competence: string
     colIndex: number
     ressourcesSelectionnees: Array<{ ressourceId: string; ressourceNom: string; ressourceSite: string }>
+    dateDebut?: Date
+    dateFin?: Date
+    dateFinInput?: string // Date de fin saisie par l'utilisateur
   }>({
     isOpen: false,
     competence: '',
@@ -1386,13 +1389,37 @@ export default function Planning2({
 
   // Fonction pour ouvrir le modal de sélection de ressources externes
   const ouvrirModalRessourceExterne = useCallback((competence: string, colIndex: number) => {
+    const col = colonnes[colIndex]
+    if (!col) return
+    
+    // Calculer la date de fin par défaut selon la précision
+    let dateFinParDefaut: Date
+    if (precision === 'JOUR') {
+      dateFinParDefaut = normalizeDateToUTC(col.date)
+    } else if (precision === 'SEMAINE') {
+      const dayOfWeek = col.date.getDay()
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      dateFinParDefaut = new Date(col.date)
+      dateFinParDefaut.setDate(dateFinParDefaut.getDate() - daysToMonday + 6)
+      dateFinParDefaut = normalizeDateToUTC(dateFinParDefaut)
+    } else if (precision === 'MOIS') {
+      dateFinParDefaut = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+      if (dateFinParDefaut > dateFin) dateFinParDefaut = new Date(dateFin)
+      dateFinParDefaut = normalizeDateToUTC(dateFinParDefaut)
+    } else {
+      dateFinParDefaut = normalizeDateToUTC(col.date)
+    }
+    
     setRessourceExterneModal({
       isOpen: true,
       competence,
       colIndex,
-      ressourcesSelectionnees: []
+      ressourcesSelectionnees: [],
+      dateDebut: normalizeDateToUTC(col.date),
+      dateFin: dateFinParDefaut,
+      dateFinInput: dateFinParDefaut.toISOString().split('T')[0], // Format YYYY-MM-DD pour l'input
     })
-  }, [])
+  }, [colonnes, precision, dateFin])
 
   // Fonction pour gérer la sélection d'une ressource externe
   const handleSelectionRessourceExterne = useCallback(async (
@@ -1403,30 +1430,39 @@ export default function Planning2({
     const col = colonnes[ressourceExterneModal.colIndex]
     if (!col) return
 
+    // Utiliser la date de début de la colonne cliquée
     let dateDebutAffectation: Date
-    let dateFinAffectation: Date
     
     if (precision === 'JOUR') {
       dateDebutAffectation = normalizeDateToUTC(col.date)
-      dateFinAffectation = normalizeDateToUTC(col.date)
     } else if (precision === 'SEMAINE') {
       const dayOfWeek = col.date.getDay()
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
       dateDebutAffectation = new Date(col.date)
       dateDebutAffectation.setDate(dateDebutAffectation.getDate() - daysToMonday)
-      dateFinAffectation = new Date(dateDebutAffectation)
-      dateFinAffectation.setDate(dateFinAffectation.getDate() + 6)
       dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
-      dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
     } else if (precision === 'MOIS') {
       dateDebutAffectation = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
-      dateFinAffectation = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
-      if (dateFinAffectation > dateFin) dateFinAffectation = new Date(dateFin)
       dateDebutAffectation = normalizeDateToUTC(dateDebutAffectation)
-      dateFinAffectation = normalizeDateToUTC(dateFinAffectation)
     } else {
       dateDebutAffectation = normalizeDateToUTC(col.date)
-      dateFinAffectation = normalizeDateToUTC(col.date)
+    }
+    
+    // Utiliser la date de fin saisie dans le modal, ou la date de fin par défaut
+    let dateFinAffectation: Date
+    if (ressourceExterneModal.dateFinInput) {
+      dateFinAffectation = normalizeDateToUTC(new Date(ressourceExterneModal.dateFinInput))
+    } else if (ressourceExterneModal.dateFin) {
+      dateFinAffectation = ressourceExterneModal.dateFin
+    } else {
+      // Fallback : utiliser la date de début si aucune date de fin n'est fournie
+      dateFinAffectation = dateDebutAffectation
+    }
+    
+    // Vérifier que la date de fin est >= date de début
+    if (dateFinAffectation < dateDebutAffectation) {
+      addToast('La date de fin doit être postérieure ou égale à la date de début', 'error', 5000)
+      return
     }
 
     try {
@@ -1616,6 +1652,9 @@ export default function Planning2({
         force_weekend_ferie: false,
       })
 
+      // Rafraîchir les affectations pour que la ressource apparaisse dans le tableau
+      await refreshAffectations()
+
       // Ajouter la ressource à la liste des sélectionnées
       setRessourceExterneModal(prev => ({
         ...prev,
@@ -1634,7 +1673,7 @@ export default function Planning2({
       console.error('[Planning2] Erreur affectation ressource externe:', err)
       addToast('Erreur lors de l\'affectation de la ressource', 'error', 5000)
     }
-  }, [ressourceExterneModal, colonnes, precision, dateFin, absences, toutesAffectationsRessources, affaireId, site, creerTransfert, saveAffectation, addToast])
+  }, [ressourceExterneModal, colonnes, precision, dateFin, absences, toutesAffectationsRessources, affaireId, site, creerTransfert, saveAffectation, refreshAffectations, addToast])
 
   // Charge de masse : créer des périodes de charge entre dateDebut et dateFin (uniquement jours ouvrés)
   const handleChargeMasse = useCallback(async (competence: string, colIndex: number) => {
@@ -3006,9 +3045,31 @@ export default function Planning2({
                   Compétence : <span className="font-semibold">{ressourceExterneModal.competence}</span>
                 </p>
                 {colonnes[ressourceExterneModal.colIndex] && (
-                  <p className="text-gray-600 text-sm mt-1">
-                    Date : <span className="font-semibold">{colonnes[ressourceExterneModal.colIndex].date.toLocaleDateString('fr-FR')}</span>
-                  </p>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-gray-600 text-sm">
+                      Date de début : <span className="font-semibold">{colonnes[ressourceExterneModal.colIndex].date.toLocaleDateString('fr-FR')}</span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="dateFinExterne" className="text-gray-600 text-sm">
+                        Date de fin :
+                      </label>
+                      <input
+                        id="dateFinExterne"
+                        type="date"
+                        value={ressourceExterneModal.dateFinInput || ''}
+                        onChange={(e) => {
+                          setRessourceExterneModal(prev => ({
+                            ...prev,
+                            dateFinInput: e.target.value,
+                            dateFin: e.target.value ? normalizeDateToUTC(new Date(e.target.value)) : prev.dateFin
+                          }))
+                        }}
+                        min={colonnes[ressourceExterneModal.colIndex]?.date.toISOString().split('T')[0]}
+                        max={dateFin.toISOString().split('T')[0]}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
               <button
