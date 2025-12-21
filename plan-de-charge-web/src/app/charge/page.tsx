@@ -111,40 +111,37 @@ export default function ChargePage() {
           </div>
         </div>
 
-        {/* Sélection affaire */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <Target className="w-6 h-6 text-blue-600" />
-              Sélection affaire
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        {/* Sélection affaire - Compactée sur une ligne */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Titre compact */}
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <Target className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-bold text-gray-800">Sélection affaire</h2>
+            </div>
             {/* Numéro de compte */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Numéro de compte
               </label>
               <input
                 type="text"
                 value={numeroCompte}
                 onChange={(e) => setNumeroCompte(e.target.value)}
-                placeholder="Rechercher par numéro..."
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
+                placeholder="Rechercher..."
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
               />
             </div>
 
             {/* Responsable */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">Responsable</label>
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Responsable</label>
               <select
                 value={responsable}
                 onChange={(e) => setResponsable(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
               >
-                <option value="">Tous les responsables...</option>
+                <option value="">Tous...</option>
                 {responsablesDisponibles.map((resp) => (
                   <option key={resp} value={resp}>
                     {resp}
@@ -154,16 +151,16 @@ export default function ChargePage() {
             </div>
 
             {/* Site */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+            <div className="flex-1 min-w-[120px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Site <span className="text-red-500">*</span>
               </label>
               <select
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
               >
-                <option value="">Sélectionner un site...</option>
+                <option value="">Sélectionner...</option>
                 {sitesDisponibles.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -173,8 +170,8 @@ export default function ChargePage() {
             </div>
 
             {/* Affaire */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Affaire <span className="text-red-500">*</span>
               </label>
               <select
@@ -195,9 +192,9 @@ export default function ChargePage() {
                   }
                 }}
                 disabled={!site}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white font-medium disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
-                <option value="">Sélectionner une affaire...</option>
+                <option value="">Sélectionner...</option>
                 {affairesFiltreesFinales.map((affaire) => (
                   <option key={affaire.id} value={affaire.affaire_id || ''}>
                     {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
@@ -208,7 +205,7 @@ export default function ChargePage() {
           </div>
 
           {/* Navigation et paramètres de période (comme Planning2) */}
-          <div className="pt-6 border-t border-gray-200">
+          <div className="pt-4 mt-4 border-t border-gray-200">
             <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
               {/* Navigation avec flèches */}
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur rounded-xl p-1 shadow-md">

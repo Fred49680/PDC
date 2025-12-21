@@ -426,43 +426,48 @@ export function GrilleCharge({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full border-collapse border border-gray-300">
+    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+      <table className="min-w-full border-collapse">
         <thead>
-          <tr>
-            <th className="border border-gray-300 p-2 bg-gray-100 font-semibold">
+          <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+            <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100">
               Compétence
             </th>
             {colonnes.map((col, idx) => (
               <th
                 key={idx}
-                className={`border border-gray-300 p-2 font-semibold text-center min-w-[100px] ${
-                  col.isWeekend ? 'bg-blue-100' :
-                  col.isHoliday ? 'bg-pink-100' :
-                  'bg-gray-100'
+                className={`border-b border-r border-gray-300 px-3 py-2 text-center min-w-[90px] text-xs font-semibold ${
+                  col.isWeekend ? 'bg-blue-100 text-blue-800' :
+                  col.isHoliday ? 'bg-rose-100 text-rose-800' :
+                  'bg-gray-50 text-gray-700'
                 }`}
               >
-                <div className="text-xs">{col.shortLabel}</div>
+                <div className="font-medium">{col.shortLabel}</div>
                 {precision === 'SEMAINE' && (
-                  <div className="text-xs text-gray-500 mt-1">{col.semaineISO}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">{col.semaineISO}</div>
                 )}
               </th>
             ))}
-            <th className="border border-gray-300 p-2 bg-gray-100 font-semibold">
-              Total (h)
+            <th className="border-b border-gray-300 px-4 py-3 text-center text-sm font-bold text-gray-700 bg-gray-100">
+              Total
             </th>
           </tr>
         </thead>
         <tbody>
-          {competences.map((comp) => {
+          {competences.map((comp, compIdx) => {
             const total = colonnes.reduce((sum, col, idx) => {
               const cellKey = `${comp}|${idx}`
               return sum + (grille.get(cellKey) || 0)
             }, 0)
+            const isEven = compIdx % 2 === 0
 
             return (
-              <tr key={comp}>
-                <td className="border border-gray-300 p-2 font-medium">{comp}</td>
+              <tr key={comp} className={isEven ? 'bg-white' : 'bg-gray-50/50'}>
+                <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-10 ${
+                  isEven ? 'bg-white' : 'bg-gray-50/50'
+                }`}>
+                  {comp}
+                </td>
                 {colonnes.map((col, idx) => {
                   const cellKey = `${comp}|${idx}`
                   const value = grille.get(cellKey) || 0
@@ -470,9 +475,9 @@ export function GrilleCharge({
                   return (
                     <td 
                       key={idx} 
-                      className={`border border-gray-300 p-1 ${
-                        col.isWeekend ? 'bg-blue-50' :
-                        col.isHoliday ? 'bg-pink-50' :
+                      className={`border-b border-r border-gray-300 px-2 py-2 ${
+                        col.isWeekend ? 'bg-blue-50/50' :
+                        col.isHoliday ? 'bg-rose-50/50' :
                         ''
                       }`}
                     >
@@ -485,12 +490,18 @@ export function GrilleCharge({
                           const newValue = parseFloat(e.target.value) || 0
                           handleCellChange(comp, idx, newValue)
                         }}
-                        className="w-full text-center border-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full text-center text-sm font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 py-1 ${
+                          col.isWeekend ? 'bg-blue-50 hover:bg-blue-100' :
+                          col.isHoliday ? 'bg-rose-50 hover:bg-rose-100' :
+                          'bg-transparent hover:bg-gray-100'
+                        } transition-colors`}
                       />
                     </td>
                   )
                 })}
-                <td className="border border-gray-300 p-2 text-center font-semibold">
+                <td className={`border-b border-gray-300 px-4 py-3 text-center text-sm font-bold ${
+                  total > 0 ? 'text-blue-700' : 'text-gray-500'
+                } ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}>
                   {total.toFixed(0)}
                 </td>
               </tr>
