@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   BarChart3, Users, Calendar, LayoutDashboard, Home, Building2, 
-  MapPin, AlertCircle, Menu, X, Sparkles, ArrowRightLeft, Target, Timeline
+  MapPin, AlertCircle, Menu, X, Sparkles, ArrowRightLeft, Target, Activity
 } from 'lucide-react'
 import { InstallPWA } from '@/components/UI/InstallPWA'
 import { ModalChargeAffectation } from './ModalChargeAffectation'
@@ -31,7 +31,7 @@ export function Layout({ children }: LayoutProps) {
     { href: '/ressources', label: 'Ressources', icon: Users, color: 'from-green-500 to-emerald-600' },
     { href: '/charge', label: 'Charge', icon: BarChart3, color: 'from-blue-500 to-indigo-600' },
     { href: '#', label: 'Planning', icon: Target, color: 'from-purple-500 to-pink-600', isModal: true },
-    { href: '/gantt', label: 'Gantt', icon: Timeline, color: 'from-cyan-500 to-blue-600' },
+    { href: '/gantt', label: 'Gantt', icon: Activity, color: 'from-cyan-500 to-blue-600' },
     { href: '/absences', label: 'Absences', icon: Calendar, color: 'from-purple-500 to-indigo-600' },
     { href: '/transferts', label: 'Transferts', icon: ArrowRightLeft, color: 'from-cyan-500 to-blue-600' },
     { href: '/alertes', label: 'Alertes', icon: AlertCircle, color: 'from-orange-500 to-amber-600' },
