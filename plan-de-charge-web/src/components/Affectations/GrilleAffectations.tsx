@@ -32,8 +32,6 @@ export function GrilleAffectations({
     enableRealtime: true, // Realtime géré directement dans useAffectations
   })
 
-  const [grille, setGrille] = useState<Map<string, boolean>>(new Map())
-  
   // Debounce pour les sauvegardes
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSavesRef = useRef<Map<string, { ressourceId: string; col: typeof colonnes[0]; value: boolean }>>(new Map())
@@ -88,8 +86,8 @@ export function GrilleAffectations({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Construire la grille depuis les affectations
-  useEffect(() => {
+  // Construire la grille de base depuis les affectations (calculée avec useMemo)
+  const grilleBase = useMemo(() => {
     const newGrille = new Map<string, boolean>()
 
     affectations.forEach((affectation) => {
@@ -107,20 +105,36 @@ export function GrilleAffectations({
       })
     })
 
-    setGrille(newGrille)
+    return newGrille
   }, [affectations, colonnes])
+
+  // État pour les modifications locales (mises à jour optimistes)
+  const [grilleModifications, setGrilleModifications] = useState<Map<string, boolean>>(new Map())
+
+  // Fusionner la grille de base avec les modifications locales
+  const grille = useMemo(() => {
+    const merged = new Map(grilleBase)
+    grilleModifications.forEach((value, key) => {
+      if (value) {
+        merged.set(key, true)
+      } else {
+        merged.delete(key)
+      }
+    })
+    return merged
+  }, [grilleBase, grilleModifications])
 
   // Mise à jour optimiste de la grille locale
   const updateGrilleLocal = useCallback((ressourceId: string, col: typeof colonnes[0], value: boolean) => {
-    setGrille((prev) => {
-      const newGrille = new Map(prev)
-      const cellKey = `${ressourceId}|${col.date.getTime()}`
+    const cellKey = `${ressourceId}|${col.date.getTime()}`
+    setGrilleModifications((prev) => {
+      const newModifications = new Map(prev)
       if (value) {
-        newGrille.set(cellKey, true)
+        newModifications.set(cellKey, true)
       } else {
-        newGrille.delete(cellKey)
+        newModifications.delete(cellKey)
       }
-      return newGrille
+      return newModifications
     })
   }, [])
 
@@ -180,7 +194,7 @@ export function GrilleAffectations({
         console.error('[GrilleAffectations] Erreur batch save:', err)
       }
     }, 500)
-  }, [saveAffectation, deleteAffectation, competence, affectations, updateGrilleLocal, colonnes])
+  }, [saveAffectation, deleteAffectation, competence, affectations, updateGrilleLocal])
 
   // Nettoyage du timeout au démontage
   useEffect(() => {
@@ -190,6 +204,36 @@ export function GrilleAffectations({
       }
     }
   }, [])
+
+  // Vérifier si une ressource est absente pour une date donnée
+  const isRessourceAbsente = useCallback((ressourceId: string, date: Date) => {
+    return absences.some(
+      (absence) =>
+        absence.ressource_id === ressourceId &&
+        new Date(absence.date_debut) <= date &&
+        new Date(absence.date_fin) >= date
+    )
+  }, [absences])
+
+  // Trier les ressources : celles avec affectations en premier, puis par ordre alphabétique
+  const ressourcesTriees = useMemo(() => {
+    // Créer un Set des IDs de ressources affectées
+    const ressourcesAffecteesIds = new Set<string>()
+    affectations.forEach((affectation) => {
+      ressourcesAffecteesIds.add(affectation.ressource_id)
+    })
+
+    // Séparer les ressources affectées et non affectées
+    const affectees = ressources.filter((r) => ressourcesAffecteesIds.has(r.id))
+    const nonAffectees = ressources.filter((r) => !ressourcesAffecteesIds.has(r.id))
+
+    // Trier chaque groupe par ordre alphabétique
+    const affecteesTriees = [...affectees].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+    const nonAffecteesTriees = [...nonAffectees].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+
+    // Retourner les affectées en premier, puis les non affectées
+    return [...affecteesTriees, ...nonAffecteesTriees]
+  }, [ressources, affectations])
 
   if (loading) {
     return (
@@ -206,16 +250,6 @@ export function GrilleAffectations({
       </div>
     )
   }
-
-  // Vérifier si une ressource est absente pour une date donnée
-  const isRessourceAbsente = useCallback((ressourceId: string, date: Date) => {
-    return absences.some(
-      (absence) =>
-        absence.ressource_id === ressourceId &&
-        new Date(absence.date_debut) <= date &&
-        new Date(absence.date_fin) >= date
-    )
-  }, [absences])
 
   return (
     <div className="overflow-x-auto">
@@ -237,7 +271,7 @@ export function GrilleAffectations({
           </tr>
         </thead>
         <tbody>
-          {ressources.map((ressource) => (
+          {ressourcesTriees.map((ressource) => (
             <tr key={ressource.id}>
               <td className="border border-gray-300 p-2 font-medium">{ressource.nom}</td>
               {colonnes.map((col, idx) => {
