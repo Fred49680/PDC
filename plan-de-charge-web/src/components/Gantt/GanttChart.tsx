@@ -86,6 +86,7 @@ export function GanttChart({
   affaireId,
   site,
   sitesList = [],
+  transferts = [],
 }: GanttChartProps) {
   // Générer les colonnes selon la précision
   const columns = useMemo(() => {

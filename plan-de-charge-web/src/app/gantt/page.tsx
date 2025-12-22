@@ -680,6 +680,7 @@ export default function GanttPage() {
               affaireId={viewMode === 'affaire' ? affaireId : undefined}
               site={site}
               sitesList={sitesList}
+              transferts={transferts}
             />
           </div>
         ) : (
