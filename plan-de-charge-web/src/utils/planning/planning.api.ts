@@ -338,14 +338,28 @@ export async function applyAffectationsBatch(
     const ressourceSite = ressourcesMap.get(aff.ressourceId)
     console.log('[applyAffectationsBatch] Site ressource', {
       ressourceId: aff.ressourceId,
-      ressourceSite,
+      ressourceSite: ressourceSite || 'NON TROUVÉ DANS MAP',
       siteUpper,
-      necessiteTransfert: ressourceSite && ressourceSite !== siteUpper,
+      necessiteTransfert: ressourceSite ? ressourceSite !== siteUpper : 'À VÉRIFIER',
     })
 
-    if (ressourceSite && ressourceSite !== siteUpper) {
+    // Si la ressource n'est pas dans la map, on doit la récupérer depuis la base
+    // et vérifier si un transfert est nécessaire
+    if (!ressourceSite) {
+      // Ressource non trouvée dans la map, récupérer depuis la base et créer le transfert si nécessaire
+      console.warn(`[applyAffectationsBatch] ⚠️ Ressource ${aff.ressourceId} non trouvée dans ressourcesMap, récupération depuis la base...`)
+      try {
+        // ensureTransfert va récupérer la ressource et créer le transfert si nécessaire
+        await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
+        transfertsCrees.push(aff.ressourceId)
+        console.log(`[applyAffectationsBatch] ✅ SUCCÈS - Transfert créé après récupération ressource ${aff.ressourceId}`)
+      } catch (error: any) {
+        console.error(`[applyAffectationsBatch] ❌ ERREUR - Transfert pour ${aff.ressourceId} (récupération depuis base):`, error)
+        erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
+      }
+    } else if (ressourceSite !== siteUpper) {
       // La ressource est sur un autre site, créer/étendre le transfert
-      console.log('[applyAffectationsBatch] Création transfert nécessaire', {
+      console.log('[applyAffectationsBatch] 🔄 Création transfert nécessaire', {
         ressourceId: aff.ressourceId,
         siteOrigine: ressourceSite,
         siteDestination: siteUpper,
@@ -353,25 +367,14 @@ export async function applyAffectationsBatch(
       try {
         await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
         transfertsCrees.push(aff.ressourceId)
-        console.log(`[applyAffectationsBatch] SUCCÈS - Transfert créé/étendu pour ressource ${aff.ressourceId} de ${ressourceSite} vers ${siteUpper}`)
+        console.log(`[applyAffectationsBatch] ✅ SUCCÈS - Transfert créé/étendu pour ressource ${aff.ressourceId} de ${ressourceSite} vers ${siteUpper}`)
       } catch (error: any) {
-        console.error(`[applyAffectationsBatch] ERREUR - Transfert pour ${aff.ressourceId}:`, error)
+        console.error(`[applyAffectationsBatch] ❌ ERREUR - Transfert pour ${aff.ressourceId}:`, error)
         erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
         // Ne pas bloquer l'affectation si le transfert échoue, mais loguer l'erreur
       }
-    } else if (!ressourceSite) {
-      // Ressource non trouvée dans la map, essayer de la récupérer
-      console.warn(`[applyAffectationsBatch] ATTENTION - Ressource ${aff.ressourceId} non trouvée dans ressourcesMap, récupération depuis la base...`)
-      try {
-        await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
-        transfertsCrees.push(aff.ressourceId)
-        console.log(`[applyAffectationsBatch] SUCCÈS - Transfert créé après récupération ressource ${aff.ressourceId}`)
-      } catch (error: any) {
-        console.error(`[applyAffectationsBatch] ERREUR - Transfert pour ${aff.ressourceId} (récupération depuis base):`, error)
-        erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
-      }
     } else {
-      console.log(`[applyAffectationsBatch] Pas de transfert nécessaire pour ${aff.ressourceId} (même site: ${ressourceSite})`)
+      console.log(`[applyAffectationsBatch] ℹ️ Pas de transfert nécessaire pour ${aff.ressourceId} (même site: ${ressourceSite})`)
     }
   }
   

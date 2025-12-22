@@ -167,6 +167,12 @@ export function AffectationPanel({
 
         // Fournir les ressources pour éviter les requêtes supplémentaires lors de la création des transferts
         // IMPORTANT : Inclure toutes les ressources (y compris externes) pour permettre la création des transferts
+        console.log('[AffectationPanel] Création ressourcesMap', {
+          nbRessources: ressources.length,
+          selectedIds: Array.from(selectedIds),
+          besoinSite: besoin.site,
+        })
+        
         const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
         
         // Vérifier que toutes les ressources sélectionnées sont dans la map
@@ -174,8 +180,25 @@ export function AffectationPanel({
           (id) => !ressourcesMap.some((r) => r.id === id)
         )
         if (ressourcesManquantes.length > 0) {
-          console.warn('[AffectationPanel] Ressources manquantes dans ressourcesMap:', ressourcesManquantes)
+          console.warn('[AffectationPanel] ⚠️ Ressources manquantes dans ressourcesMap:', ressourcesManquantes)
         }
+
+        // Log détaillé pour chaque ressource sélectionnée
+        console.log('[AffectationPanel] Détail ressources sélectionnées', {
+          affectationsToCreate: affectationsToCreate.map(aff => ({
+            ressourceId: aff.ressourceId,
+            ressourceSite: ressourcesMap.find(r => r.id === aff.ressourceId)?.site || 'NON TROUVÉ',
+            besoinSite: besoin.site,
+            necessiteTransfert: ressourcesMap.find(r => r.id === aff.ressourceId)?.site.toUpperCase() !== besoin.site.toUpperCase(),
+          })),
+        })
+
+        console.log('[AffectationPanel] Appel applyAffectationsBatch', {
+          affaireId,
+          site: besoin.site,
+          nbAffectations: affectationsToCreate.length,
+          ressourcesMap: ressourcesMap.map(r => ({ id: r.id, site: r.site })),
+        })
 
         await applyAffectationsBatch(affaireId, besoin.site, affectationsToCreate, ressourcesMap)
       }
