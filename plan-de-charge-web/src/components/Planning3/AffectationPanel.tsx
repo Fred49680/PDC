@@ -597,7 +597,7 @@ export function AffectationPanel({
                 Ressources partiellement indisponibles ({candidatsConflitPartiel.length})
               </h3>
               <p className="text-sm text-gray-600 mb-3">
-                Ces ressources ont des conflits sur certains jours mais sont disponibles sur d'autres. Vous pouvez les affecter sur les jours disponibles uniquement.
+                Ces ressources ont des conflits sur certains jours mais sont disponibles sur d&apos;autres. Vous pouvez les affecter sur les jours disponibles uniquement.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {candidatsConflitPartiel.map((candidat) => {
