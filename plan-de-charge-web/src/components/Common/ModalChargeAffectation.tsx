@@ -63,24 +63,36 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       )
     : affairesFiltreesParResponsableEtSite
 
-  // Réinitialiser les filtres en cascade quand on change le responsable
-  useEffect(() => {
-    if (responsable) {
+  // Handlers pour gérer les changements de filtres
+  const handleResponsableChange = (newResponsable: string) => {
+    setResponsable(newResponsable)
+    if (newResponsable) {
       setSite('')
       setAffaireId('')
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [responsable])
+  }
 
-  // Réinitialiser affaire quand le site change
-  useEffect(() => {
-    if (site) {
+  const handleSiteChange = (newSite: string) => {
+    setSite(newSite)
+    if (newSite) {
       setAffaireId('')
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [site])
+  }
 
-  // Mettre à jour le site automatiquement quand une affaire est sélectionnée
+  const handleAffaireChange = (selectedAffaireId: string) => {
+    if (selectedAffaireId) {
+      const affaire = affairesFiltreesFinales.find((a) => a.affaire_id === selectedAffaireId)
+      if (affaire) {
+        setAffaireId(selectedAffaireId)
+        setSite(affaire.site)
+        setNumeroCompte('')
+      }
+    } else {
+      setAffaireId('')
+    }
+  }
+
+  // Mettre à jour le site automatiquement quand une affaire est sélectionnée (si le site ne correspond pas)
   useEffect(() => {
     if (affaireId) {
       const affaire = affairesFiltreesFinales.find((a) => a.affaire_id === affaireId)
@@ -88,7 +100,6 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         setSite(affaire.site)
       }
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [affaireId, affairesFiltreesFinales, site])
 
   // Sélection automatique de l'affaire si un numéro de compte correspond exactement
@@ -102,7 +113,6 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         setSite(affaireTrouvee.site)
       }
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [numeroCompte, affairesFiltreesFinales, affaireId])
 
   if (!isOpen) return null
@@ -151,7 +161,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
               <label className="block text-xs font-semibold text-gray-600 mb-1">Responsable</label>
               <select
                 value={responsable}
-                onChange={(e) => setResponsable(e.target.value)}
+                onChange={(e) => handleResponsableChange(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
               >
                 <option value="">Tous...</option>
@@ -170,7 +180,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
               </label>
               <select
                 value={site}
-                onChange={(e) => setSite(e.target.value)}
+                onChange={(e) => handleSiteChange(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
               >
                 <option value="">Sélectionner...</option>
@@ -189,21 +199,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
               </label>
               <select
                 value={affaireId}
-                onChange={(e) => {
-                  const selectedAffaireId = e.target.value
-                  if (selectedAffaireId) {
-                    const affaire = affairesFiltreesFinales.find(
-                      (a) => a.affaire_id === selectedAffaireId
-                    )
-                    if (affaire) {
-                      setAffaireId(selectedAffaireId)
-                      setSite(affaire.site)
-                      setNumeroCompte('')
-                    }
-                  } else {
-                    setAffaireId('')
-                  }
-                }}
+                onChange={(e) => handleAffaireChange(e.target.value)}
                 disabled={!site}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
