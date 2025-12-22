@@ -1,11 +1,9 @@
 'use client'
 
-import React, { useState, useMemo, useCallback } from 'react'
-import { Target, Loader2 } from 'lucide-react'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import React, { useState, useMemo } from 'react'
+import { Target, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
-import { getDatesBetween, normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
+import { getDatesBetween, normalizeDateToUTC } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
@@ -95,11 +93,39 @@ export function BesoinsGrid({
     enableRealtime: true,
   })
 
-  const { ressources, loading: loadingRessources } = useRessources({
+  const { ressources, competences, loading: loadingRessources } = useRessources({
     site,
     actif: true,
     enableRealtime: true,
   })
+
+  // État pour gérer l'expansion/réduction de chaque compétence (par défaut toutes réduites)
+  const [expandedCompetences, setExpandedCompetences] = useState<Set<string>>(new Set())
+
+  // Grouper les ressources par compétence
+  const ressourcesParCompetence = useMemo(() => {
+    const map = new Map<string, typeof ressources>()
+    
+    ressources.forEach((ressource) => {
+      const ressourceCompetences = competences.get(ressource.id) || []
+      ressourceCompetences.forEach((comp) => {
+        if (!map.has(comp.competence)) {
+          map.set(comp.competence, [])
+        }
+        map.get(comp.competence)!.push(ressource)
+      })
+    })
+    
+    // Trier les compétences et les ressources dans chaque groupe
+    const sortedMap = new Map<string, typeof ressources>()
+    Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([competence, ressources]) => {
+        sortedMap.set(competence, ressources.sort((a, b) => a.nom.localeCompare(b.nom)))
+      })
+    
+    return sortedMap
+  }, [ressources, competences])
 
   // Générer les colonnes de dates selon la précision
   const colonnes = useMemo(() => {
@@ -173,13 +199,13 @@ export function BesoinsGrid({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Construire la grille : pour chaque date (ligne) et chaque ressource (colonne), vérifier si affectée
+  // Construire la grille : pour chaque ressource (ligne) et chaque date (colonne), vérifier si affectée
   const grille = useMemo(() => {
-    const grid = new Map<string, boolean>() // Clé: "dateIndex|ressourceId", Valeur: true si affectée
+    const grid = new Map<string, boolean>() // Clé: "ressourceId|dateIndex", Valeur: true si affectée
     
-    colonnes.forEach((col, colIndex) => {
-      ressources.forEach((ressource) => {
-        const cellKey = `${colIndex}|${ressource.id}`
+    ressources.forEach((ressource) => {
+      colonnes.forEach((col, colIndex) => {
+        const cellKey = `${ressource.id}|${colIndex}`
         
         // Vérifier si cette ressource a une affectation pour cette date/colonne
         const isAffectee = affectations.some((aff) => {
@@ -213,6 +239,18 @@ export function BesoinsGrid({
     return grid
   }, [colonnes, ressources, affectations, precision])
 
+  const toggleCompetence = (competence: string) => {
+    setExpandedCompetences((prev) => {
+      const next = new Set(prev)
+      if (next.has(competence)) {
+        next.delete(competence)
+      } else {
+        next.add(competence)
+      }
+      return next
+    })
+  }
+
   const loading = loadingAffectations || loadingRessources
 
   if (loading) {
@@ -235,66 +273,111 @@ export function BesoinsGrid({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-      <table className="min-w-full border-collapse">
-        <thead>
-          <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-            <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100">
-              Date / Période
-            </th>
-            {ressources.map((ressource) => (
-              <th
-                key={ressource.id}
-                className="border-b border-r border-gray-300 px-3 py-2 text-center min-w-[120px] text-xs font-semibold bg-gray-50 text-gray-700"
+    <div className="space-y-6">
+      {Array.from(ressourcesParCompetence.entries()).map(([competence, ressourcesComp]) => {
+        const isExpanded = expandedCompetences.has(competence)
+        
+        return (
+          <div key={competence} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 overflow-hidden">
+            {/* En-tête avec nom de compétence et flèche */}
+            <div 
+              className="flex items-center gap-3 p-6 cursor-pointer hover:bg-gray-50/50 transition-colors"
+              onClick={() => toggleCompetence(competence)}
+            >
+              <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full flex-shrink-0"></div>
+              <div className="flex items-center gap-3 flex-1">
+                <h3 className="text-xl font-bold text-gray-800">{competence}</h3>
+                <span className="text-sm text-gray-500">({ressourcesComp.length} ressource{ressourcesComp.length > 1 ? 's' : ''})</span>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleCompetence(competence)
+                }}
+                className="p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                aria-label={isExpanded ? 'Réduire' : 'Développer'}
               >
-                <div className="font-medium">{ressource.nom}</div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{ressource.site}</div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {colonnes.map((col, colIndex) => {
-            const isEven = colIndex % 2 === 0
-            
-            return (
-              <tr key={colIndex} className={isEven ? 'bg-white' : 'bg-gray-50/50'}>
-                <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-10 ${
-                  isEven ? 'bg-white' : 'bg-gray-50/50'
-                }`}>
-                  <div className="font-medium">{col.shortLabel}</div>
-                  {precision === 'SEMAINE' && (
-                    <div className="text-[10px] text-gray-500 mt-0.5">{col.semaineISO}</div>
-                  )}
-                </td>
-                {ressources.map((ressource) => {
-                  const cellKey = `${colIndex}|${ressource.id}`
-                  const isAffectee = grille.get(cellKey) || false
-                  
-                  return (
-                    <td 
-                      key={ressource.id}
-                      className={`border-b border-r border-gray-300 px-2 py-2 text-center ${
-                        col.isWeekend ? 'bg-blue-50/50' :
-                        col.isHoliday ? 'bg-rose-50/50' :
-                        ''
-                      }`}
-                    >
-                      <div className={`w-full h-8 flex items-center justify-center rounded ${
-                        isAffectee 
-                          ? 'bg-green-500 text-white font-semibold' 
-                          : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        {isAffectee ? '✓' : ''}
-                      </div>
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+                {isExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-600" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-600" />
+                )}
+              </button>
+            </div>
+
+            {/* Contenu (grille) - affiché seulement si expandé */}
+            {isExpanded && (
+              <div className="px-6 pb-6 overflow-x-auto">
+                <div className="rounded-lg border border-gray-200 shadow-sm">
+                  <table className="min-w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100">
+                          Ressource
+                        </th>
+                        {colonnes.map((col, idx) => (
+                          <th
+                            key={idx}
+                            className={`border-b border-r border-gray-300 px-3 py-2 text-center min-w-[90px] text-xs font-semibold ${
+                              col.isWeekend ? 'bg-blue-100 text-blue-800' :
+                              col.isHoliday ? 'bg-rose-100 text-rose-800' :
+                              'bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            <div className="font-medium">{col.shortLabel}</div>
+                            {precision === 'SEMAINE' && (
+                              <div className="text-[10px] text-gray-500 mt-0.5">{col.semaineISO}</div>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ressourcesComp.map((ressource, ressourceIdx) => {
+                        const isEven = ressourceIdx % 2 === 0
+                        
+                        return (
+                          <tr key={ressource.id} className={isEven ? 'bg-white' : 'bg-gray-50/50'}>
+                            <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-10 ${
+                              isEven ? 'bg-white' : 'bg-gray-50/50'
+                            }`}>
+                              <div className="font-medium">{ressource.nom}</div>
+                              <div className="text-xs text-gray-500">{ressource.site}</div>
+                            </td>
+                            {colonnes.map((col, colIndex) => {
+                              const cellKey = `${ressource.id}|${colIndex}`
+                              const isAffectee = grille.get(cellKey) || false
+                              
+                              return (
+                                <td 
+                                  key={colIndex}
+                                  className={`border-b border-r border-gray-300 px-2 py-2 text-center ${
+                                    col.isWeekend ? 'bg-blue-50/50' :
+                                    col.isHoliday ? 'bg-rose-50/50' :
+                                    ''
+                                  }`}
+                                >
+                                  <div className={`w-full h-8 flex items-center justify-center rounded ${
+                                    isAffectee 
+                                      ? 'bg-green-500 text-white font-semibold' 
+                                      : 'bg-gray-100 text-gray-400'
+                                  }`}>
+                                    {isAffectee ? '✓' : ''}
+                                  </div>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
