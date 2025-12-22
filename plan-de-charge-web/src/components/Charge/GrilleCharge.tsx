@@ -89,8 +89,10 @@ export function GrilleCharge({
   dateDebut,
   dateFin,
   precision,
-  onDateDebutChange: _onDateDebutChange,
-  onDateFinChange: _onDateFinChange,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onDateDebutChange,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onDateFinChange,
   onPrecisionChange,
   showButtonsAbove = false,
   onOpenChargeModal,
