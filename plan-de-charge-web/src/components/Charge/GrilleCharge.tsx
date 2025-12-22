@@ -258,6 +258,7 @@ export function GrilleCharge({
   }, [periodes])
 
   // Construire la grille depuis les périodes (comme Planning2 avec gestion week-end/férié)
+  // Préserver les valeurs locales en cours de sauvegarde
   useEffect(() => {
     const newGrille = new Map<string, number>()
 
@@ -299,7 +300,44 @@ export function GrilleCharge({
       })
     })
 
-    setGrille(newGrille)
+    // Préserver les valeurs locales qui sont en cours de sauvegarde ou qui viennent d'être modifiées
+    // Cela évite que la grille soit réinitialisée à zéro pendant la sauvegarde
+    setGrille((prevGrille) => {
+      const mergedGrille = new Map(newGrille)
+      
+      // Préserver les valeurs de la grille précédente qui sont en cours de sauvegarde
+      pendingSavesRef.current.forEach(({ competence, col, value }, cellKey) => {
+        const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+        if (colIndex >= 0) {
+          const key = `${competence}|${colIndex}`
+          // Garder la valeur en cours de sauvegarde si elle est différente de celle de la base
+          // ou si elle n'existe pas encore dans la nouvelle grille
+          const grilleValue = mergedGrille.get(key) || 0
+          if (value !== grilleValue || !mergedGrille.has(key)) {
+            mergedGrille.set(key, value)
+          }
+        }
+      })
+      
+      // Préserver aussi les valeurs qui existent dans la grille précédente mais pas dans la nouvelle
+      // (cas où la période n'est pas encore synchronisée via Realtime)
+      prevGrille.forEach((value, key) => {
+        if (!mergedGrille.has(key) && value > 0) {
+          // Vérifier si cette valeur est en cours de sauvegarde
+          const isPending = Array.from(pendingSavesRef.current.values()).some(
+            ({ competence, col }) => {
+              const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+              return colIndex >= 0 && `${competence}|${colIndex}` === key
+            }
+          )
+          if (isPending) {
+            mergedGrille.set(key, value)
+          }
+        }
+      })
+      
+      return mergedGrille
+    })
     // Nettoyer les valeurs d'édition qui ne correspondent plus aux valeurs de la grille
     setEditingValues(prev => {
       const next = new Map(prev)
@@ -354,11 +392,12 @@ export function GrilleCharge({
     const cellKey = `${competence}|${colIndex}`
     const nbRessources = Math.max(0, Math.floor(value))
     
+    // Stocker la sauvegarde en attente AVANT la mise à jour locale
+    // Cela garantit que la valeur sera préservée lors de la reconstruction de la grille
+    pendingSavesRef.current.set(cellKey, { competence, col, value: nbRessources })
+    
     // Mise à jour optimiste immédiate
     updateGrilleLocal(competence, col, nbRessources)
-
-    // Stocker la sauvegarde en attente
-    pendingSavesRef.current.set(cellKey, { competence, col, value: nbRessources })
 
     // Annuler le timeout précédent
     if (saveTimeoutRef.current) {
@@ -368,11 +407,13 @@ export function GrilleCharge({
     // Programmer la sauvegarde après 500ms d'inactivité
     saveTimeoutRef.current = setTimeout(async () => {
       const saves = Array.from(pendingSavesRef.current.values())
-      pendingSavesRef.current.clear()
+      // Ne pas vider immédiatement - garder les valeurs jusqu'à ce que le Realtime confirme
+      const savesToProcess = [...saves]
+      // On garde les valeurs dans pendingSavesRef jusqu'à ce qu'elles soient confirmées par Realtime
 
       try {
         await Promise.all(
-          saves.map(async ({ competence, col, value }) => {
+          savesToProcess.map(async ({ competence, col, value }) => {
             let dateDebutPeriode: Date
             let dateFinPeriode: Date
             let forceWeekendFerie = false
@@ -413,17 +454,30 @@ export function GrilleCharge({
               dateFinPeriode = normalizeDateToUTC(col.date)
             }
 
-            return savePeriode({
+            const result = await savePeriode({
               competence,
               date_debut: dateDebutPeriode,
               date_fin: dateFinPeriode,
               nb_ressources: value,
               force_weekend_ferie: forceWeekendFerie,
             })
+            return result
           })
         )
+        
+        // Après la sauvegarde, attendre que le Realtime se synchronise
+        // Les valeurs restent dans pendingSavesRef jusqu'à ce qu'elles apparaissent dans periodes
+        // Le useEffect les préservera automatiquement
       } catch (err) {
         console.error('[GrilleCharge] Erreur batch save:', err)
+        // En cas d'erreur, retirer les sauvegardes pour éviter de bloquer
+        savesToProcess.forEach(({ competence, col }) => {
+          const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+          if (colIndex >= 0) {
+            const cellKey = `${competence}|${colIndex}`
+            pendingSavesRef.current.delete(cellKey)
+          }
+        })
       }
     }, 500)
   }, [savePeriode, updateGrilleLocal, precision, dateFin, colonnes, confirmAsync])
