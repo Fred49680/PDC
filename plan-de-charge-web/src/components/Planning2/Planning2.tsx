@@ -477,8 +477,10 @@ export default function Planning2({
   }, [toutesCompetences, periodes, affectations, dateDebut, dateFin, selectedCompetences.size])
 
   // Grilles de données
-  const grilleCharge = useMemo(() => {
-    const grille = new Map<string, number>()
+  // Construire la grille depuis les périodes avec préservation des valeurs locales (comme GrilleCharge)
+  useEffect(() => {
+    const newGrille = new Map<string, number>()
+    
     periodes.forEach((periode) => {
       const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
       const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
@@ -512,12 +514,52 @@ export default function Planning2({
         
         if (correspond) {
           const cellKey = `${periode.competence}|${idx}`
-          grille.set(cellKey, periode.nb_ressources)
+          newGrille.set(cellKey, periode.nb_ressources)
         }
       })
     })
-    return grille
+
+    // Préserver les valeurs locales qui sont en cours de sauvegarde (comme GrilleCharge)
+    setGrilleChargeLocal((prevGrille) => {
+      const mergedGrille = new Map(newGrille)
+      
+      // Préserver les valeurs de la grille précédente qui sont en cours de sauvegarde
+      pendingSavesRef.current.forEach(({ competence, col, value }, cellKey) => {
+        const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+        if (colIndex >= 0) {
+          const key = `${competence}|${colIndex}`
+          // Garder la valeur en cours de sauvegarde si elle est différente de celle de la base
+          // ou si elle n'existe pas encore dans la nouvelle grille
+          const grilleValue = mergedGrille.get(key) || 0
+          if (value !== grilleValue || !mergedGrille.has(key)) {
+            mergedGrille.set(key, value)
+          }
+        }
+      })
+      
+      // Préserver aussi les valeurs qui existent dans la grille précédente mais pas dans la nouvelle
+      // (cas où la période n'est pas encore synchronisée via Realtime)
+      prevGrille.forEach((value, key) => {
+        if (!mergedGrille.has(key) && value > 0) {
+          // Vérifier si cette valeur est en cours de sauvegarde
+          const isPending = Array.from(pendingSavesRef.current.values()).some(
+            ({ competence, col }) => {
+              const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+              return colIndex >= 0 && `${competence}|${colIndex}` === key
+            }
+          )
+          if (isPending) {
+            mergedGrille.set(key, value)
+          }
+        }
+      })
+      
+      return mergedGrille
+    })
   }, [periodes, colonnes, precision])
+
+  // Utiliser la grille locale au lieu de la grille calculée
+  const grilleCharge = grilleChargeLocal
 
   const grilleAffectations = useMemo(() => {
     const grille = new Map<string, Set<string>>()
@@ -624,6 +666,10 @@ export default function Planning2({
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set())
   const saveTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  // Référence pour tracker les sauvegardes en cours (comme dans GrilleCharge)
+  const pendingSavesRef = useRef<Map<string, { competence: string; col: ColonneDate; value: number }>>(new Map())
+  // État local pour la grille de charge (pour préserver les valeurs en cours de sauvegarde)
+  const [grilleChargeLocal, setGrilleChargeLocal] = useState<Map<string, number>>(new Map())
   
   // État pour suivre les opérations de masse (affectations)
   const [isGeneratingAffectations, setIsGeneratingAffectations] = useState(false)
@@ -803,6 +849,17 @@ export default function Planning2({
     setChargeMasseModal(prev => ({ ...prev, isOpen: false, isGenerating: false }))
   }, [chargeMasseModal.isGenerating])
 
+  // Mise à jour optimiste de la grille locale (comme GrilleCharge)
+  const updateGrilleLocal = useCallback((competence: string, col: ColonneDate, value: number) => {
+    setGrilleChargeLocal((prev) => {
+      const newGrille = new Map(prev)
+      const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+      const cellKey = `${competence}|${colIndex}`
+      newGrille.set(cellKey, value)
+      return newGrille
+    })
+  }, [colonnes])
+
   // Handlers
   const handleChargeChange = useCallback(async (competence: string, colIndex: number, value: number) => {
     // Désactiver l'enregistrement automatique pendant la génération de masse
@@ -815,6 +872,12 @@ export default function Planning2({
 
     const cellKey = `${competence}|${colIndex}`
     const nbRessources = Math.max(0, Math.floor(value))
+    
+    // Stocker la sauvegarde en attente AVANT la mise à jour locale (comme GrilleCharge)
+    pendingSavesRef.current.set(cellKey, { competence, col, value: nbRessources })
+    
+    // Mise à jour optimiste immédiate
+    updateGrilleLocal(competence, col, nbRessources)
     
     setSavingCells(prev => new Set(prev).add(cellKey))
     
@@ -995,11 +1058,13 @@ export default function Planning2({
           return newSet
         })
         saveTimeoutRef.current.delete(cellKey)
+        // En cas d'erreur, retirer la sauvegarde en attente
+        pendingSavesRef.current.delete(cellKey)
       }
     }, 500)
     
     saveTimeoutRef.current.set(cellKey, timeout)
-  }, [periodes, savePeriode, deletePeriode, precision, dateFin, colonnes, confirmAsync, chargeMasseModal.isGenerating])
+  }, [periodes, savePeriode, deletePeriode, precision, dateFin, colonnes, confirmAsync, chargeMasseModal.isGenerating, updateGrilleLocal])
 
   const handleAffectationChange = useCallback(async (competence: string, ressourceId: string, colIndex: number, checked: boolean) => {
     // Désactiver l'enregistrement automatique pendant la génération de masse d'affectations
