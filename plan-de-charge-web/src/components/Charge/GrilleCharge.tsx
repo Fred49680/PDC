@@ -429,6 +429,14 @@ export function GrilleCharge({
       // On garde les valeurs dans pendingSavesRef jusqu'à ce qu'elles soient confirmées par Realtime
 
       try {
+        // Détecter si c'est la première sauvegarde pour une nouvelle compétence
+        const nouvellesCompetences = new Set<string>()
+        savesToProcess.forEach(({ competence }) => {
+          if (competencesManuelles.has(competence)) {
+            nouvellesCompetences.add(competence)
+          }
+        })
+        
         await Promise.all(
           savesToProcess.map(async ({ competence, col, value }) => {
             let dateDebutPeriode: Date
@@ -482,6 +490,22 @@ export function GrilleCharge({
           })
         )
         
+        // Si c'est la première sauvegarde pour une nouvelle compétence, rafraîchir
+        if (nouvellesCompetences.size > 0) {
+          // Retirer les compétences de la liste manuelle car elles ont maintenant des données
+          setCompetencesManuelles(prev => {
+            const next = new Set(prev)
+            nouvellesCompetences.forEach(comp => next.delete(comp))
+            return next
+          })
+          
+          // Rafraîchir les données pour synchroniser avec la base
+          await refreshGrilleCharge()
+          
+          // Attendre un peu pour que le Realtime se synchronise
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+        
         // Après la sauvegarde, attendre que le Realtime se synchronise
         // Les valeurs restent dans pendingSavesRef jusqu'à ce qu'elles apparaissent dans periodes
         // Le useEffect les préservera automatiquement
@@ -497,7 +521,7 @@ export function GrilleCharge({
         })
       }
     }, 500)
-  }, [savePeriode, updateGrilleLocal, precision, dateFin, colonnes, confirmAsync])
+  }, [savePeriode, updateGrilleLocal, precision, dateFin, colonnes, confirmAsync, competencesManuelles, refreshGrilleCharge])
 
   // Nettoyage du timeout au démontage
   useEffect(() => {
@@ -559,8 +583,17 @@ export function GrilleCharge({
             return next
           })
           
-          // Rafraîchir les données
+          // Rafraîchir les données et forcer la reconstruction de la grille
           await refreshGrilleCharge()
+          
+          // Forcer un refresh de la grille en déclenchant une mise à jour
+          setGrille(prev => {
+            // Créer une nouvelle Map vide pour forcer le re-render
+            return new Map()
+          })
+          
+          // Attendre un peu pour que le refresh soit bien pris en compte
+          await new Promise(resolve => setTimeout(resolve, 100))
         } catch (err) {
           console.error('[GrilleCharge] Erreur suppression compétence:', err)
         }
