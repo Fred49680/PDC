@@ -162,7 +162,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998] flex items-center justify-center p-4">
       <div
         ref={modalRef}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[calc(100vh-2rem)] flex flex-col"

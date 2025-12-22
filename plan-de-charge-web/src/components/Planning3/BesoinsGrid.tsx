@@ -615,25 +615,31 @@ export function BesoinsGrid({
                   <span className="text-sm text-gray-500">({ressourcesComp.length} ressource{ressourcesComp.length > 1 ? 's' : ''})</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div 
+                className="flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <button
                   onClick={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     toggleExternes(competence)
                   }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer ${
                     showExterne ? 'bg-indigo-600' : 'bg-gray-300'
                   }`}
                   role="switch"
                   aria-checked={showExterne}
+                  aria-label={`${showExterne ? 'Désactiver' : 'Activer'} ressources externes pour ${competence}`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
                       showExterne ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>
-                <span className="text-sm text-gray-700 font-medium">
+                <span className="text-sm text-gray-700 font-medium min-w-[30px]">
                   {showExterne ? 'ON' : 'OFF'}
                 </span>
                 <span className="text-xs text-gray-500">Ressources externes</span>
