@@ -10,6 +10,7 @@ import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
 import { useSites } from '@/hooks/useSites'
+import { useTransferts } from '@/hooks/useTransferts'
 import { startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, addWeeks, subWeeks, startOfMonth as startOfMonthFn, endOfMonth as endOfMonthFn } from 'date-fns'
 import { formatPlageSemainesISO } from '@/utils/calendar'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -228,19 +229,61 @@ export default function GanttPage() {
   const affectations = viewMode === 'affaire' ? affectationsAffaire : affectationsSite
   const loadingAffectations = viewMode === 'affaire' ? loadingAffectationsAffaire : loadingAffectationsSite
 
+  // Charger tous les transferts pour la période
+  const { transferts, loading: loadingTransferts } = useTransferts({})
+
   // Charger toutes les ressources (filtrées par site si sélectionné)
   const { ressources: toutesRessources, loading: loadingRessources } = useRessources({
-    site: site || undefined,
     actif: true,
+    // Ne pas filtrer par site ici, on va gérer les transferts manuellement
   })
 
-  // Filtrer les ressources selon le filtre ressource
+  // Filtrer les ressources selon le filtre ressource et ajouter les ressources transférées
   const ressources = useMemo(() => {
-    if (!ressourceFilter) return toutesRessources
-    return toutesRessources.filter((r) =>
-      r.nom.toLowerCase().includes(ressourceFilter.toLowerCase())
-    )
-  }, [toutesRessources, ressourceFilter])
+    let ressourcesFiltrees = toutesRessources
+
+    // Filtrer par site si sélectionné (en mode site)
+    if (viewMode === 'site' && site) {
+      const siteNormalized = site.toUpperCase().trim()
+      ressourcesFiltrees = toutesRessources.filter((r) => r.site.toUpperCase() === siteNormalized)
+    }
+
+    // Ajouter les ressources transférées vers le site sélectionné pendant la période
+    if (viewMode === 'site' && site) {
+      const siteNormalized = site.toUpperCase().trim()
+      const ressourcesTransfereesIds = new Set<string>()
+
+      transferts.forEach((transfert) => {
+        // Si le transfert est vers le site sélectionné et chevauche la période
+        if (
+          transfert.site_destination.toUpperCase() === siteNormalized &&
+          transfert.date_debut <= dateFin &&
+          transfert.date_fin >= dateDebut
+        ) {
+          ressourcesTransfereesIds.add(transfert.ressource_id)
+        }
+      })
+
+      // Ajouter les ressources transférées qui ne sont pas déjà dans la liste
+      ressourcesTransfereesIds.forEach((ressourceId) => {
+        if (!ressourcesFiltrees.find((r) => r.id === ressourceId)) {
+          const ressourceTransferee = toutesRessources.find((r) => r.id === ressourceId)
+          if (ressourceTransferee) {
+            ressourcesFiltrees.push(ressourceTransferee)
+          }
+        }
+      })
+    }
+
+    // Filtrer par nom de ressource si filtre renseigné
+    if (ressourceFilter) {
+      ressourcesFiltrees = ressourcesFiltrees.filter((r) =>
+        r.nom.toLowerCase().includes(ressourceFilter.toLowerCase())
+      )
+    }
+
+    return ressourcesFiltrees
+  }, [toutesRessources, ressourceFilter, viewMode, site, transferts, dateDebut, dateFin])
 
   // Charger toutes les absences
   const { absences, loading: loadingAbsences } = useAbsences({})
@@ -270,7 +313,7 @@ export default function GanttPage() {
     })
   }, [absences, dateDebut, dateFin])
 
-  const loading = loadingAffaires || loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences || loadingSites
+  const loading = loadingAffaires || loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences || loadingSites || loadingTransferts
 
   return (
     <Layout>

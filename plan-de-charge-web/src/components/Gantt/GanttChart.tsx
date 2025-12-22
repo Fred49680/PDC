@@ -470,7 +470,14 @@ export function GanttChart({
                     {/* Label ressource */}
                     <div className="min-w-[200px] max-w-[400px] p-3 font-medium text-gray-800 border-r-2 border-gray-300 bg-gray-50 flex-shrink-0">
                       <div className="font-semibold whitespace-nowrap">{ressource.nom}</div>
-                      <div className="text-xs text-gray-500 whitespace-nowrap">{ressource.site}</div>
+                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                        {ressource.site}
+                        {viewMode === 'site' && (
+                          <span className="ml-1 text-blue-600" title="Ressource transférée sur ce site pendant cette période">
+                            (transférée)
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Zone des barres */}
