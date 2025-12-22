@@ -514,7 +514,14 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                   type="number"
                   min="1"
                   value={chargeMasseForm.nbRessources}
-                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, nbRessources: parseInt(e.target.value) || 1 })}
+                  onChange={(e) => {
+                    const newNb = parseInt(e.target.value) || 1
+                    // Réinitialiser la sélection si le nouveau nombre est inférieur au nombre de ressources sélectionnées
+                    const newRessourceIds = newNb < chargeMasseForm.ressourceIds.length
+                      ? chargeMasseForm.ressourceIds.slice(0, newNb)
+                      : chargeMasseForm.ressourceIds
+                    setChargeMasseForm({ ...chargeMasseForm, nbRessources: newNb, ressourceIds: newRessourceIds })
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
