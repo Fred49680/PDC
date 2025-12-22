@@ -11,6 +11,7 @@ import { getRessourcesCandidates } from '@/utils/planning/planning.compute'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import type { Affectation } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
+import type { PeriodeCharge } from '@/types/charge'
 import { useToast } from '@/components/UI/Toast'
 import { applyAffectationsBatch } from '@/utils/planning/planning.api'
 import { normalizeDateToUTC } from '@/utils/calendar'
@@ -23,7 +24,7 @@ interface AffectationPanelProps {
   competences: Map<string, RessourceCompetence[]>
   affectations: Affectation[]
   absences: Absence[]
-  periodesCharge?: any[] // Périodes de charge pour afficher les besoins
+  periodesCharge?: PeriodeCharge[] // Périodes de charge pour afficher les besoins
   onClose: () => void
   onSuccess: () => void
 }
@@ -245,7 +246,7 @@ export function AffectationPanel({
     const besoinDateDebut = normalizeDateToUTC(besoin.dateDebut)
     const besoinDateFin = normalizeDateToUTC(besoin.dateFin)
     
-    periodesCharge.forEach((periode: any) => {
+    periodesCharge.forEach((periode: PeriodeCharge) => {
       const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
       const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
       
@@ -275,23 +276,32 @@ export function AffectationPanel({
     return nbRessourcesAffectees > besoinNb
   }, [besoin, nbRessourcesAffectees])
 
-  if (!besoin) return null
-
   // Séparer les candidats :
   // - Disponibles du même site (selectable && !necessiteTransfert) - EXCLURE celles déjà affectées
   // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - EXCLURE celles déjà affectées
   // - Indisponibles (absents ou en conflit) - non sélectionnables, mais uniquement celles qui ont la compétence
-  const candidatsDisponiblesMemeSiteRaw = candidats.filter(
-    (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
-  )
-  const candidatsNecessitantTransfertRaw = candidats.filter(
-    (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
-  )
+  const candidatsDisponiblesMemeSiteRaw = useMemo(() => {
+    if (!besoin) return []
+    return candidats.filter(
+      (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+    )
+  }, [besoin, candidats, ressourcesDejaAffecteesIds])
+
+  const candidatsNecessitantTransfertRaw = useMemo(() => {
+    if (!besoin) return []
+    return candidats.filter(
+      (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+    )
+  }, [besoin, candidats, ressourcesDejaAffecteesIds])
+
   // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
   // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
-  const candidatsIndisponiblesRaw = candidats.filter(
-    (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
-  )
+  const candidatsIndisponiblesRaw = useMemo(() => {
+    if (!besoin) return []
+    return candidats.filter(
+      (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
+    )
+  }, [besoin, candidats])
   
   // Trier les indisponibles par ordre alphabétique
   const candidatsIndisponibles = useMemo(() => {
@@ -299,9 +309,12 @@ export function AffectationPanel({
   }, [candidatsIndisponiblesRaw])
   
   // Ressources avec conflit partiel (affichées dans une section séparée)
-  const candidatsConflitPartielRaw = candidats.filter(
-    (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
-  )
+  const candidatsConflitPartielRaw = useMemo(() => {
+    if (!besoin) return []
+    return candidats.filter(
+      (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
+    )
+  }, [besoin, candidats])
 
   // Trier les listes : ressources sélectionnées en premier, puis par ordre alphabétique
   const candidatsDisponiblesMemeSite = useMemo(() => {
@@ -340,6 +353,8 @@ export function AffectationPanel({
       ...toRemove.sort((a, b) => a.nom.localeCompare(b.nom)),
     ]
   }, [ressourcesDejaAffectees, idsToRemove])
+
+  if (!besoin) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
