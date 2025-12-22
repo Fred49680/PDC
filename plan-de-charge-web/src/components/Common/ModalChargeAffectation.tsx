@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { X, BarChart3, Target } from 'lucide-react'
+import { X, Target } from 'lucide-react'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { Planning3 } from '@/components/Planning3'
 import { useAffaires } from '@/hooks/useAffaires'
@@ -17,7 +17,6 @@ interface ModalChargeAffectationProps {
 }
 
 export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectationProps) {
-  const [activeTab, setActiveTab] = useState<'charge' | 'affectation'>('charge')
   const { affaires } = useAffaires()
   
   // État pour le drag & drop
@@ -391,38 +390,12 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
           </div>
         </div>
 
-        {/* Onglets */}
-        <div className="flex border-b border-gray-200 bg-white">
-          <button
-            onClick={() => setActiveTab('charge')}
-            className={`flex-1 px-6 py-4 font-semibold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'charge'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-            }`}
-          >
-            <BarChart3 className="w-5 h-5" />
-            Charge
-          </button>
-          <button
-            onClick={() => setActiveTab('affectation')}
-            className={`flex-1 px-6 py-4 font-semibold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'affectation'
-                ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
-                : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
-            }`}
-          >
-            <Target className="w-5 h-5" />
-            Affectation
-          </button>
-        </div>
-
-        {/* Contenu des onglets */}
+        {/* Contenu principal */}
         <div className="flex-1 overflow-y-auto p-6 pb-12">
-          {activeTab === 'charge' && (
-            <div className="space-y-6">
-              {/* Grille de charge */}
-              {affaireId && site ? (
+          <div className="space-y-6">
+            {/* Grille de charge */}
+            {affaireId && site ? (
+              <>
                 <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
                   <GrilleCharge
                     affaireId={affaireId}
@@ -436,24 +409,8 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     showButtonsAbove={true}
                   />
                 </div>
-              ) : (
-                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
-                      <Target className="w-6 h-6 text-white" />
-                    </div>
-                    <p className="text-amber-800 font-medium">
-                      Veuillez renseigner l&apos;Affaire ID et le Site pour afficher la grille de charge.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'affectation' && (
-            <div>
-              {affaireId && site ? (
+                
+                {/* Planning d'affectation sous le tableau de charge */}
                 <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
                   <Planning3 
                     affaireId={affaireId} 
@@ -462,20 +419,20 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     dateFin={dateFin}
                   />
                 </div>
-              ) : (
-                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
-                      <Target className="w-6 h-6 text-white" />
-                    </div>
-                    <p className="text-amber-800 font-medium">
-                      Veuillez sélectionner une affaire et un site pour afficher le planning.
-                    </p>
+              </>
+            ) : (
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
+                    <Target className="w-6 h-6 text-white" />
                   </div>
+                  <p className="text-amber-800 font-medium">
+                    Veuillez renseigner l&apos;Affaire ID et le Site pour afficher la grille de charge et le planning.
+                  </p>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
