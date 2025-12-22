@@ -5,7 +5,7 @@ import { X, BarChart3, Target } from 'lucide-react'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { Planning3 } from '@/components/Planning3'
 import { useAffaires } from '@/hooks/useAffaires'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { startOfMonth, endOfMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { formatSemaineISO } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
@@ -18,7 +18,7 @@ interface ModalChargeAffectationProps {
 
 export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectationProps) {
   const [activeTab, setActiveTab] = useState<'charge' | 'affectation'>('charge')
-  const { affaires, loading: loadingAffaires } = useAffaires()
+  const { affaires } = useAffaires()
 
   // État partagé pour l'affaire
   const [affaireId, setAffaireId] = useState('')
@@ -69,6 +69,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       setSite('')
       setAffaireId('')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [responsable])
 
   // Réinitialiser affaire quand le site change
@@ -76,6 +77,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     if (site) {
       setAffaireId('')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [site])
 
   // Mettre à jour le site automatiquement quand une affaire est sélectionnée
@@ -86,6 +88,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         setSite(affaire.site)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [affaireId, affairesFiltreesFinales, site])
 
   // Sélection automatique de l'affaire si un numéro de compte correspond exactement
@@ -99,6 +102,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         setSite(affaireTrouvee.site)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numeroCompte, affairesFiltreesFinales, affaireId])
 
   if (!isOpen) return null

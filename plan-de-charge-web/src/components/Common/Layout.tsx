@@ -70,47 +70,46 @@ export function Layout({ children }: LayoutProps) {
               {navItems.map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
-                return (
-                  {item.isModal ? (
-                    <button
-                      onClick={() => setModalChargeAffectationOpen(true)}
-                      className={`
-                        relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
-                        flex items-center gap-2 group
-                        ${
-                          active
-                            ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
-                            : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
-                        }
-                      `}
-                    >
-                      <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
-                      <span>{item.label}</span>
-                      {active && (
-                        <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
-                      )}
-                    </button>
-                  ) : (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`
-                        relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
-                        flex items-center gap-2 group
-                        ${
-                          active
-                            ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
-                            : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
-                        }
-                      `}
-                    >
-                      <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
-                      <span>{item.label}</span>
-                      {active && (
-                        <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
-                      )}
-                    </Link>
-                  )}
+                return item.isModal ? (
+                  <button
+                    key={item.href}
+                    onClick={() => setModalChargeAffectationOpen(true)}
+                    className={`
+                      relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
+                      flex items-center gap-2 group
+                      ${
+                        active
+                          ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
+                          : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
+                      }
+                    `}
+                  >
+                    <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
+                    <span>{item.label}</span>
+                    {active && (
+                      <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
+                    )}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`
+                      relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
+                      flex items-center gap-2 group
+                      ${
+                        active
+                          ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
+                          : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
+                      }
+                    `}
+                  >
+                    <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
+                    <span>{item.label}</span>
+                    {active && (
+                      <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
+                    )}
+                  </Link>
                 )
               })}
             </div>
