@@ -98,7 +98,8 @@ export function BesoinsGrid({
   site,
   dateDebut,
   dateFin,
-  precision
+  precision,
+  showExternesGlobal = false
 }: BesoinsGridProps) {
   const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, refresh: refreshAffectations } = useAffectations({
     affaireId,
@@ -108,10 +109,9 @@ export function BesoinsGrid({
   })
 
   const [expandedCompetences, setExpandedCompetences] = useState<Set<string>>(new Set())
-  const [showExternes, setShowExternes] = useState<Set<string>>(new Set()) // Compétences avec ressources externes activées
 
-  // Optimiser : charger d'abord les ressources du site (rapide), puis toutes seulement si nécessaire
-  const hasExternes = showExternes.size > 0
+  // Utiliser le toggle global passé en prop
+  const hasExternes = showExternesGlobal
   
   const { ressources: ressourcesSite, competences: competencesSite, loading: loadingRessourcesSite } = useRessources({
     site,
@@ -242,15 +242,14 @@ export function BesoinsGrid({
       })
     })
     
-    // Si mode ressources externes activé, ajouter les ressources d'autres sites
-    if (showExternes.size > 0) {
+    // Si mode ressources externes activé globalement, ajouter les ressources d'autres sites
+    if (showExternesGlobal) {
       ressources.forEach((ressource) => {
         if (ressource.site === site) return // Déjà inclus
         
         const ressourceCompetences = competences.get(ressource.id) || []
         ressourceCompetences.forEach((comp) => {
           if (!competencesAvecBesoins.includes(comp.competence)) return
-          if (!showExternes.has(comp.competence)) return
           
           if (!map.has(comp.competence)) {
             map.set(comp.competence, [])
@@ -272,7 +271,7 @@ export function BesoinsGrid({
       })
     
     return sortedMap
-  }, [ressources, competences, competencesAvecBesoins, site, showExternes])
+  }, [ressources, competences, competencesAvecBesoins, site, showExternesGlobal])
 
   // Générer les colonnes de dates selon la précision
   const colonnes = useMemo(() => {
@@ -490,17 +489,6 @@ export function BesoinsGrid({
     })
   }
 
-  const toggleExternes = (competence: string) => {
-    setShowExternes((prev) => {
-      const next = new Set(prev)
-      if (next.has(competence)) {
-        next.delete(competence)
-      } else {
-        next.add(competence)
-      }
-      return next
-    })
-  }
 
   // Gérer le clic sur une cellule pour ajouter/supprimer une affectation
   const handleCellClick = useCallback(async (ressourceId: string, competence: string, col: ColonneDate) => {
@@ -599,11 +587,10 @@ export function BesoinsGrid({
     <div className="space-y-6">
       {Array.from(ressourcesParCompetence.entries()).map(([competence, ressourcesComp]) => {
         const isExpanded = expandedCompetences.has(competence)
-        const showExterne = showExternes.has(competence)
         
         return (
           <div key={competence} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 overflow-hidden">
-            {/* En-tête avec nom de compétence, case ressources externes et flèche */}
+            {/* En-tête avec nom de compétence et flèche */}
             <div className="flex items-center gap-3 p-6">
               <div 
                 className="flex items-center gap-3 flex-1 cursor-pointer hover:bg-gray-50/50 transition-colors rounded p-2 -m-2"
@@ -615,49 +602,20 @@ export function BesoinsGrid({
                   <span className="text-sm text-gray-500">({ressourcesComp.length} ressource{ressourcesComp.length > 1 ? 's' : ''})</span>
                 </div>
               </div>
-              <div 
-                className="flex items-center gap-2"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleCompetence(competence)
+                }}
+                className="p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                aria-label={isExpanded ? 'Réduire' : 'Développer'}
               >
-                <button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    toggleExternes(competence)
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer ${
-                    showExterne ? 'bg-indigo-600' : 'bg-gray-300'
-                  }`}
-                  role="switch"
-                  aria-checked={showExterne}
-                  aria-label={`${showExterne ? 'Désactiver' : 'Activer'} ressources externes pour ${competence}`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                      showExterne ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-                <span className="text-sm text-gray-700 font-medium min-w-[30px]">
-                  {showExterne ? 'ON' : 'OFF'}
-                </span>
-                <span className="text-xs text-gray-500">Ressources externes</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleCompetence(competence)
-                  }}
-                  className="p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
-                  aria-label={isExpanded ? 'Réduire' : 'Développer'}
-                >
-                  {isExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-gray-600" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-gray-600" />
-                  )}
-                </button>
-              </div>
+                {isExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-600" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-600" />
+                )}
+              </button>
             </div>
 
             {/* Contenu (grille) - affiché seulement si expandé */}
