@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin } from 'lucide-react'
+import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { getISOWeek, getISOYear } from '@/utils/calendar'
@@ -13,6 +13,7 @@ import type { Affectation } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
 import { useToast } from '@/components/UI/Toast'
 import { applyAffectationsBatch } from '@/utils/planning/planning.api'
+import { normalizeDateToUTC } from '@/utils/calendar'
 
 interface AffectationPanelProps {
   besoin: BesoinPeriode | null
@@ -22,6 +23,7 @@ interface AffectationPanelProps {
   competences: Map<string, RessourceCompetence[]>
   affectations: Affectation[]
   absences: Absence[]
+  periodesCharge?: any[] // Périodes de charge pour afficher les besoins
   onClose: () => void
   onSuccess: () => void
 }
@@ -34,6 +36,7 @@ export function AffectationPanel({
   competences,
   affectations,
   absences,
+  periodesCharge = [],
   onClose,
   onSuccess,
 }: AffectationPanelProps) {
@@ -43,6 +46,7 @@ export function AffectationPanel({
   const [selectedPeriodes, setSelectedPeriodes] = useState<Map<string, { dateDebut: Date; dateFin: Date }>>(new Map()) // Périodes partielles par ressource
   const [showPeriodSelector, setShowPeriodSelector] = useState<string | null>(null) // ID de la ressource pour laquelle afficher le sélecteur
   const [loading, setLoading] = useState(false)
+  const [showConfirmSurplus, setShowConfirmSurplus] = useState(false)
   const { addToast } = useToast()
 
   useEffect(() => {
@@ -117,9 +121,15 @@ export function AffectationPanel({
     })
   }
 
-  const handleValider = async () => {
+  const handleValider = async (forceConfirm = false) => {
     if (!besoin || (selectedIds.size === 0 && idsToRemove.size === 0)) {
       addToast('Veuillez sélectionner au moins une ressource ou en désélectionner une', 'error')
+      return
+    }
+
+    // Vérifier si on dépasse le besoin et demander confirmation
+    if (depasseBesoin && !forceConfirm) {
+      setShowConfirmSurplus(true)
       return
     }
 
@@ -227,6 +237,44 @@ export function AffectationPanel({
     return new Set(ressourcesDejaAffectees.map((r) => r.ressourceId))
   }, [ressourcesDejaAffectees])
 
+  // Calculer les besoins par compétence pour la période
+  const besoinsParCompetence = useMemo(() => {
+    if (!besoin || !periodesCharge || periodesCharge.length === 0) return new Map<string, number>()
+    
+    const besoins = new Map<string, number>()
+    const besoinDateDebut = normalizeDateToUTC(besoin.dateDebut)
+    const besoinDateFin = normalizeDateToUTC(besoin.dateFin)
+    
+    periodesCharge.forEach((periode: any) => {
+      const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
+      const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
+      
+      // Vérifier si la période chevauche avec le besoin
+      if (periodeDateDebut <= besoinDateFin && periodeDateFin >= besoinDateDebut) {
+        const competence = periode.competence
+        const nbRessources = periode.nb_ressources || 0
+        const current = besoins.get(competence) || 0
+        besoins.set(competence, Math.max(current, nbRessources))
+      }
+    })
+    
+    return besoins
+  }, [besoin, periodesCharge])
+
+  // Calculer le nombre total de ressources qui seront affectées (sélectionnées - désélectionnées)
+  const nbRessourcesAffectees = useMemo(() => {
+    if (!besoin) return 0
+    const nbDejaAffectees = ressourcesDejaAffectees.filter(r => !idsToRemove.has(r.affectationId)).length
+    return nbDejaAffectees + selectedIds.size
+  }, [besoin, selectedIds, idsToRemove, ressourcesDejaAffectees])
+
+  // Vérifier si on dépasse le besoin
+  const depasseBesoin = useMemo(() => {
+    if (!besoin) return false
+    const besoinNb = besoin.nbRessources || 0
+    return nbRessourcesAffectees > besoinNb
+  }, [besoin, nbRessourcesAffectees])
+
   if (!besoin) return null
 
   // Séparer les candidats :
@@ -272,11 +320,44 @@ export function AffectationPanel({
         {/* Contenu */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* Compteur de sélection */}
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-medium text-blue-800">
-              {selectedIds.size} ressource(s) sélectionnée(s) • {idsToRemove.size} ressource(s) à désaffecter
+          <div className={`mb-4 p-3 rounded-lg border ${
+            depasseBesoin 
+              ? 'bg-orange-50 border-orange-200' 
+              : 'bg-blue-50 border-blue-200'
+          }`}>
+            <p className={`text-sm font-medium ${
+              depasseBesoin ? 'text-orange-800' : 'text-blue-800'
+            }`}>
+              {nbRessourcesAffectees} ressource(s) affectée(s) / {besoin.nbRessources} requise(s)
+              {depasseBesoin && (
+                <span className="ml-2 text-orange-600 font-bold">
+                  ⚠️ Surplus de {nbRessourcesAffectees - besoin.nbRessources} ressource(s)
+                </span>
+              )}
             </p>
           </div>
+
+          {/* Affichage des besoins par compétence */}
+          {besoinsParCompetence.size > 0 && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Besoins en charge pour la période</h3>
+              <div className="space-y-1">
+                {Array.from(besoinsParCompetence.entries()).map(([competence, nbRessources]) => (
+                  <div key={competence} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">{competence}:</span>
+                    <span className={`font-medium ${
+                      competence === besoin.competence ? 'text-blue-600' : 'text-gray-800'
+                    }`}>
+                      {nbRessources} ressource{nbRessources > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Période: {format(besoin.dateDebut, 'dd/MM/yyyy', { locale: fr })} → {format(besoin.dateFin, 'dd/MM/yyyy', { locale: fr })}
+              </p>
+            </div>
+          )}
 
           {/* Ressources déjà affectées */}
           {ressourcesDejaAffectees.length > 0 && (
@@ -785,6 +866,49 @@ export function AffectationPanel({
           </button>
         </div>
       </div>
+
+      {/* Modal de confirmation si surplus */}
+      {showConfirmSurplus && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-800 mb-2">
+                  Affecter plus de ressources que le besoin ?
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Vous êtes sur le point d&apos;affecter <strong>{nbRessourcesAffectees} ressource(s)</strong> alors que le besoin est de <strong>{besoin.nbRessources} ressource(s)</strong>.
+                  <br />
+                  <br />
+                  Voulez-vous continuer ?
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowConfirmSurplus(false)
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowConfirmSurplus(false)
+                      handleValider(true)
+                    }}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                  >
+                    Oui, affecter quand même
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

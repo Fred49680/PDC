@@ -434,6 +434,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           competences={allCompetences}
           affectations={affectations}
           absences={absences}
+          periodesCharge={periodes}
           onClose={() => setSelectedBesoin(null)}
           onSuccess={handleAffectationSuccess}
         />
