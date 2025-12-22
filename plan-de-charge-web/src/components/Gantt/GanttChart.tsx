@@ -139,12 +139,32 @@ export function GanttChart({
       const siteKey = periode.site.toUpperCase()
       const siteColor = siteColors[siteKey] || generateColorFromString(siteKey) // Générer une couleur si non trouvée
       
+      // Normaliser les dates pour éviter les problèmes de timezone
+      let dateDebut: Date
+      let dateFin: Date
+      
+      if (periode.date_debut instanceof Date) {
+        dateDebut = new Date(periode.date_debut.getFullYear(), periode.date_debut.getMonth(), periode.date_debut.getDate())
+      } else {
+        const dateStr = typeof periode.date_debut === 'string' ? periode.date_debut : String(periode.date_debut)
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+        dateDebut = new Date(year, month - 1, day)
+      }
+      
+      if (periode.date_fin instanceof Date) {
+        dateFin = new Date(periode.date_fin.getFullYear(), periode.date_fin.getMonth(), periode.date_fin.getDate())
+      } else {
+        const dateStr = typeof periode.date_fin === 'string' ? periode.date_fin : String(periode.date_fin)
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+        dateFin = new Date(year, month - 1, day)
+      }
+      
       ganttBars.push({
         id: `besoin-${periode.id}`,
         type: 'besoin',
         competence: periode.competence,
-        dateDebut: new Date(periode.date_debut),
-        dateFin: new Date(periode.date_fin),
+        dateDebut,
+        dateFin,
         nbRessources: periode.nb_ressources,
         color: viewMode === 'site' ? siteColor : '#FBBF24', // Jaune pour les besoins
       })
@@ -157,14 +177,35 @@ export function GanttChart({
       const siteKey = affectation.site.toUpperCase()
       const siteColor = siteColors[siteKey] || generateColorFromString(siteKey) // Générer une couleur si non trouvée
       
+      // Normaliser les dates pour éviter les problèmes de timezone
+      // Si c'est déjà un Date, l'utiliser, sinon convertir depuis string ISO
+      let dateDebut: Date
+      let dateFin: Date
+      
+      if (affectation.date_debut instanceof Date) {
+        dateDebut = new Date(affectation.date_debut.getFullYear(), affectation.date_debut.getMonth(), affectation.date_debut.getDate())
+      } else {
+        const dateStr = typeof affectation.date_debut === 'string' ? affectation.date_debut : String(affectation.date_debut)
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+        dateDebut = new Date(year, month - 1, day)
+      }
+      
+      if (affectation.date_fin instanceof Date) {
+        dateFin = new Date(affectation.date_fin.getFullYear(), affectation.date_fin.getMonth(), affectation.date_fin.getDate())
+      } else {
+        const dateStr = typeof affectation.date_fin === 'string' ? affectation.date_fin : String(affectation.date_fin)
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+        dateFin = new Date(year, month - 1, day)
+      }
+      
       ganttBars.push({
         id: `affectation-${affectation.id}`,
         type: 'affectation',
         ressourceId: affectation.ressource_id,
         ressourceNom,
         competence: affectation.competence,
-        dateDebut: new Date(affectation.date_debut),
-        dateFin: new Date(affectation.date_fin),
+        dateDebut,
+        dateFin,
         charge: affectation.charge || 1,
         color: viewMode === 'site' ? siteColor : '#3B82F6', // Bleu pour les affectations
       })
@@ -178,13 +219,33 @@ export function GanttChart({
       const absenceType = absence.type || 'Autre'
       const absenceColor = absenceColors[absenceType] || absenceColors['Autre']
       
+      // Normaliser les dates pour éviter les problèmes de timezone
+      let dateDebut: Date
+      let dateFin: Date
+      
+      if (absence.date_debut instanceof Date) {
+        dateDebut = new Date(absence.date_debut.getFullYear(), absence.date_debut.getMonth(), absence.date_debut.getDate())
+      } else {
+        const dateStr = typeof absence.date_debut === 'string' ? absence.date_debut : String(absence.date_debut)
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+        dateDebut = new Date(year, month - 1, day)
+      }
+      
+      if (absence.date_fin instanceof Date) {
+        dateFin = new Date(absence.date_fin.getFullYear(), absence.date_fin.getMonth(), absence.date_fin.getDate())
+      } else {
+        const dateStr = typeof absence.date_fin === 'string' ? absence.date_fin : String(absence.date_fin)
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+        dateFin = new Date(year, month - 1, day)
+      }
+      
       ganttBars.push({
         id: `absence-${absence.id}`,
         type: 'absence',
         ressourceId: absence.ressource_id,
         ressourceNom: ressource.nom,
-        dateDebut: new Date(absence.date_debut),
-        dateFin: new Date(absence.date_fin),
+        dateDebut,
+        dateFin,
         absenceType,
         color: absenceColor,
       })
@@ -211,12 +272,17 @@ export function GanttChart({
 
   // Calculer la position et la largeur d'une barre
   const getBarStyle = (bar: GanttBar) => {
-    const startDate = new Date(bar.dateDebut)
-    const endDate = new Date(bar.dateFin)
+    // Normaliser les dates de la barre (sans heures)
+    const startDate = new Date(bar.dateDebut.getFullYear(), bar.dateDebut.getMonth(), bar.dateDebut.getDate())
+    const endDate = new Date(bar.dateFin.getFullYear(), bar.dateFin.getMonth(), bar.dateFin.getDate())
+    
+    // Normaliser les dates de la plage visible
+    const dateDebutNorm = new Date(dateDebut.getFullYear(), dateDebut.getMonth(), dateDebut.getDate())
+    const dateFinNorm = new Date(dateFin.getFullYear(), dateFin.getMonth(), dateFin.getDate())
     
     // S'assurer que les dates sont dans la plage visible
-    const visibleStart = startDate < dateDebut ? dateDebut : startDate
-    const visibleEnd = endDate > dateFin ? dateFin : endDate
+    const visibleStart = startDate < dateDebutNorm ? dateDebutNorm : startDate
+    const visibleEnd = endDate > dateFinNorm ? dateFinNorm : endDate
 
     let left = 0
     let width = 0
@@ -224,20 +290,14 @@ export function GanttChart({
     if (precision === 'JOUR') {
       // Trouver la colonne correspondant à la date de début
       const startIndex = columns.findIndex((col) => {
-        const colDate = new Date(col)
-        colDate.setHours(0, 0, 0, 0)
-        const visibleStartDate = new Date(visibleStart)
-        visibleStartDate.setHours(0, 0, 0, 0)
-        return colDate.getTime() === visibleStartDate.getTime()
+        const colDate = new Date(col.getFullYear(), col.getMonth(), col.getDate())
+        return colDate.getTime() === visibleStart.getTime()
       })
       
       // Trouver la colonne correspondant à la date de fin
       const endIndex = columns.findIndex((col) => {
-        const colDate = new Date(col)
-        colDate.setHours(0, 0, 0, 0)
-        const visibleEndDate = new Date(visibleEnd)
-        visibleEndDate.setHours(0, 0, 0, 0)
-        return colDate.getTime() === visibleEndDate.getTime()
+        const colDate = new Date(col.getFullYear(), col.getMonth(), col.getDate())
+        return colDate.getTime() === visibleEnd.getTime()
       })
       
       if (startIndex >= 0 && endIndex >= 0) {
