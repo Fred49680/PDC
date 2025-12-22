@@ -6,7 +6,7 @@
 import type { PeriodeCharge } from '@/types/charge'
 import type { Affectation } from '@/types/affectations'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
-import { isDisponible, hasConflitAffaire, isAbsente } from './planning.rules'
+import { isDisponible, hasConflitAffaire, isAbsente, getJoursConflits, getJoursAbsences, getJoursDisponibles } from './planning.rules'
 import { businessDaysBetween } from '@/utils/calendar'
 import type { Absence } from '@/types/absences'
 
@@ -38,6 +38,10 @@ export interface RessourceCandidat {
   isPrincipale: boolean
   isAbsente: boolean
   hasConflit: boolean
+  hasConflitPartiel: boolean // Conflit sur une partie seulement de la période
+  joursConflits: Date[] // Jours spécifiques en conflit
+  joursAbsences: Date[] // Jours spécifiques d'absence
+  joursDisponibles: Date[] // Jours disponibles (sans conflit ni absence)
   necessiteTransfert: boolean
   selectable: boolean
 }
@@ -111,7 +115,7 @@ export function getRessourcesCandidates(
       (comp) => comp.competence === besoin.competence && comp.type_comp === 'P'
     )
 
-    // Vérifier la disponibilité
+    // Vérifier la disponibilité globale
     const isAbs = isAbsente(ressource.id, besoin.dateDebut, besoin.dateFin, absences)
     const hasConflit = hasConflitAffaire(
       ressource.id,
@@ -121,16 +125,41 @@ export function getRessourcesCandidates(
       affaireId
     )
 
+    // Obtenir les jours spécifiques en conflit et absences
+    const joursConflits = getJoursConflits(
+      ressource.id,
+      besoin.dateDebut,
+      besoin.dateFin,
+      affectations,
+      affaireId
+    )
+    const joursAbsences = getJoursAbsences(
+      ressource.id,
+      besoin.dateDebut,
+      besoin.dateFin,
+      absences
+    )
+    const joursDisponibles = getJoursDisponibles(
+      ressource.id,
+      besoin.dateDebut,
+      besoin.dateFin,
+      affectations,
+      absences,
+      affaireId
+    )
+
+    // Conflit partiel = il y a des conflits mais aussi des jours disponibles
+    const hasConflitPartiel = joursConflits.length > 0 && joursDisponibles.length > 0
+
     // Vérifier si un transfert est nécessaire (ressource d'un autre site)
     const necessiteTransfert = ressource.site.toUpperCase() !== besoin.site.toUpperCase()
 
     // La ressource est sélectionnable si :
     // - Elle a la compétence
-    // - Elle n'est pas absente
-    // - Elle n'a pas de conflit
+    // - Elle a au moins un jour disponible (même si conflit partiel)
     // Note: Les ressources nécessitant un transfert sont maintenant sélectionnables
     // (le transfert sera créé automatiquement lors de l'affectation)
-    const selectable = hasCompetence && !isAbs && !hasConflit
+    const selectable = hasCompetence && joursDisponibles.length > 0
 
     return {
       id: ressource.id,
@@ -139,6 +168,10 @@ export function getRessourcesCandidates(
       isPrincipale,
       isAbsente: isAbs,
       hasConflit,
+      hasConflitPartiel,
+      joursConflits,
+      joursAbsences,
+      joursDisponibles,
       necessiteTransfert,
       selectable,
     }

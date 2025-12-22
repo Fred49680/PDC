@@ -1,14 +1,16 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin } from 'lucide-react'
+import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin, Calendar } from 'lucide-react'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import type { Affectation } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
 import { useToast } from '@/components/UI/Toast'
 import { applyAffectationsBatch } from '@/utils/planning/planning.api'
-import { isDisponible, hasConflitAffaire, isAbsente } from '@/utils/planning/planning.rules'
+import { isDisponible, hasConflitAffaire, isAbsente, getJoursConflits, getJoursAbsences, getJoursDisponibles } from '@/utils/planning/planning.rules'
 
 interface AffectationMassePanelProps {
   besoins: BesoinPeriode[]
@@ -35,6 +37,8 @@ export function AffectationMassePanel({
 }: AffectationMassePanelProps) {
   const [selectedRessourceIds, setSelectedRessourceIds] = useState<Set<string>>(new Set())
   const [idsToRemove, setIdsToRemove] = useState<Set<string>>(new Set()) // IDs des affectations à supprimer
+  const [selectedPeriodes, setSelectedPeriodes] = useState<Map<string, Map<string, { dateDebut: Date; dateFin: Date }>>>(new Map()) // Périodes partielles par ressource × besoin
+  const [showPeriodSelector, setShowPeriodSelector] = useState<{ ressourceId: string; besoinId: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const { addToast } = useToast()
 
@@ -71,6 +75,8 @@ export function AffectationMassePanel({
         let isDispo = true
         let isAbs = false
         let hasConflit = false
+        let hasConflitPartiel = false
+        const joursDisponiblesParBesoin = new Map<string, Date[]>() // Besoin ID → jours disponibles
 
         for (const besoin of besoins) {
           const abs = isAbsente(ressource.id, besoin.dateDebut, besoin.dateFin, absences)
@@ -81,12 +87,44 @@ export function AffectationMassePanel({
             affectations,
             affaireUuid
           )
+          
+          // Obtenir les jours spécifiques
+          const joursConflits = getJoursConflits(
+            ressource.id,
+            besoin.dateDebut,
+            besoin.dateFin,
+            affectations,
+            affaireUuid
+          )
+          const joursAbsences = getJoursAbsences(
+            ressource.id,
+            besoin.dateDebut,
+            besoin.dateFin,
+            absences
+          )
+          const joursDisponibles = getJoursDisponibles(
+            ressource.id,
+            besoin.dateDebut,
+            besoin.dateFin,
+            affectations,
+            absences,
+            affaireUuid
+          )
+          
+          joursDisponiblesParBesoin.set(besoin.id, joursDisponibles)
+          
+          // Conflit partiel si au moins une période a des jours disponibles ET des conflits
+          if (joursConflits.length > 0 && joursDisponibles.length > 0) {
+            hasConflitPartiel = true
+          }
 
           if (abs) isAbs = true
           if (conflit) hasConflit = true
           if (abs || conflit) {
-            isDispo = false
-            break
+            // Si conflit partiel, on garde isDispo à true si au moins un jour est disponible
+            if (!hasConflitPartiel || joursDisponibles.length === 0) {
+              isDispo = false
+            }
           }
         }
 
@@ -99,20 +137,23 @@ export function AffectationMassePanel({
           isPrincipale,
           isAbsente: isAbs,
           hasConflit,
+          hasConflitPartiel,
+          joursDisponiblesParBesoin,
           necessiteTransfert,
-          selectable: hasCompetence && isDispo,
-          hasCompetence, // Ajouter cette info pour filtrer les indisponibles
+          selectable: hasCompetence && (isDispo || hasConflitPartiel),
+          hasCompetence,
         }
       })
       // Afficher toutes les ressources qui ont la compétence (disponibles, nécessitant transfert, ou indisponibles)
       .filter((r) => r.hasCompetence)
   }, [besoins, ressources, competences, affectations, absences, affaireUuid, competencesUniques, sitesUniques])
 
-  const candidatsDisponibles = ressourcesCandidates.filter((c) => c.selectable && !c.necessiteTransfert)
-  const candidatsNecessitantTransfert = ressourcesCandidates.filter((c) => c.selectable && c.necessiteTransfert)
-  // Filtrer les indisponibles : seulement celles qui ont la compétence (absentes ou en conflit)
+  const candidatsDisponibles = ressourcesCandidates.filter((c) => c.selectable && !c.necessiteTransfert && !c.hasConflitPartiel)
+  const candidatsNecessitantTransfert = ressourcesCandidates.filter((c) => c.selectable && c.necessiteTransfert && !c.hasConflitPartiel)
+  const candidatsConflitPartiel = ressourcesCandidates.filter((c) => c.hasConflitPartiel)
+  // Filtrer les indisponibles : seulement celles qui ont la compétence (absentes ou en conflit complet)
   const candidatsIndisponibles = ressourcesCandidates.filter(
-    (c) => !c.selectable && (c.isAbsente || c.hasConflit)
+    (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
   )
 
   // Identifier les ressources déjà affectées à cette affaire pour ces périodes
@@ -240,12 +281,15 @@ export function AffectationMassePanel({
         }> = []
 
         for (const ressourceId of selectedRessourceIds) {
+          const periodesRessource = selectedPeriodes.get(ressourceId)
           for (const besoin of besoins) {
+            // Utiliser la période partielle si définie pour ce besoin, sinon la période complète
+            const periodePartielle = periodesRessource?.get(besoin.id)
             affectationsToCreate.push({
               ressourceId,
               competence,
-              dateDebut: besoin.dateDebut,
-              dateFin: besoin.dateFin,
+              dateDebut: periodePartielle?.dateDebut || besoin.dateDebut,
+              dateFin: periodePartielle?.dateFin || besoin.dateFin,
               charge: 1,
             })
           }
@@ -482,6 +526,155 @@ export function AffectationMassePanel({
                                   ⭐ Principale
                                 </span>
                               )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Ressources avec conflit partiel */}
+            {candidatsConflitPartiel.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-orange-600" />
+                  Ressources partiellement indisponibles ({candidatsConflitPartiel.length})
+                </h4>
+                <p className="text-xs text-gray-600 mb-2">
+                  Ces ressources ont des conflits sur certains jours mais sont disponibles sur d'autres. Vous pouvez les affecter sur les jours disponibles uniquement.
+                </p>
+                <div className="space-y-2">
+                  {candidatsConflitPartiel.map((candidat) => {
+                    const isSelected = selectedRessourceIds.has(candidat.id)
+                    return (
+                      <div
+                        key={candidat.id}
+                        className="p-3 rounded-lg border-2 border-orange-200 bg-orange-50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleRessource(candidat.id)}
+                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-800">{candidat.nom}</p>
+                            <div className="mt-1 space-y-1">
+                              {besoins.map((besoin) => {
+                                const joursDisponibles = candidat.joursDisponiblesParBesoin?.get(besoin.id) || []
+                                const joursDisponiblesStr = joursDisponibles
+                                  .map((d) => format(d, 'dd/MM', { locale: fr }))
+                                  .join(', ')
+                                const periodePartielle = selectedPeriodes.get(candidat.id)?.get(besoin.id)
+                                return (
+                                  <div key={besoin.id} className="text-xs">
+                                    <p className="text-gray-600">
+                                      {format(besoin.dateDebut, 'dd/MM', { locale: fr })} → {format(besoin.dateFin, 'dd/MM', { locale: fr })}: {joursDisponiblesStr || 'Aucun jour disponible'}
+                                    </p>
+                                    {isSelected && joursDisponibles.length > 0 && (
+                                      <div className="mt-1 space-y-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const joursDisponibles = candidat.joursDisponiblesParBesoin?.get(besoin.id) || []
+                                            if (joursDisponibles.length > 0) {
+                                              const sorted = joursDisponibles.sort((a, b) => a.getTime() - b.getTime())
+                                              const dateDebut = sorted[0]
+                                              const dateFin = sorted[sorted.length - 1]
+                                              setSelectedPeriodes((prev) => {
+                                                const next = new Map(prev)
+                                                if (!next.has(candidat.id)) {
+                                                  next.set(candidat.id, new Map())
+                                                }
+                                                next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
+                                                return next
+                                              })
+                                            }
+                                          }}
+                                          className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                                        >
+                                          Affecter jours disponibles
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setShowPeriodSelector(
+                                              showPeriodSelector?.ressourceId === candidat.id && showPeriodSelector?.besoinId === besoin.id
+                                                ? null
+                                                : { ressourceId: candidat.id, besoinId: besoin.id }
+                                            )
+                                          }}
+                                          className="text-xs px-2 py-0.5 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors ml-1"
+                                        >
+                                          {periodePartielle
+                                            ? `Période: ${format(periodePartielle.dateDebut, 'dd/MM', { locale: fr })} → ${format(periodePartielle.dateFin, 'dd/MM', { locale: fr })}`
+                                            : 'Choisir période'}
+                                        </button>
+                                        {showPeriodSelector?.ressourceId === candidat.id && showPeriodSelector?.besoinId === besoin.id && (
+                                          <div className="mt-1 p-2 bg-white rounded border border-gray-300">
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                              Date début:
+                                            </label>
+                                            <input
+                                              type="date"
+                                              min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                              max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                              defaultValue={
+                                                periodePartielle
+                                                  ? format(periodePartielle.dateDebut, 'yyyy-MM-dd')
+                                                  : format(besoin.dateDebut, 'yyyy-MM-dd')
+                                              }
+                                              onChange={(e) => {
+                                                const dateDebut = new Date(e.target.value)
+                                                const dateFin = periodePartielle?.dateFin || besoin.dateFin
+                                                setSelectedPeriodes((prev) => {
+                                                  const next = new Map(prev)
+                                                  if (!next.has(candidat.id)) {
+                                                    next.set(candidat.id, new Map())
+                                                  }
+                                                  next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
+                                                  return next
+                                                })
+                                              }}
+                                              className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                            />
+                                            <label className="block text-xs font-medium text-gray-700 mb-1 mt-1">
+                                              Date fin:
+                                            </label>
+                                            <input
+                                              type="date"
+                                              min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                              max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                              defaultValue={
+                                                periodePartielle
+                                                  ? format(periodePartielle.dateFin, 'yyyy-MM-dd')
+                                                  : format(besoin.dateFin, 'yyyy-MM-dd')
+                                              }
+                                              onChange={(e) => {
+                                                const dateFin = new Date(e.target.value)
+                                                const dateDebut = periodePartielle?.dateDebut || besoin.dateDebut
+                                                setSelectedPeriodes((prev) => {
+                                                  const next = new Map(prev)
+                                                  if (!next.has(candidat.id)) {
+                                                    next.set(candidat.id, new Map())
+                                                  }
+                                                  next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
+                                                  return next
+                                                })
+                                              }}
+                                              className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         </div>

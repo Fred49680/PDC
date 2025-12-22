@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin } from 'lucide-react'
+import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin, Calendar } from 'lucide-react'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import type { RessourceCandidat } from '@/utils/planning/planning.compute'
 import { getRessourcesCandidates } from '@/utils/planning/planning.compute'
@@ -37,6 +39,8 @@ export function AffectationPanel({
   const [candidats, setCandidats] = useState<RessourceCandidat[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [idsToRemove, setIdsToRemove] = useState<Set<string>>(new Set()) // IDs des affectations à supprimer
+  const [selectedPeriodes, setSelectedPeriodes] = useState<Map<string, { dateDebut: Date; dateFin: Date }>>(new Map()) // Périodes partielles par ressource
+  const [showPeriodSelector, setShowPeriodSelector] = useState<string | null>(null) // ID de la ressource pour laquelle afficher le sélecteur
   const [loading, setLoading] = useState(false)
   const { addToast } = useToast()
 
@@ -87,6 +91,31 @@ export function AffectationPanel({
     })
   }
 
+  const handleSetPeriodePartielle = (ressourceId: string, dateDebut: Date, dateFin: Date) => {
+    setSelectedPeriodes((prev) => {
+      const next = new Map(prev)
+      next.set(ressourceId, { dateDebut, dateFin })
+      return next
+    })
+    setShowPeriodSelector(null)
+  }
+
+  const handleAffecterJoursDisponibles = (ressourceId: string) => {
+    const candidat = candidats.find((c) => c.id === ressourceId)
+    if (!candidat || candidat.joursDisponibles.length === 0) return
+
+    const joursDisponibles = candidat.joursDisponibles.sort((a, b) => a.getTime() - b.getTime())
+    const dateDebut = joursDisponibles[0]
+    const dateFin = joursDisponibles[joursDisponibles.length - 1]
+
+    handleSetPeriodePartielle(ressourceId, dateDebut, dateFin)
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.add(ressourceId)
+      return next
+    })
+  }
+
   const handleValider = async () => {
     if (!besoin || (selectedIds.size === 0 && idsToRemove.size === 0)) {
       addToast('Veuillez sélectionner au moins une ressource ou en désélectionner une', 'error')
@@ -111,13 +140,17 @@ export function AffectationPanel({
 
       // Créer les nouvelles affectations
       if (selectedIds.size > 0) {
-        const affectationsToCreate = Array.from(selectedIds).map((ressourceId) => ({
-          ressourceId,
-          competence: besoin.competence,
-          dateDebut: besoin.dateDebut,
-          dateFin: besoin.dateFin,
-          charge: 1,
-        }))
+        const affectationsToCreate = Array.from(selectedIds).map((ressourceId) => {
+          // Utiliser la période partielle si définie, sinon la période complète
+          const periodePartielle = selectedPeriodes.get(ressourceId)
+          return {
+            ressourceId,
+            competence: besoin.competence,
+            dateDebut: periodePartielle?.dateDebut || besoin.dateDebut,
+            dateFin: periodePartielle?.dateFin || besoin.dateFin,
+            charge: 1,
+          }
+        })
 
         // Fournir les ressources pour éviter les requêtes supplémentaires lors de la création des transferts
         const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
@@ -165,11 +198,15 @@ export function AffectationPanel({
   const candidatsNecessitantTransfert = candidats.filter(
     (c) => c.selectable && c.necessiteTransfert
   )
-  // Filtrer les indisponibles : seulement celles qui ont la compétence (absentes ou en conflit)
-  // On vérifie qu'elles ont la compétence en vérifiant qu'elles sont absentes OU en conflit
-  // mais pas simplement "pas sélectionnables" (car ça inclurait celles sans compétence)
+  // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
+  // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
   const candidatsIndisponibles = candidats.filter(
-    (c) => !c.selectable && (c.isAbsente || c.hasConflit)
+    (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
+  )
+  
+  // Ressources avec conflit partiel (affichées dans une section séparée)
+  const candidatsConflitPartiel = candidats.filter(
+    (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
   )
 
   // Identifier les ressources déjà affectées à cette affaire pour cette période
@@ -427,7 +464,126 @@ export function AffectationPanel({
             </div>
           )}
 
-          {/* Ressources indisponibles (absentes ou en conflit) - En tuiles */}
+          {/* Ressources avec conflit partiel (disponibles sur certains jours) */}
+          {candidatsConflitPartiel.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+                Ressources partiellement indisponibles ({candidatsConflitPartiel.length})
+              </h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Ces ressources ont des conflits sur certains jours mais sont disponibles sur d'autres. Vous pouvez les affecter sur les jours disponibles uniquement.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {candidatsConflitPartiel.map((candidat) => {
+                  const isSelected = selectedIds.has(candidat.id)
+                  const periodePartielle = selectedPeriodes.get(candidat.id)
+                  const joursDisponiblesStr = candidat.joursDisponibles
+                    .map((d) => format(d, 'dd/MM', { locale: fr }))
+                    .join(', ')
+                  return (
+                    <div
+                      key={candidat.id}
+                      className="p-4 rounded-xl border-2 border-orange-200 bg-orange-50"
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggle(candidat.id)}
+                          className="w-5 h-5 mt-0.5 text-orange-600 rounded focus:ring-orange-500 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-800 truncate">{candidat.nom}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                              ⚠️ Conflit partiel
+                            </span>
+                            {candidat.isPrincipale && (
+                              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                ⭐ Principale
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 mt-2">
+                            Jours disponibles: {joursDisponiblesStr}
+                          </p>
+                          {isSelected && (
+                            <div className="mt-2 space-y-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleAffecterJoursDisponibles(candidat.id)
+                                }}
+                                className="w-full text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                              >
+                                Affecter jours disponibles
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setShowPeriodSelector(showPeriodSelector === candidat.id ? null : candidat.id)
+                                }}
+                                className="w-full text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                              >
+                                {periodePartielle
+                                  ? `Période: ${format(periodePartielle.dateDebut, 'dd/MM', { locale: fr })} → ${format(periodePartielle.dateFin, 'dd/MM', { locale: fr })}`
+                                  : 'Choisir période partielle'}
+                              </button>
+                              {showPeriodSelector === candidat.id && (
+                                <div className="mt-2 p-2 bg-white rounded border border-gray-300">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Date début:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      periodePartielle
+                                        ? format(periodePartielle.dateDebut, 'yyyy-MM-dd')
+                                        : format(besoin.dateDebut, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateDebut = new Date(e.target.value)
+                                      const dateFin = periodePartielle?.dateFin || besoin.dateFin
+                                      handleSetPeriodePartielle(candidat.id, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                  <label className="block text-xs font-medium text-gray-700 mb-1 mt-2">
+                                    Date fin:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      periodePartielle
+                                        ? format(periodePartielle.dateFin, 'yyyy-MM-dd')
+                                        : format(besoin.dateFin, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateFin = new Date(e.target.value)
+                                      const dateDebut = periodePartielle?.dateDebut || besoin.dateDebut
+                                      handleSetPeriodePartielle(candidat.id, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Ressources indisponibles (absentes ou en conflit complet) - En tuiles */}
           {candidatsIndisponibles.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
