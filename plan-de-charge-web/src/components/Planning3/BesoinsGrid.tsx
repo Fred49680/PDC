@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
-import { Target, Loader2, ChevronDown, ChevronUp, CheckSquare } from 'lucide-react'
+import { Target, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { getDatesBetween, normalizeDateToUTC } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
@@ -41,6 +41,8 @@ interface CelluleInfo {
   hasConflitAutreCompetence: boolean
   hasAbsence: boolean
   affectationId?: string
+  conflitAffaireId?: string // AffaireID où la ressource est affectée
+  absenceCommentaire?: string // Commentaire de l'absence
 }
 
 const isWeekend = (date: Date): boolean => [0, 6].includes(date.getDay())
@@ -105,23 +107,49 @@ export function BesoinsGrid({
     enableRealtime: true,
   })
 
-  const { ressources, competences, loading: loadingRessources } = useRessources({
+  const [expandedCompetences, setExpandedCompetences] = useState<Set<string>>(new Set())
+  const [showExternes, setShowExternes] = useState<Set<string>>(new Set()) // Compétences avec ressources externes activées
+
+  // Optimiser : charger d'abord les ressources du site (rapide), puis toutes seulement si nécessaire
+  const hasExternes = showExternes.size > 0
+  
+  const { ressources: ressourcesSite, competences: competencesSite, loading: loadingRessourcesSite } = useRessources({
+    site,
     actif: true,
     enableRealtime: true,
   })
+
+  // Charger toutes les ressources seulement si ressources externes activées (lazy loading)
+  // Note: useRessources charge toujours, mais on ne l'utilise que si hasExternes est true
+  const { ressources: ressourcesAll, competences: competencesAll, loading: loadingRessourcesAll } = useRessources({
+    actif: true,
+    enableRealtime: hasExternes, // Activer Realtime seulement si nécessaire pour optimiser
+  })
+
+  // Utiliser les ressources du site par défaut, toutes si ressources externes activées
+  const ressources = useMemo(() => {
+    return hasExternes ? ressourcesAll : ressourcesSite
+  }, [hasExternes, ressourcesSite, ressourcesAll])
+
+  const competences = useMemo(() => {
+    return hasExternes ? competencesAll : competencesSite
+  }, [hasExternes, competencesSite, competencesAll])
+
+  const loadingRessources = useMemo(() => {
+    return hasExternes ? loadingRessourcesAll : loadingRessourcesSite
+  }, [hasExternes, loadingRessourcesAll, loadingRessourcesSite])
 
   const { absences, loading: loadingAbsences } = useAbsences({
     enableRealtime: true,
   })
 
-  const [expandedCompetences, setExpandedCompetences] = useState<Set<string>>(new Set())
-  const [showExternes, setShowExternes] = useState<Set<string>>(new Set()) // Compétences avec ressources externes activées
   const [allAffectations, setAllAffectations] = useState<Affectation[]>([]) // Toutes les affectations pour détecter les conflits
+  const [affairesMap, setAffairesMap] = useState<Map<string, string>>(new Map()) // Map UUID -> affaire_id
   const [loadingAllAffectations, setLoadingAllAffectations] = useState(true)
   const [affaireUuid, setAffaireUuid] = useState<string | null>(null)
   const { addToast } = useToast()
 
-  // Charger l'UUID de l'affaire et toutes les affectations pour détecter les conflits
+  // Charger l'UUID de l'affaire, toutes les affectations et les affaires pour détecter les conflits
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -139,10 +167,16 @@ export function BesoinsGrid({
         if (affaireData) {
           setAffaireUuid(affaireData.id)
           
-          // Charger TOUTES les affectations (pas seulement celles de cette affaire) pour détecter les conflits
+          // Charger TOUTES les affectations avec les affaires (pour avoir l'affaire_id)
           const { data: allAff, error } = await supabase
             .from('affectations')
-            .select('*')
+            .select(`
+              *,
+              affaires (
+                id,
+                affaire_id
+              )
+            `)
             .order('date_debut', { ascending: true })
           
           if (!error && allAff) {
@@ -150,8 +184,22 @@ export function BesoinsGrid({
               ...a,
               date_debut: a.date_debut ? new Date(a.date_debut) : new Date(),
               date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
-            })) as Affectation[]
+            })) as any[]
             setAllAffectations(affectationsAvecDates)
+            
+            // Créer une map UUID -> affaire_id
+            const map = new Map<string, string>()
+            affectationsAvecDates.forEach((aff: any) => {
+              if (aff.affaires && Array.isArray(aff.affaires) && aff.affaires.length > 0) {
+                const affaire = aff.affaires[0]
+                if (affaire.id && affaire.affaire_id) {
+                  map.set(affaire.id, affaire.affaire_id)
+                }
+              } else if (aff.affaires && aff.affaires.id && aff.affaires.affaire_id) {
+                map.set(aff.affaires.id, aff.affaires.affaire_id)
+              }
+            })
+            setAffairesMap(map)
           }
         }
       } catch (err) {
@@ -328,7 +376,7 @@ export function BesoinsGrid({
         const isAffectee = !!affectationActuelle
         
         // Vérifier conflit autre affaire (même ressource, même date, autre affaire)
-        const conflitAutreAffaire = affaireUuid ? allAffectations.some((aff) => {
+        const conflitAutreAffaireData = affaireUuid ? allAffectations.find((aff: any) => {
           if (aff.ressource_id !== ressource.id) return false
           if (aff.affaire_id === affaireUuid) return false // Même affaire, pas un conflit
           
@@ -351,7 +399,21 @@ export function BesoinsGrid({
           }
           
           return false
-        }) : false
+        }) : null
+        const conflitAutreAffaire = !!conflitAutreAffaireData
+        let conflitAffaireId: string | undefined = undefined
+        if (conflitAutreAffaireData && conflitAutreAffaireData.affaire_id) {
+          // Récupérer l'affaire_id depuis la map ou depuis la structure de l'affectation
+          conflitAffaireId = affairesMap.get(conflitAutreAffaireData.affaire_id)
+          if (!conflitAffaireId && (conflitAutreAffaireData as any).affaires) {
+            const affaires = (conflitAutreAffaireData as any).affaires
+            if (Array.isArray(affaires) && affaires.length > 0) {
+              conflitAffaireId = affaires[0].affaire_id
+            } else if (affaires && affaires.affaire_id) {
+              conflitAffaireId = affaires.affaire_id
+            }
+          }
+        }
         
         // Vérifier conflit autre compétence (même ressource, même date, même affaire, autre compétence)
         const conflitAutreCompetence = affaireUuid ? allAffectations.some((aff) => {
@@ -384,7 +446,7 @@ export function BesoinsGrid({
         }) : false
         
         // Vérifier absence
-        const hasAbsence = absences.some((abs) => {
+        const absenceData = absences.find((abs) => {
           if (abs.ressource_id !== ressource.id) return false
           
           const absDateDebut = normalizeDateToUTC(new Date(abs.date_debut))
@@ -393,6 +455,7 @@ export function BesoinsGrid({
           
           return absDateDebut <= colDate && absDateFin >= colDate
         })
+        const hasAbsence = !!absenceData
         
         grid.set(cellKey, {
           isAffectee,
@@ -400,12 +463,14 @@ export function BesoinsGrid({
           hasConflitAutreCompetence: conflitAutreCompetence,
           hasAbsence,
           affectationId: affectationActuelle?.id,
+          conflitAffaireId,
+          absenceCommentaire: absenceData?.commentaire || undefined,
         })
       })
     })
     
     return grid
-  }, [colonnes, ressources, affectations, allAffectations, absences, precision, affaireUuid, competences])
+  }, [colonnes, ressources, affectations, allAffectations, absences, precision, affaireUuid, competences, affairesMap])
 
   const toggleCompetence = (competence: string) => {
     setExpandedCompetences((prev) => {
@@ -545,22 +610,27 @@ export function BesoinsGrid({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900">
-                  <input
-                    type="checkbox"
-                    checked={showExterne}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      toggleExternes(competence)
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleExternes(competence)
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                    showExterne ? 'bg-indigo-600' : 'bg-gray-300'
+                  }`}
+                  role="switch"
+                  aria-checked={showExterne}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      showExterne ? 'translate-x-6' : 'translate-x-1'
+                    }`}
                   />
-                  <span className="flex items-center gap-1">
-                    <CheckSquare className="w-4 h-4" />
-                    Ressources externes
-                  </span>
-                </label>
+                </button>
+                <span className="text-sm text-gray-700 font-medium">
+                  {showExterne ? 'ON' : 'OFF'}
+                </span>
+                <span className="text-xs text-gray-500">Ressources externes</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -652,8 +722,10 @@ export function BesoinsGrid({
                                   onClick={() => handleCellClick(ressource.id, competence, col)}
                                   title={
                                     cellInfo.isAffectee ? 'Cliquer pour supprimer l\'affectation' :
-                                    cellInfo.hasAbsence ? 'Ressource absente' :
-                                    cellInfo.hasConflitAutreAffaire ? 'Ressource affectée sur une autre affaire' :
+                                    cellInfo.hasAbsence 
+                                      ? `Ressource absente${cellInfo.absenceCommentaire ? `: ${cellInfo.absenceCommentaire}` : ''}` :
+                                    cellInfo.hasConflitAutreAffaire 
+                                      ? `Ressource affectée sur une autre affaire${cellInfo.conflitAffaireId ? ` (${cellInfo.conflitAffaireId})` : ''}` :
                                     cellInfo.hasConflitAutreCompetence ? 'Ressource affectée sur une autre compétence' :
                                     'Cliquer pour ajouter une affectation'
                                   }
