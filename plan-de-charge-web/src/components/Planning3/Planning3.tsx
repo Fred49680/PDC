@@ -40,7 +40,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     dateDebut: dateDebut || new Date(),
     dateFin: dateFin || new Date(),
     nbRessources: 1,
-    ressourceId: '',
+    ressourceIds: [] as string[], // Tableau pour sélection multiple
   })
   const [isGeneratingChargeMasse, setIsGeneratingChargeMasse] = useState(false)
   const { addToast } = useToast()
@@ -157,20 +157,106 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   }, [affaireId, site])
 
   // Filtrer les ressources selon la compétence sélectionnée pour le modal
+  // et vérifier les conflits/absences
   const ressourcesFiltrees = useMemo(() => {
-    if (!chargeMasseForm.competence) return []
+    if (!chargeMasseForm.competence || !chargeMasseForm.dateDebut || !chargeMasseForm.dateFin) return []
     
-    return ressourcesSite.filter((ressource) => {
-      const ressourceCompetences = competencesSite.get(ressource.id) || []
-      return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
-    }).sort((a, b) => a.nom.localeCompare(b.nom))
-  }, [ressourcesSite, competencesSite, chargeMasseForm.competence])
+    return ressourcesSite
+      .filter((ressource) => {
+        const ressourceCompetences = competencesSite.get(ressource.id) || []
+        return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
+      })
+      .map((ressource) => {
+        const conflitInfo = hasConflitOuAbsence(ressource.id, chargeMasseForm.dateDebut, chargeMasseForm.dateFin)
+        return {
+          ...ressource,
+          hasConflit: conflitInfo.hasConflit,
+          hasAbsence: conflitInfo.hasAbsence,
+          raison: conflitInfo.raison,
+          disabled: conflitInfo.hasConflit || conflitInfo.hasAbsence,
+        }
+      })
+      .sort((a, b) => {
+        // Trier : disponibles d'abord, puis conflits/absences
+        if (a.disabled && !b.disabled) return 1
+        if (!a.disabled && b.disabled) return -1
+        return a.nom.localeCompare(b.nom)
+      })
+  }, [ressourcesSite, competencesSite, chargeMasseForm.competence, chargeMasseForm.dateDebut, chargeMasseForm.dateFin, hasConflitOuAbsence])
 
   // Charger TOUTES les absences (pas seulement du site) pour vérifier les disponibilités
   // des ressources d'autres sites dans le modal AffectationPanel
   const { absences, loading: loadingAbsences } = useAbsences({
     // site non spécifié = charger toutes les absences de tous les sites
   })
+
+  // Charger TOUTES les affectations pour détecter les conflits
+  const [allAffectations, setAllAffectations] = useState<any[]>([])
+  const [loadingAllAffectations, setLoadingAllAffectations] = useState(false)
+
+  useEffect(() => {
+    const loadAllAffectations = async () => {
+      try {
+        setLoadingAllAffectations(true)
+        const supabase = createClient()
+        const { data: allAff, error } = await supabase
+          .from('affectations')
+          .select('*')
+          .order('date_debut', { ascending: true })
+        
+        if (!error && allAff) {
+          const affectationsAvecDates = allAff.map((a: any) => ({
+            ...a,
+            date_debut: a.date_debut ? new Date(a.date_debut) : new Date(),
+            date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
+          }))
+          setAllAffectations(affectationsAvecDates)
+        }
+      } catch (err) {
+        console.error('[Planning3] Erreur chargement toutes affectations:', err)
+      } finally {
+        setLoadingAllAffectations(false)
+      }
+    }
+    
+    loadAllAffectations()
+  }, [])
+
+  // Vérifier si une ressource a un conflit ou une absence sur la période
+  const hasConflitOuAbsence = useCallback((ressourceId: string, dateDebut: Date, dateFin: Date): { hasConflit: boolean; hasAbsence: boolean; raison?: string } => {
+    const dateDebutUTC = normalizeDateToUTC(dateDebut)
+    const dateFinUTC = normalizeDateToUTC(dateFin)
+
+    // Vérifier les absences
+    const hasAbsence = absences.some((abs) => {
+      if (abs.ressource_id !== ressourceId) return false
+      const absDateDebut = normalizeDateToUTC(new Date(abs.date_debut))
+      const absDateFin = normalizeDateToUTC(new Date(abs.date_fin))
+      return absDateDebut <= dateFinUTC && absDateFin >= dateDebutUTC
+    })
+
+    if (hasAbsence) {
+      return { hasConflit: false, hasAbsence: true, raison: 'Absence' }
+    }
+
+    // Vérifier les conflits (affectation sur une autre affaire)
+    if (affaireUuid) {
+      const hasConflit = allAffectations.some((aff: any) => {
+        if (aff.ressource_id !== ressourceId) return false
+        if (aff.affaire_id === affaireUuid) return false // Même affaire, pas un conflit
+        
+        const affDateDebut = normalizeDateToUTC(new Date(aff.date_debut))
+        const affDateFin = normalizeDateToUTC(new Date(aff.date_fin))
+        return affDateDebut <= dateFinUTC && affDateFin >= dateDebutUTC
+      })
+
+      if (hasConflit) {
+        return { hasConflit: true, hasAbsence: false, raison: 'Affectée ailleurs' }
+      }
+    }
+
+    return { hasConflit: false, hasAbsence: false }
+  }, [absences, allAffectations, affaireUuid])
 
   // Récupérer l'UUID de l'affaire depuis les périodes ou depuis la base de données
   const affaireUuid = useMemo(() => {
@@ -387,7 +473,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                 </label>
                 <select
                   value={chargeMasseForm.competence}
-                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, competence: e.target.value, ressourceId: '' })}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, competence: e.target.value, ressourceIds: [] })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Sélectionner...</option>
@@ -434,23 +520,71 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ressource (facultatif)
+                  Ressources (facultatif) - Sélectionnez jusqu'à {chargeMasseForm.nbRessources} ressource{chargeMasseForm.nbRessources > 1 ? 's' : ''}
                 </label>
-                <select
-                  value={chargeMasseForm.ressourceId}
-                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, ressourceId: e.target.value })}
-                  disabled={!chargeMasseForm.competence}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">Aucune (créer seulement la charge)</option>
-                  {ressourcesFiltrees.map((ressource) => (
-                    <option key={ressource.id} value={ressource.id}>
-                      {ressource.nom} ({ressource.site})
-                    </option>
-                  ))}
-                </select>
-                {!chargeMasseForm.competence && (
+                {!chargeMasseForm.competence ? (
                   <p className="text-xs text-gray-500 mt-1">Sélectionnez d'abord une compétence</p>
+                ) : (
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-white">
+                    {ressourcesFiltrees.length === 0 ? (
+                      <p className="text-sm text-gray-500">Aucune ressource disponible pour cette compétence</p>
+                    ) : (
+                      ressourcesFiltrees.map((ressource) => {
+                        const isSelected = chargeMasseForm.ressourceIds.includes(ressource.id)
+                        const canSelect = !ressource.disabled && chargeMasseForm.ressourceIds.length < chargeMasseForm.nbRessources
+                        
+                        return (
+                          <label
+                            key={ressource.id}
+                            className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
+                              ressource.disabled
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-blue-50 text-blue-900'
+                                : canSelect
+                                ? 'hover:bg-gray-50'
+                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={ressource.disabled || (!canSelect && !isSelected)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  if (chargeMasseForm.ressourceIds.length < chargeMasseForm.nbRessources) {
+                                    setChargeMasseForm({
+                                      ...chargeMasseForm,
+                                      ressourceIds: [...chargeMasseForm.ressourceIds, ressource.id],
+                                    })
+                                  }
+                                } else {
+                                  setChargeMasseForm({
+                                    ...chargeMasseForm,
+                                    ressourceIds: chargeMasseForm.ressourceIds.filter((id) => id !== ressource.id),
+                                  })
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="flex-1">
+                              {ressource.nom} ({ressource.site})
+                            </span>
+                            {ressource.disabled && (
+                              <span className="text-xs text-red-600 font-medium">
+                                {ressource.raison}
+                              </span>
+                            )}
+                          </label>
+                        )
+                      })
+                    )}
+                    {chargeMasseForm.ressourceIds.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        {chargeMasseForm.ressourceIds.length} / {chargeMasseForm.nbRessources} ressource{chargeMasseForm.nbRessources > 1 ? 's' : ''} sélectionnée{chargeMasseForm.ressourceIds.length > 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
               {isGeneratingChargeMasse && (
@@ -489,26 +623,54 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                     
                     await savePeriodesBatch(periodesACreer)
                     
-                    if (chargeMasseForm.ressourceId && affaireUuid) {
-                      try {
-                        await saveAffectation({
-                          ressource_id: chargeMasseForm.ressourceId,
-                          competence: chargeMasseForm.competence,
-                          date_debut: normalizeDateToUTC(chargeMasseForm.dateDebut),
-                          date_fin: normalizeDateToUTC(chargeMasseForm.dateFin),
-                          charge: 1,
-                        })
-                        addToast(`${periodesACreer.length} période(s) créée(s) et ressource affectée`, 'success')
-                      } catch (affectErr) {
-                        console.error('[Planning3] Erreur création affectation:', affectErr)
-                        addToast(`${periodesACreer.length} période(s) créée(s) mais erreur lors de l'affectation`, 'warning')
+                    // Affecter les ressources sélectionnées (seulement celles sans conflit/absence)
+                    if (chargeMasseForm.ressourceIds.length > 0 && affaireUuid) {
+                      const affectationsACreer = []
+                      const ressourcesNonAffectees: string[] = []
+                      
+                      for (const ressourceId of chargeMasseForm.ressourceIds) {
+                        // Vérifier à nouveau les conflits/absences avant d'affecter
+                        const conflitInfo = hasConflitOuAbsence(ressourceId, chargeMasseForm.dateDebut, chargeMasseForm.dateFin)
+                        
+                        if (!conflitInfo.hasConflit && !conflitInfo.hasAbsence) {
+                          affectationsACreer.push({
+                            ressource_id: ressourceId,
+                            competence: chargeMasseForm.competence,
+                            date_debut: normalizeDateToUTC(chargeMasseForm.dateDebut),
+                            date_fin: normalizeDateToUTC(chargeMasseForm.dateFin),
+                            charge: 1,
+                          })
+                        } else {
+                          const ressource = ressourcesFiltrees.find(r => r.id === ressourceId)
+                          ressourcesNonAffectees.push(ressource?.nom || ressourceId)
+                        }
+                      }
+                      
+                      // Créer les affectations valides
+                      if (affectationsACreer.length > 0) {
+                        try {
+                          await Promise.all(
+                            affectationsACreer.map(aff => saveAffectation(aff))
+                          )
+                          
+                          let message = `${periodesACreer.length} période(s) créée(s) et ${affectationsACreer.length} ressource(s) affectée(s)`
+                          if (ressourcesNonAffectees.length > 0) {
+                            message += `. ${ressourcesNonAffectees.length} ressource(s) non affectée(s) (conflit/absence): ${ressourcesNonAffectees.join(', ')}`
+                          }
+                          addToast(message, ressourcesNonAffectees.length > 0 ? 'warning' : 'success')
+                        } catch (affectErr) {
+                          console.error('[Planning3] Erreur création affectations:', affectErr)
+                          addToast(`${periodesACreer.length} période(s) créée(s) mais erreur lors de l'affectation`, 'warning')
+                        }
+                      } else {
+                        addToast(`${periodesACreer.length} période(s) créée(s) mais aucune ressource affectée (toutes en conflit/absence)`, 'warning')
                       }
                     } else {
                       addToast(`${periodesACreer.length} période(s) créée(s)`, 'success')
                     }
                     
                     setShowChargeMasseModal(false)
-                    setChargeMasseForm({ competence: '', dateDebut: dateDebut || new Date(), dateFin: dateFin || new Date(), nbRessources: 1, ressourceId: '' })
+                    setChargeMasseForm({ competence: '', dateDebut: dateDebut || new Date(), dateFin: dateFin || new Date(), nbRessources: 1, ressourceIds: [] })
                     
                     // Rafraîchir toutes les données après création
                     const refreshPromises = [
