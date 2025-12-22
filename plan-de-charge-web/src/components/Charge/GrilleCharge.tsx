@@ -91,6 +91,8 @@ export function GrilleCharge({
   precision,
   onDateDebutChange,
   onDateFinChange,
+  onPrecisionChange,
+  showButtonsAbove = false,
 }: GrilleChargeProps) {
   const { periodes, loading, error, savePeriode, savePeriodesBatch } = useCharge({
     affaireId,
