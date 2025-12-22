@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
-import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin, Calendar } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
@@ -10,7 +10,8 @@ import type { Affectation } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
 import { useToast } from '@/components/UI/Toast'
 import { applyAffectationsBatch } from '@/utils/planning/planning.api'
-import { isDisponible, hasConflitAffaire, isAbsente, getJoursConflits, getJoursAbsences, getJoursDisponibles } from '@/utils/planning/planning.rules'
+import { hasConflitAffaire, isAbsente, getJoursConflits, getJoursDisponibles } from '@/utils/planning/planning.rules'
+import { getISOWeek, getISOYear } from '@/utils/calendar'
 
 interface AffectationMassePanelProps {
   besoins: BesoinPeriode[]
@@ -95,12 +96,6 @@ export function AffectationMassePanel({
             besoin.dateFin,
             affectations,
             affaireUuid
-          )
-          const joursAbsences = getJoursAbsences(
-            ressource.id,
-            besoin.dateDebut,
-            besoin.dateFin,
-            absences
           )
           const joursDisponibles = getJoursDisponibles(
             ressource.id,
@@ -321,9 +316,10 @@ export function AffectationMassePanel({
       addToast(message, 'success')
       onSuccess()
       onClose()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de l\'affectation de masse:', error)
-      addToast(error.message || 'Erreur lors de l\'affectation de masse', 'error')
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de l\'affectation de masse'
+      addToast(errorMessage, 'error')
     } finally {
       setLoading(false)
     }
@@ -387,7 +383,11 @@ export function AffectationMassePanel({
                 {besoins.map((besoin) => (
                   <div key={besoin.id} className="text-xs text-gray-600">
                     • {besoin.competence} : {besoin.dateDebut.toLocaleDateString('fr-FR')} →{' '}
-                    {besoin.dateFin.toLocaleDateString('fr-FR')} (Besoin: {besoin.nbRessources})
+                    {besoin.dateFin.toLocaleDateString('fr-FR')}{' '}
+                    <span className="text-gray-400">
+                      (S{String(getISOWeek(besoin.dateDebut)).padStart(2, '0')}-{getISOYear(besoin.dateDebut)})
+                    </span>{' '}
+                    (Besoin: {besoin.nbRessources})
                   </div>
                 ))}
               </div>
@@ -402,7 +402,7 @@ export function AffectationMassePanel({
                 Ressources déjà affectées ({ressourcesDejaAffectees.length})
               </h3>
               <p className="text-sm text-gray-600 mb-3">
-                Décochez pour désaffecter ces ressources de l'affaire
+                Décochez pour désaffecter ces ressources de l&apos;affaire
               </p>
               <div className="space-y-2">
                 {ressourcesDejaAffectees.map((ressource) => {
@@ -454,6 +454,10 @@ export function AffectationMassePanel({
                           <p className="text-xs text-gray-500 mt-1">
                             {ressource.dateDebut.toLocaleDateString('fr-FR')} →{' '}
                             {ressource.dateFin.toLocaleDateString('fr-FR')}
+                            {' '}
+                            <span className="text-gray-400">
+                              (S{String(getISOWeek(ressource.dateDebut)).padStart(2, '0')}-{getISOYear(ressource.dateDebut)})
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -544,7 +548,7 @@ export function AffectationMassePanel({
                   Ressources partiellement indisponibles ({candidatsConflitPartiel.length})
                 </h4>
                 <p className="text-xs text-gray-600 mb-2">
-                  Ces ressources ont des conflits sur certains jours mais sont disponibles sur d'autres. Vous pouvez les affecter sur les jours disponibles uniquement.
+                  Ces ressources ont des conflits sur certains jours mais sont disponibles sur d&apos;autres. Vous pouvez les affecter sur les jours disponibles uniquement.
                 </p>
                 <div className="space-y-2">
                   {candidatsConflitPartiel.map((candidat) => {

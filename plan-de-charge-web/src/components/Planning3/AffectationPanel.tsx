@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin, Calendar } from 'lucide-react'
+import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { getISOWeek, getISOYear } from '@/utils/calendar'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import type { RessourceCandidat } from '@/utils/planning/planning.compute'
 import { getRessourcesCandidates } from '@/utils/planning/planning.compute'
@@ -338,6 +339,10 @@ export function AffectationPanel({
                           <p className="text-xs text-gray-500 mt-1">
                             {ressource.dateDebut.toLocaleDateString('fr-FR')} →{' '}
                             {ressource.dateFin.toLocaleDateString('fr-FR')}
+                            {' '}
+                            <span className="text-gray-400">
+                              (S{String(getISOWeek(ressource.dateDebut)).padStart(2, '0')}-{getISOYear(ressource.dateDebut)})
+                            </span>
                           </p>
                         </div>
                       </div>
