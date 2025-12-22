@@ -102,6 +102,8 @@ export function GrilleCharge({
 
   const { addToast } = useToast()
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
+  // État local pour les valeurs en cours de saisie (permet les valeurs vides)
+  const [editingValues, setEditingValues] = useState<Map<string, string>>(new Map())
   const [competences, setCompetences] = useState<string[]>([])
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [showAddCompetence, setShowAddCompetence] = useState(false)
@@ -298,6 +300,20 @@ export function GrilleCharge({
     })
 
     setGrille(newGrille)
+    // Nettoyer les valeurs d'édition qui ne correspondent plus aux valeurs de la grille
+    setEditingValues(prev => {
+      const next = new Map(prev)
+      let hasChanges = false
+      next.forEach((editValue, cellKey) => {
+        const grilleValue = newGrille.get(cellKey) || 0
+        const editNum = parseFloat(editValue)
+        if (!isNaN(editNum) && editNum === grilleValue) {
+          next.delete(cellKey)
+          hasChanges = true
+        }
+      })
+      return hasChanges ? next : prev
+    })
   }, [periodes, colonnes, precision])
 
   // Mise à jour optimiste de la grille locale
@@ -616,10 +632,38 @@ export function GrilleCharge({
                         type="number"
                         min="0"
                         step="1"
-                        value={value}
+                        value={editingValues.get(cellKey) ?? value}
                         onChange={(e) => {
-                          const newValue = parseFloat(e.target.value) || 0
-                          handleCellChange(comp, idx, newValue)
+                          const inputValue = e.target.value
+                          // Garder la valeur brute dans l'état d'édition
+                          setEditingValues(prev => {
+                            const next = new Map(prev)
+                            if (inputValue === '' || inputValue === '0') {
+                              next.delete(cellKey)
+                            } else {
+                              next.set(cellKey, inputValue)
+                            }
+                            return next
+                          })
+                          // Convertir et mettre à jour la grille seulement si la valeur est valide
+                          const numValue = parseFloat(inputValue)
+                          if (!isNaN(numValue) && numValue >= 0) {
+                            handleCellChange(comp, idx, numValue)
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // À la perte de focus, nettoyer l'état d'édition et valider la valeur
+                          const inputValue = e.target.value
+                          const numValue = parseFloat(inputValue) || 0
+                          setEditingValues(prev => {
+                            const next = new Map(prev)
+                            next.delete(cellKey)
+                            return next
+                          })
+                          // S'assurer que la valeur finale est bien enregistrée
+                          if (numValue !== value) {
+                            handleCellChange(comp, idx, numValue)
+                          }
                         }}
                         className={`w-full text-center text-sm font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 py-1 ${
                           col.isWeekend ? 'bg-blue-50 hover:bg-blue-100' :
