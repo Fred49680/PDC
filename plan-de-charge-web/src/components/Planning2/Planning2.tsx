@@ -230,6 +230,12 @@ export default function Planning2({
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [loadingCompetences, setLoadingCompetences] = useState(true)
   
+  // État local pour la grille de charge (pour préserver les valeurs en cours de sauvegarde)
+  // Déclaré tôt pour être disponible avant le useEffect qui l'utilise
+  const [grilleChargeLocal, setGrilleChargeLocal] = useState<Map<string, number>>(new Map())
+  // Référence pour tracker les sauvegardes en cours (comme dans GrilleCharge)
+  const pendingSavesRef = useRef<Map<string, { competence: string; col: ColonneDate; value: number }>>(new Map())
+  
   useEffect(() => {
     const loadToutesCompetences = async () => {
       try {
@@ -666,10 +672,6 @@ export default function Planning2({
   // États de sauvegarde
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set())
   const saveTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
-  // Référence pour tracker les sauvegardes en cours (comme dans GrilleCharge)
-  const pendingSavesRef = useRef<Map<string, { competence: string; col: ColonneDate; value: number }>>(new Map())
-  // État local pour la grille de charge (pour préserver les valeurs en cours de sauvegarde)
-  const [grilleChargeLocal, setGrilleChargeLocal] = useState<Map<string, number>>(new Map())
   
   // État pour suivre les opérations de masse (affectations)
   const [isGeneratingAffectations, setIsGeneratingAffectations] = useState(false)
