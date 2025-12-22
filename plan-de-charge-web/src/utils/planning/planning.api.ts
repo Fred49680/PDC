@@ -118,9 +118,17 @@ async function ensureTransfert(
   dateDebut: Date,
   dateFin: Date
 ): Promise<void> {
+  console.log('[ensureTransfert] DÉBUT - Création/extension transfert', {
+    ressourceId,
+    siteDestination,
+    dateDebut: dateDebut.toISOString(),
+    dateFin: dateFin.toISOString(),
+  })
+
   const supabase = createClient()
 
   // Récupérer la ressource pour obtenir son site d'origine
+  console.log('[ensureTransfert] Récupération ressource...', { ressourceId })
   const { data: ressource, error: ressourceError } = await supabase
     .from('ressources')
     .select('id, site')
@@ -128,20 +136,34 @@ async function ensureTransfert(
     .single()
 
   if (ressourceError || !ressource) {
+    console.error('[ensureTransfert] ERREUR - Ressource introuvable', { ressourceId, ressourceError })
     throw new Error(`Ressource ${ressourceId} introuvable`)
   }
+
+  console.log('[ensureTransfert] Ressource trouvée', { ressourceId, site: ressource.site })
 
   const siteOrigine = ressource.site.toUpperCase()
   const siteDest = siteDestination.toUpperCase()
 
+  console.log('[ensureTransfert] Comparaison sites', { siteOrigine, siteDest, memeSite: siteOrigine === siteDest })
+
   // Si la ressource est déjà sur le site de destination, pas besoin de transfert
   if (siteOrigine === siteDest) {
+    console.log('[ensureTransfert] FIN - Pas de transfert nécessaire (même site)')
     return
   }
 
   // Vérifier si un transfert existe déjà pour cette ressource et cette destination
   const dateDebutStr = normalizeDateToUTC(dateDebut).toISOString().split('T')[0]
   const dateFinStr = normalizeDateToUTC(dateFin).toISOString().split('T')[0]
+
+  console.log('[ensureTransfert] Vérification transferts existants', {
+    ressourceId,
+    siteOrigine,
+    siteDest,
+    dateDebutStr,
+    dateFinStr,
+  })
 
   const { data: transfertsExistants, error: checkError } = await supabase
     .from('transferts')
@@ -151,9 +173,14 @@ async function ensureTransfert(
     .eq('site_destination', siteDest)
 
   if (checkError) {
-    console.error('[planning.api] Erreur vérification transfert:', checkError)
+    console.error('[ensureTransfert] ERREUR - Vérification transfert:', checkError)
     // Continuer quand même, on créera un nouveau transfert
   }
+
+  console.log('[ensureTransfert] Transferts existants trouvés', {
+    count: transfertsExistants?.length || 0,
+    transferts: transfertsExistants,
+  })
 
   // Si un transfert existe déjà, vérifier s'il couvre la période demandée
   if (transfertsExistants && transfertsExistants.length > 0) {
@@ -164,8 +191,16 @@ async function ensureTransfert(
     const demandeDebut = new Date(dateDebutStr).getTime()
     const demandeFin = new Date(dateFinStr).getTime()
 
+    console.log('[ensureTransfert] Comparaison périodes', {
+      transfertDebut: transfert.date_debut,
+      transfertFin: transfert.date_fin,
+      demandeDebut: dateDebutStr,
+      demandeFin: dateFinStr,
+    })
+
     // Vérifier si le transfert couvre déjà la période demandée
     if (transfertDebut <= demandeDebut && transfertFin >= demandeFin) {
+      console.log('[ensureTransfert] FIN - Transfert existant couvre déjà la période')
       // Le transfert couvre déjà la période, on n'a rien à faire
       return
     }
@@ -175,10 +210,18 @@ async function ensureTransfert(
       (demandeDebut <= transfertFin + 86400000 && demandeFin >= transfertDebut - 86400000) ||
       (transfertDebut <= demandeFin + 86400000 && transfertFin >= demandeDebut - 86400000)
 
+    console.log('[ensureTransfert] Chevauchement détecté', { isOverlap })
+
     if (isOverlap) {
       // Étendre le transfert pour couvrir la période demandée
       const newDateDebut = transfertDebut < demandeDebut ? transfert.date_debut : dateDebutStr
       const newDateFin = transfertFin > demandeFin ? transfert.date_fin : dateFinStr
+
+      console.log('[ensureTransfert] Extension transfert', {
+        transfertId: transfert.id,
+        newDateDebut,
+        newDateFin,
+      })
 
       const { error: updateError } = await supabase
         .from('transferts')
@@ -189,29 +232,40 @@ async function ensureTransfert(
         .eq('id', transfert.id)
 
       if (updateError) {
-        console.error('[planning.api] Erreur extension transfert:', updateError)
+        console.error('[ensureTransfert] ERREUR - Extension transfert:', updateError)
         throw new Error(`Erreur lors de l'extension du transfert: ${updateError.message}`)
       }
+      console.log('[ensureTransfert] SUCCÈS - Transfert étendu', { transfertId: transfert.id })
       // Transfert étendu avec succès
       return
     }
     // Les périodes ne se chevauchent pas, on créera un nouveau transfert (cas rare)
+    console.log('[ensureTransfert] Périodes ne se chevauchant pas, création nouveau transfert')
   }
 
   // Créer un nouveau transfert
-  const { error: createError } = await supabase.from('transferts').insert({
+  const transfertData = {
     ressource_id: ressourceId,
     site_origine: siteOrigine,
     site_destination: siteDest,
     date_debut: dateDebutStr,
     date_fin: dateFinStr,
     statut: 'Planifié',
-  })
+  }
+
+  console.log('[ensureTransfert] Création nouveau transfert', transfertData)
+
+  const { data: transfertCree, error: createError } = await supabase
+    .from('transferts')
+    .insert(transfertData)
+    .select()
 
   if (createError) {
-    console.error('[planning.api] Erreur création transfert:', createError)
+    console.error('[ensureTransfert] ERREUR - Création transfert:', createError, { transfertData })
     throw new Error(`Erreur lors de la création du transfert: ${createError.message}`)
   }
+
+  console.log('[ensureTransfert] SUCCÈS - Transfert créé', { transfertCree })
 }
 
 /**
@@ -262,41 +316,78 @@ export async function applyAffectationsBatch(
   const siteUpper = site.toUpperCase()
 
   // Créer les transferts nécessaires AVANT de créer les affectations
+  console.log('[applyAffectationsBatch] DÉBUT - Création des transferts', {
+    affaireId,
+    site,
+    siteUpper,
+    nbAffectations: affectations.length,
+    ressourcesMapSize: ressourcesMap.size,
+  })
+
   const transfertsCrees: string[] = []
   const erreursTransferts: Array<{ ressourceId: string; error: Error }> = []
   
   for (const aff of affectations) {
+    console.log('[applyAffectationsBatch] Traitement affectation', {
+      ressourceId: aff.ressourceId,
+      competence: aff.competence,
+      dateDebut: aff.dateDebut.toISOString(),
+      dateFin: aff.dateFin.toISOString(),
+    })
+
     const ressourceSite = ressourcesMap.get(aff.ressourceId)
+    console.log('[applyAffectationsBatch] Site ressource', {
+      ressourceId: aff.ressourceId,
+      ressourceSite,
+      siteUpper,
+      necessiteTransfert: ressourceSite && ressourceSite !== siteUpper,
+    })
+
     if (ressourceSite && ressourceSite !== siteUpper) {
       // La ressource est sur un autre site, créer/étendre le transfert
+      console.log('[applyAffectationsBatch] Création transfert nécessaire', {
+        ressourceId: aff.ressourceId,
+        siteOrigine: ressourceSite,
+        siteDestination: siteUpper,
+      })
       try {
         await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
         transfertsCrees.push(aff.ressourceId)
-        console.log(`[planning.api] Transfert créé/étendu pour ressource ${aff.ressourceId} de ${ressourceSite} vers ${siteUpper}`)
+        console.log(`[applyAffectationsBatch] SUCCÈS - Transfert créé/étendu pour ressource ${aff.ressourceId} de ${ressourceSite} vers ${siteUpper}`)
       } catch (error: any) {
-        console.error(`[planning.api] Erreur transfert pour ${aff.ressourceId}:`, error)
+        console.error(`[applyAffectationsBatch] ERREUR - Transfert pour ${aff.ressourceId}:`, error)
         erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
         // Ne pas bloquer l'affectation si le transfert échoue, mais loguer l'erreur
       }
     } else if (!ressourceSite) {
       // Ressource non trouvée dans la map, essayer de la récupérer
-      console.warn(`[planning.api] Ressource ${aff.ressourceId} non trouvée dans ressourcesMap, récupération depuis la base...`)
+      console.warn(`[applyAffectationsBatch] ATTENTION - Ressource ${aff.ressourceId} non trouvée dans ressourcesMap, récupération depuis la base...`)
       try {
         await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
         transfertsCrees.push(aff.ressourceId)
+        console.log(`[applyAffectationsBatch] SUCCÈS - Transfert créé après récupération ressource ${aff.ressourceId}`)
       } catch (error: any) {
-        console.error(`[planning.api] Erreur transfert pour ${aff.ressourceId} (récupération depuis base):`, error)
+        console.error(`[applyAffectationsBatch] ERREUR - Transfert pour ${aff.ressourceId} (récupération depuis base):`, error)
         erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
       }
+    } else {
+      console.log(`[applyAffectationsBatch] Pas de transfert nécessaire pour ${aff.ressourceId} (même site: ${ressourceSite})`)
     }
   }
   
   // Loguer un résumé des transferts
+  console.log('[applyAffectationsBatch] RÉSUMÉ - Transferts', {
+    transfertsCrees: transfertsCrees.length,
+    erreursTransferts: erreursTransferts.length,
+    transfertsCreesIds: transfertsCrees,
+    erreursDetails: erreursTransferts,
+  })
+  
   if (transfertsCrees.length > 0) {
-    console.log(`[planning.api] ${transfertsCrees.length} transfert(s) créé(s)/étendu(s) avec succès`)
+    console.log(`[applyAffectationsBatch] ✅ ${transfertsCrees.length} transfert(s) créé(s)/étendu(s) avec succès`)
   }
   if (erreursTransferts.length > 0) {
-    console.error(`[planning.api] ${erreursTransferts.length} erreur(s) lors de la création des transferts`)
+    console.error(`[applyAffectationsBatch] ❌ ${erreursTransferts.length} erreur(s) lors de la création des transferts`, erreursTransferts)
   }
 
   // Préparer les données d'insertion
