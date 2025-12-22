@@ -33,7 +33,7 @@ export function AffectationMassePanel({
   onClose,
   onSuccess,
 }: AffectationMassePanelProps) {
-  const [selectedRessourceId, setSelectedRessourceId] = useState<string | null>(null)
+  const [selectedRessourceIds, setSelectedRessourceIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const { addToast } = useToast()
 
@@ -109,9 +109,40 @@ export function AffectationMassePanel({
   const candidatsNecessitantTransfert = ressourcesCandidates.filter((c) => c.selectable && c.necessiteTransfert)
   const candidatsIndisponibles = ressourcesCandidates.filter((c) => !c.selectable)
 
+  const handleToggleRessource = (ressourceId: string) => {
+    setSelectedRessourceIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(ressourceId)) {
+        next.delete(ressourceId)
+      } else {
+        next.add(ressourceId)
+      }
+      return next
+    })
+  }
+
+  const handleSelectAll = (candidats: typeof ressourcesCandidates) => {
+    const selectableIds = candidats.filter((c) => c.selectable).map((c) => c.id)
+    if (selectableIds.every((id) => selectedRessourceIds.has(id))) {
+      // Tout désélectionner
+      setSelectedRessourceIds((prev) => {
+        const next = new Set(prev)
+        selectableIds.forEach((id) => next.delete(id))
+        return next
+      })
+    } else {
+      // Tout sélectionner
+      setSelectedRessourceIds((prev) => {
+        const next = new Set(prev)
+        selectableIds.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }
+
   const handleValider = async () => {
-    if (!selectedRessourceId) {
-      addToast('Veuillez sélectionner une ressource', 'error')
+    if (selectedRessourceIds.size === 0) {
+      addToast('Veuillez sélectionner au moins une ressource', 'error')
       return
     }
 
@@ -125,26 +156,39 @@ export function AffectationMassePanel({
       const competence = competencesUniques[0]
       const site = sitesUniques[0] || besoins[0].site
 
-      // Créer une affectation pour chaque période
-      const affectationsToCreate = besoins.map((besoin) => ({
-        ressourceId: selectedRessourceId,
-        competence,
-        dateDebut: besoin.dateDebut,
-        dateFin: besoin.dateFin,
-        charge: 1,
-      }))
+      // Créer une affectation pour chaque combinaison ressource × période
+      const affectationsToCreate: Array<{
+        ressourceId: string
+        competence: string
+        dateDebut: Date
+        dateFin: Date
+        charge: number
+      }> = []
+
+      for (const ressourceId of selectedRessourceIds) {
+        for (const besoin of besoins) {
+          affectationsToCreate.push({
+            ressourceId,
+            competence,
+            dateDebut: besoin.dateDebut,
+            dateFin: besoin.dateFin,
+            charge: 1,
+          })
+        }
+      }
 
       // Fournir les ressources pour éviter les requêtes supplémentaires lors de la création des transferts
       const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
 
       await applyAffectationsBatch(affaireId, site, affectationsToCreate, ressourcesMap)
 
-      const candidat = ressourcesCandidates.find((c) => c.id === selectedRessourceId)
-      const nbTransferts = candidat?.necessiteTransfert ? 1 : 0
+      const nbTransferts = Array.from(selectedRessourceIds).filter(
+        (id) => ressourcesCandidates.find((c) => c.id === id)?.necessiteTransfert
+      ).length
 
       let message = `${affectationsToCreate.length} affectation(s) créée(s) avec succès`
       if (nbTransferts > 0) {
-        message += ` (1 transfert créé automatiquement)`
+        message += ` (${nbTransferts} transfert(s) créé(s) automatiquement)`
       }
 
       addToast(message, 'success')
@@ -225,7 +269,21 @@ export function AffectationMassePanel({
 
           {/* Sélection de la ressource */}
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Sélectionner une ressource :</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-800">
+                Sélectionner des ressources ({selectedRessourceIds.size} sélectionnée(s)) :
+              </h3>
+              {candidatsDisponibles.length > 0 && (
+                <button
+                  onClick={() => handleSelectAll(candidatsDisponibles)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  {candidatsDisponibles.every((c) => selectedRessourceIds.has(c.id))
+                    ? 'Tout désélectionner'
+                    : 'Tout sélectionner'}
+                </button>
+              )}
+            </div>
 
             {/* Ressources disponibles du même site */}
             {candidatsDisponibles.length > 0 && (
@@ -236,11 +294,11 @@ export function AffectationMassePanel({
                 </h4>
                 <div className="space-y-2">
                   {candidatsDisponibles.map((candidat) => {
-                    const isSelected = selectedRessourceId === candidat.id
+                    const isSelected = selectedRessourceIds.has(candidat.id)
                     return (
                       <div
                         key={candidat.id}
-                        onClick={() => setSelectedRessourceId(candidat.id)}
+                        onClick={() => handleToggleRessource(candidat.id)}
                         className={`
                           p-3 rounded-lg border-2 cursor-pointer transition-all
                           ${
@@ -252,11 +310,11 @@ export function AffectationMassePanel({
                       >
                         <div className="flex items-center gap-3">
                           <input
-                            type="radio"
+                            type="checkbox"
                             checked={isSelected}
-                            onChange={() => setSelectedRessourceId(candidat.id)}
+                            onChange={() => handleToggleRessource(candidat.id)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 text-blue-600"
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                           />
                           <div className="flex-1">
                             <p className="font-medium text-gray-800">{candidat.nom}</p>
@@ -292,11 +350,11 @@ export function AffectationMassePanel({
                 </p>
                 <div className="space-y-2">
                   {candidatsNecessitantTransfert.map((candidat) => {
-                    const isSelected = selectedRessourceId === candidat.id
+                    const isSelected = selectedRessourceIds.has(candidat.id)
                     return (
                       <div
                         key={candidat.id}
-                        onClick={() => setSelectedRessourceId(candidat.id)}
+                        onClick={() => handleToggleRessource(candidat.id)}
                         className={`
                           p-3 rounded-lg border-2 cursor-pointer transition-all
                           ${
@@ -308,11 +366,11 @@ export function AffectationMassePanel({
                       >
                         <div className="flex items-center gap-3">
                           <input
-                            type="radio"
+                            type="checkbox"
                             checked={isSelected}
-                            onChange={() => setSelectedRessourceId(candidat.id)}
+                            onChange={() => handleToggleRessource(candidat.id)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 text-amber-600"
+                            className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
                           />
                           <div className="flex-1">
                             <p className="font-medium text-gray-800">{candidat.nom}</p>
@@ -395,7 +453,7 @@ export function AffectationMassePanel({
           </button>
           <button
             onClick={handleValider}
-            disabled={loading || !selectedRessourceId || competencesUniques.length !== 1}
+            disabled={loading || selectedRessourceIds.size === 0 || competencesUniques.length !== 1}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
@@ -406,7 +464,7 @@ export function AffectationMassePanel({
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Valider ({besoins.length} affectation(s))
+                Valider ({selectedRessourceIds.size * besoins.length} affectation(s))
               </>
             )}
           </button>
