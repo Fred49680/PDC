@@ -1,13 +1,14 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2, Grid3x3, LayoutGrid } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
 import { BesoinsList } from './BesoinsList'
+import { BesoinsGrid } from './BesoinsGrid'
 import { AffectationPanel } from './AffectationPanel'
 import { AffectationMassePanel } from './AffectationMassePanel'
 import { useToast } from '@/components/UI/Toast'
@@ -25,6 +26,7 @@ interface Planning3Props {
 export function Planning3({ affaireId, site, dateDebut, dateFin }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
+  const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
   const { addToast } = useToast()
 
   // Hooks pour charger les données
@@ -170,11 +172,48 @@ export function Planning3({ affaireId, site, dateDebut, dateFin }: Planning3Prop
 
   return (
     <>
-      <BesoinsList
-        besoins={besoins}
-        onAffecter={handleAffecter}
-        onAffecterMasse={handleAffecterMasse}
-      />
+      {/* Toggle pour basculer entre vue tuile et vue grille */}
+      <div className="flex justify-end mb-4">
+        <div className="bg-white/70 backdrop-blur-sm rounded-xl shadow-md border border-gray-200/50 p-1 flex gap-1">
+          <button
+            onClick={() => setVue('tuile')}
+            className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-medium ${
+              vue === 'tuile'
+                ? 'bg-indigo-500 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            Vue tuile
+          </button>
+          <button
+            onClick={() => setVue('grille')}
+            className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-medium ${
+              vue === 'grille'
+                ? 'bg-indigo-500 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Grid3x3 className="w-4 h-4" />
+            Vue grille
+          </button>
+        </div>
+      </div>
+
+      {/* Affichage conditionnel selon la vue sélectionnée */}
+      {vue === 'tuile' ? (
+        <BesoinsList
+          besoins={besoins}
+          onAffecter={handleAffecter}
+          onAffecterMasse={handleAffecterMasse}
+        />
+      ) : (
+        <BesoinsGrid
+          besoins={besoins}
+          onAffecter={handleAffecter}
+          onAffecterMasse={handleAffecterMasse}
+        />
+      )}
 
       {selectedBesoin && affaireUuid && (
         <AffectationPanel
