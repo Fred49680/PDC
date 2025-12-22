@@ -2036,20 +2036,15 @@ function InterimsManagement({
                     </button>
                   )}
                 </div>
+                {/* Commentaire si présent */}
+                {interim.commentaire && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-600 italic">
+                      {interim.commentaire}
+                    </p>
+                  </div>
+                )}
               </div>
-            )
-          })
-        )}
-      </div>
-                  {interim.commentaire && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-sm text-gray-600 italic">
-                        {interim.commentaire}
-                      </p>
-                    </div>
-                  )}
-                </CardHeader>
-              </Card>
             )
           })
         )}
