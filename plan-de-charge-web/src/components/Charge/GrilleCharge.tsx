@@ -120,6 +120,7 @@ export function GrilleCharge({
   const [newCompetence, setNewCompetence] = useState('') // Compétence en cours d'ajout dans la ligne vide
   const [editingCompetence, setEditingCompetence] = useState<string | null>(null) // Compétence en cours d'édition
   const [competenceInputValue, setCompetenceInputValue] = useState<string>('') // Valeur de l'input de compétence
+  const [competencesManuelles, setCompetencesManuelles] = useState<Set<string>>(new Set()) // Compétences ajoutées manuellement (pas encore sauvegardées)
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
     title: string
@@ -253,6 +254,7 @@ export function GrilleCharge({
   }, [toutesCompetences, periodes])
 
   // Extraire les compétences affichées dans la grille (uniquement celles qui ont des périodes avec nb_ressources > 0)
+  // IMPORTANT : Préserver les compétences ajoutées manuellement même si elles n'ont pas encore de données
   useEffect(() => {
     const compsWithData = new Set<string>()
     periodes.forEach((p) => {
@@ -267,8 +269,10 @@ export function GrilleCharge({
         compsWithData.add(comp)
       }
     })
+    // Ajouter les compétences ajoutées manuellement (même si elles n'ont pas encore de données)
+    competencesManuelles.forEach(comp => compsWithData.add(comp))
     setCompetences(Array.from(compsWithData).sort())
-  }, [periodes, grille])
+  }, [periodes, grille, competencesManuelles])
 
   // Construire la grille depuis les périodes (comme Planning2 avec gestion week-end/férié)
   // Préserver les valeurs locales en cours de sauvegarde
@@ -507,7 +511,13 @@ export function GrilleCharge({
   // Gérer l'ajout de compétence depuis la ligne vide
   const handleAddCompetence = useCallback((comp: string) => {
     if (comp.trim() && !competences.includes(comp.trim())) {
-      setCompetences([...competences, comp.trim()].sort())
+      // Ajouter la compétence à la liste des compétences manuelles
+      setCompetencesManuelles(prev => {
+        const next = new Set(prev)
+        next.add(comp.trim())
+        return next
+      })
+      // La compétence sera ajoutée automatiquement via le useEffect
     }
     setNewCompetence('') // Réinitialiser pour créer une nouvelle ligne vide
   }, [competences])
@@ -524,8 +534,33 @@ export function GrilleCharge({
       )
       if (confirme) {
         try {
+          // Supprimer toutes les périodes de cette compétence
           await deleteCompetence(ancienneCompetence)
+          
+          // Retirer la compétence de la liste des compétences manuelles
+          setCompetencesManuelles(prev => {
+            const next = new Set(prev)
+            next.delete(ancienneCompetence)
+            return next
+          })
+          
+          // Retirer la compétence de la liste affichée
           setCompetences(prev => prev.filter(c => c !== ancienneCompetence))
+          
+          // Nettoyer la grille pour cette compétence
+          setGrille(prev => {
+            const next = new Map(prev)
+            prev.forEach((value, key) => {
+              const [comp] = key.split('|')
+              if (comp === ancienneCompetence) {
+                next.delete(key)
+              }
+            })
+            return next
+          })
+          
+          // Rafraîchir les données
+          await refreshGrilleCharge()
         } catch (err) {
           console.error('[GrilleCharge] Erreur suppression compétence:', err)
         }
@@ -539,13 +574,37 @@ export function GrilleCharge({
     if (nouvelleCompetence.trim() !== ancienneCompetence) {
       try {
         await updateCompetence(ancienneCompetence, nouvelleCompetence.trim())
-        // Mettre à jour la liste des compétences
+        
+        // Mettre à jour la liste des compétences manuelles
+        setCompetencesManuelles(prev => {
+          const next = new Set(prev)
+          if (next.has(ancienneCompetence)) {
+            next.delete(ancienneCompetence)
+            next.add(nouvelleCompetence.trim())
+          }
+          return next
+        })
+        
+        // Mettre à jour la liste des compétences affichées
         setCompetences(prev => {
           const newComps = prev.filter(c => c !== ancienneCompetence)
           if (!newComps.includes(nouvelleCompetence.trim())) {
             newComps.push(nouvelleCompetence.trim())
           }
           return newComps.sort()
+        })
+        
+        // Mettre à jour la grille pour refléter le changement de compétence
+        setGrille(prev => {
+          const next = new Map(prev)
+          prev.forEach((value, key) => {
+            const [comp, colIdx] = key.split('|')
+            if (comp === ancienneCompetence) {
+              next.delete(key)
+              next.set(`${nouvelleCompetence.trim()}|${colIdx}`, value)
+            }
+          })
+          return next
         })
       } catch (err) {
         console.error('[GrilleCharge] Erreur modification compétence:', err)
