@@ -194,6 +194,14 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     loadAllAffectations()
   }, [])
 
+  // Récupérer l'UUID de l'affaire depuis les périodes ou depuis la base de données
+  const affaireUuid = useMemo(() => {
+    if (periodes.length > 0 && periodes[0].affaire_id) {
+      return periodes[0].affaire_id
+    }
+    return affaireUuidFromDb
+  }, [periodes, affaireUuidFromDb])
+
   // Vérifier si une ressource a un conflit ou une absence sur la période
   const hasConflitOuAbsence = useCallback((ressourceId: string, dateDebut: Date, dateFin: Date): { hasConflit: boolean; hasAbsence: boolean; raison?: string } => {
     const dateDebutUTC = normalizeDateToUTC(dateDebut)
@@ -257,14 +265,6 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
         return a.nom.localeCompare(b.nom)
       })
   }, [ressourcesSite, competencesSite, chargeMasseForm.competence, chargeMasseForm.dateDebut, chargeMasseForm.dateFin, hasConflitOuAbsence])
-
-  // Récupérer l'UUID de l'affaire depuis les périodes ou depuis la base de données
-  const affaireUuid = useMemo(() => {
-    if (periodes.length > 0 && periodes[0].affaire_id) {
-      return periodes[0].affaire_id
-    }
-    return affaireUuidFromDb
-  }, [periodes, affaireUuidFromDb])
 
   // Enregistrer la fonction d'ouverture du modal dans le ref parent
   useEffect(() => {
