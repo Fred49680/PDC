@@ -346,6 +346,46 @@ export function BesoinsGrid({
     return cols
   }, [dateDebut, dateFin, precision])
 
+  // Calculer la charge totale (besoin) par colonne de date
+  const chargeParColonne = useMemo(() => {
+    const charges = new Map<number, number>() // Index colonne -> charge totale
+    
+    colonnes.forEach((col, colIndex) => {
+      let totalCharge = 0
+      
+      besoins.forEach((besoin) => {
+        const besoinDateDebut = normalizeDateToUTC(new Date(besoin.dateDebut))
+        const besoinDateFin = normalizeDateToUTC(new Date(besoin.dateFin))
+        const colDate = normalizeDateToUTC(col.date)
+        
+        let correspond = false
+        if (precision === 'JOUR') {
+          correspond = besoinDateDebut <= colDate && besoinDateFin >= colDate
+        } else if (precision === 'SEMAINE') {
+          if (col.weekStart && col.weekEnd) {
+            const weekStartUTC = normalizeDateToUTC(col.weekStart)
+            const weekEndUTC = normalizeDateToUTC(col.weekEnd)
+            correspond = besoinDateDebut <= weekEndUTC && besoinDateFin >= weekStartUTC
+          }
+        } else if (precision === 'MOIS') {
+          if (col.weekStart && col.weekEnd) {
+            const monthStartUTC = normalizeDateToUTC(col.weekStart)
+            const monthEndUTC = normalizeDateToUTC(col.weekEnd)
+            correspond = besoinDateDebut <= monthEndUTC && besoinDateFin >= monthStartUTC
+          }
+        }
+        
+        if (correspond) {
+          totalCharge += besoin.nbRessources
+        }
+      })
+      
+      charges.set(colIndex, totalCharge)
+    })
+    
+    return charges
+  }, [colonnes, besoins, precision])
+
   // Construire la grille avec informations sur conflits et absences
   const grille = useMemo(() => {
     const grid = new Map<string, CelluleInfo>() // Clé: "ressourceId|dateIndex", Valeur: info cellule
@@ -644,6 +684,27 @@ export function BesoinsGrid({
                             )}
                           </th>
                         ))}
+                      </tr>
+                      {/* Ligne de rappel de charge */}
+                      <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
+                        <th className="border-b border-r border-gray-300 px-4 py-2 text-left text-xs font-bold text-indigo-800 sticky left-0 z-10 bg-gradient-to-r from-indigo-50 to-purple-50">
+                          Charge
+                        </th>
+                        {colonnes.map((col, idx) => {
+                          const charge = chargeParColonne.get(idx) || 0
+                          return (
+                            <th
+                              key={idx}
+                              className={`border-b border-r border-gray-300 px-2 py-2 text-center text-xs font-bold text-indigo-700 ${
+                                col.isWeekend ? 'bg-blue-100' :
+                                col.isHoliday ? 'bg-rose-100' :
+                                ''
+                              }`}
+                            >
+                              {charge > 0 ? charge : '-'}
+                            </th>
+                          )
+                        })}
                       </tr>
                     </thead>
                     <tbody>
