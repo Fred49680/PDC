@@ -508,7 +508,17 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                     
                     setShowChargeMasseModal(false)
                     setChargeMasseForm({ competence: '', dateDebut: dateDebut || new Date(), dateFin: dateFin || new Date(), nbRessources: 1, ressourceId: '' })
-                    await refreshPeriodes()
+                    
+                    // Rafraîchir toutes les données après création
+                    await Promise.all([
+                      refreshPeriodes(),
+                      refreshAffectations()
+                    ])
+                    
+                    // Attendre un peu pour que les données soient bien synchronisées
+                    await new Promise(resolve => setTimeout(resolve, 500))
+                    
+                    addToast('Données rafraîchies', 'success')
                   } catch (err) {
                     console.error('[Planning3] Erreur charge de masse:', err)
                     addToast('Erreur lors de la création', 'error')
