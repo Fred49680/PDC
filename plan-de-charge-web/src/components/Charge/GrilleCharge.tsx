@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
+import { useRessources } from '@/hooks/useRessources'
+import { useAffectations } from '@/hooks/useAffectations'
 import { createClient } from '@/lib/supabase/client'
 import { businessDaysBetween, getDatesBetween, formatSemaineISO, normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
@@ -100,6 +102,13 @@ export function GrilleCharge({
     enableRealtime: true,
   })
 
+  const { saveAffectation } = useAffectations({
+    affaireId,
+    site,
+    autoRefresh: false, // Pas besoin de refresh automatique ici
+    enableRealtime: false,
+  })
+
   const { addToast } = useToast()
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   // État local pour les valeurs en cours de saisie (permet les valeurs vides)
@@ -114,8 +123,52 @@ export function GrilleCharge({
     dateDebut: dateDebut,
     dateFin: dateFin,
     nbRessources: 1,
+    ressourceId: '', // ID de la ressource à affecter (facultatif)
   })
   const [isGeneratingChargeMasse, setIsGeneratingChargeMasse] = useState(false)
+  const [affaireUuid, setAffaireUuid] = useState<string | null>(null)
+
+  // Charger les ressources et compétences pour le champ ressource
+  const { ressources, competences: competencesMap } = useRessources({
+    site,
+    actif: true,
+    enableRealtime: false, // Pas besoin de Realtime pour le modal
+  })
+
+  // Charger l'UUID de l'affaire
+  useEffect(() => {
+    const loadAffaireUuid = async () => {
+      try {
+        const supabase = createClient()
+        const { data: affaireData } = await supabase
+          .from('affaires')
+          .select('id')
+          .eq('affaire_id', affaireId)
+          .eq('site', site)
+          .maybeSingle()
+        
+        if (affaireData) {
+          setAffaireUuid(affaireData.id)
+        }
+      } catch (err) {
+        console.error('[GrilleCharge] Erreur chargement UUID affaire:', err)
+      }
+    }
+    
+    if (affaireId && site) {
+      loadAffaireUuid()
+    }
+  }, [affaireId, site])
+
+  // Filtrer les ressources selon la compétence sélectionnée
+  const ressourcesFiltrees = useMemo(() => {
+    if (!chargeMasseForm.competence) return []
+    
+    return ressources.filter((ressource) => {
+      const ressourceCompetences = competencesMap.get(ressource.id) || []
+      return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
+    }).sort((a, b) => a.nom.localeCompare(b.nom))
+  }, [ressources, competencesMap, chargeMasseForm.competence])
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
     title: string
@@ -758,7 +811,7 @@ export function GrilleCharge({
 
       {/* Modal charge de masse */}
       {showChargeMasseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">Déclarer charge période</h3>
@@ -776,7 +829,7 @@ export function GrilleCharge({
                 </label>
                 <select
                   value={chargeMasseForm.competence}
-                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, competence: e.target.value })}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, competence: e.target.value, ressourceId: '' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Sélectionner...</option>
@@ -821,6 +874,27 @@ export function GrilleCharge({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ressource (facultatif)
+                </label>
+                <select
+                  value={chargeMasseForm.ressourceId}
+                  onChange={(e) => setChargeMasseForm({ ...chargeMasseForm, ressourceId: e.target.value })}
+                  disabled={!chargeMasseForm.competence}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Aucune (créer seulement la charge)</option>
+                  {ressourcesFiltrees.map((ressource) => (
+                    <option key={ressource.id} value={ressource.id}>
+                      {ressource.nom} ({ressource.site})
+                    </option>
+                  ))}
+                </select>
+                {!chargeMasseForm.competence && (
+                  <p className="text-xs text-gray-500 mt-1">Sélectionnez d'abord une compétence</p>
+                )}
+              </div>
               {isGeneratingChargeMasse && (
                 <div className="flex items-center gap-2 text-blue-600">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -857,9 +931,29 @@ export function GrilleCharge({
                     
                     // Utiliser savePeriodesBatch au lieu de Promise.all pour éviter les conflits de triggers
                     await savePeriodesBatch(periodesACreer)
-                    addToast(`${periodesACreer.length} période(s) créée(s)`, 'success')
+                    
+                    // Si une ressource est sélectionnée, créer l'affectation
+                    if (chargeMasseForm.ressourceId && affaireUuid) {
+                      try {
+                        // Créer une affectation pour toute la période
+                        await saveAffectation({
+                          ressource_id: chargeMasseForm.ressourceId,
+                          competence: chargeMasseForm.competence,
+                          date_debut: normalizeDateToUTC(chargeMasseForm.dateDebut),
+                          date_fin: normalizeDateToUTC(chargeMasseForm.dateFin),
+                          charge: 1,
+                        })
+                        addToast(`${periodesACreer.length} période(s) créée(s) et ressource affectée`, 'success')
+                      } catch (affectErr) {
+                        console.error('[GrilleCharge] Erreur création affectation:', affectErr)
+                        addToast(`${periodesACreer.length} période(s) créée(s) mais erreur lors de l'affectation`, 'warning')
+                      }
+                    } else {
+                      addToast(`${periodesACreer.length} période(s) créée(s)`, 'success')
+                    }
+                    
                     setShowChargeMasseModal(false)
-                    setChargeMasseForm({ competence: '', dateDebut, dateFin, nbRessources: 1 })
+                    setChargeMasseForm({ competence: '', dateDebut, dateFin, nbRessources: 1, ressourceId: '' })
                   } catch (err) {
                     console.error('[GrilleCharge] Erreur charge de masse:', err)
                     addToast('Erreur lors de la création', 'error')

@@ -220,8 +220,14 @@ export function BesoinsGrid({
   }, [besoins])
 
   // Grouper les ressources par compétence (uniquement pour les compétences avec besoins)
+  // IMPORTANT : Toujours afficher toutes les compétences avec besoins, même si elles n'ont pas de ressources
   const ressourcesParCompetence = useMemo(() => {
     const map = new Map<string, typeof ressources>()
+    
+    // Initialiser toutes les compétences avec besoins (même sans ressources)
+    competencesAvecBesoins.forEach((comp) => {
+      map.set(comp, [])
+    })
     
     ressources.forEach((ressource) => {
       const ressourceCompetences = competences.get(ressource.id) || []
