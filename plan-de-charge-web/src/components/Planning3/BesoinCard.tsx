@@ -12,15 +12,50 @@ interface BesoinCardProps {
   onAffecter: (besoin: BesoinPeriode) => void
   onModifier: (besoin: BesoinPeriode) => void
   onSupprimer: (besoin: BesoinPeriode) => void
+  isSelectionMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: (besoin: BesoinPeriode) => void
 }
 
-export function BesoinCard({ besoin, onAffecter, onModifier, onSupprimer }: BesoinCardProps) {
+export function BesoinCard({ 
+  besoin, 
+  onAffecter, 
+  onModifier, 
+  onSupprimer,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect
+}: BesoinCardProps) {
   const statut = getStatutIndicateur(besoin.couverture)
 
+  const handleClick = () => {
+    if (isSelectionMode && onToggleSelect) {
+      onToggleSelect(besoin)
+    }
+  }
+
   return (
-    <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 hover:shadow-lg transition-all flex flex-col h-full">
+    <div 
+      className={`bg-white rounded-xl shadow-md border-2 p-4 hover:shadow-lg transition-all flex flex-col h-full cursor-pointer ${
+        isSelectionMode 
+          ? isSelected 
+            ? 'border-blue-500 bg-blue-50' 
+            : 'border-gray-200 hover:border-blue-300'
+          : 'border-gray-200'
+      }`}
+      onClick={handleClick}
+    >
       {/* En-tête avec dates */}
       <div className="flex items-center gap-2 mb-3">
+        {isSelectionMode && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect?.(besoin)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+          />
+        )}
         <Calendar className="w-4 h-4 text-gray-500 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium text-gray-700 truncate">
@@ -61,29 +96,40 @@ export function BesoinCard({ besoin, onAffecter, onModifier, onSupprimer }: Beso
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1.5 pt-2 border-t border-gray-100">
-        <button
-          onClick={() => onAffecter(besoin)}
-          className="flex-1 px-2 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium flex items-center justify-center gap-1"
-        >
-          <Users className="w-3.5 h-3.5" />
-          Affecter
-        </button>
-        <button
-          onClick={() => onModifier(besoin)}
-          className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-          title="Modifier"
-        >
-          <Edit className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => onSupprimer(besoin)}
-          className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          title="Supprimer"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {!isSelectionMode && (
+        <div className="flex items-center gap-1.5 pt-2 border-t border-gray-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onAffecter(besoin)
+            }}
+            className="flex-1 px-2 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium flex items-center justify-center gap-1"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Affecter
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onModifier(besoin)
+            }}
+            className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Modifier"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onSupprimer(besoin)
+            }}
+            className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Supprimer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

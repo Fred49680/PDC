@@ -9,6 +9,7 @@ import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
 import { BesoinsList } from './BesoinsList'
 import { AffectationPanel } from './AffectationPanel'
+import { AffectationMassePanel } from './AffectationMassePanel'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import { useToast } from '@/components/UI/Toast'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
@@ -22,6 +23,7 @@ interface Planning3Props {
 
 export function Planning3({ affaireId, site }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
+  const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const [besoinToDelete, setBesoinToDelete] = useState<BesoinPeriode | null>(null)
   const { addToast } = useToast()
 
@@ -146,6 +148,10 @@ export function Planning3({ affaireId, site }: Planning3Props) {
     // après chaque INSERT/UPDATE/DELETE sur periodes_charge
   }
 
+  const handleAffecterMasse = (besoins: BesoinPeriode[]) => {
+    setBesoinsMasse(besoins)
+  }
+
   const loading = loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences || loadingCompetences
 
   if (loading) {
@@ -178,6 +184,7 @@ export function Planning3({ affaireId, site }: Planning3Props) {
         onAffecter={handleAffecter}
         onModifier={handleModifier}
         onSupprimer={handleSupprimer}
+        onAffecterMasse={handleAffecterMasse}
       />
 
       {selectedBesoin && affaireUuid && (
@@ -190,6 +197,20 @@ export function Planning3({ affaireId, site }: Planning3Props) {
           affectations={affectations}
           absences={absences}
           onClose={() => setSelectedBesoin(null)}
+          onSuccess={handleAffectationSuccess}
+        />
+      )}
+
+      {besoinsMasse.length > 0 && affaireUuid && (
+        <AffectationMassePanel
+          besoins={besoinsMasse}
+          affaireId={affaireId}
+          affaireUuid={affaireUuid}
+          ressources={ressources}
+          competences={competences}
+          affectations={affectations}
+          absences={absences}
+          onClose={() => setBesoinsMasse([])}
           onSuccess={handleAffectationSuccess}
         />
       )}
