@@ -255,6 +255,7 @@ export default function GanttPage() {
 
       transferts.forEach((transfert) => {
         // Si le transfert est vers le site sélectionné et chevauche la période
+        // Prendre en compte les transferts appliqués ET planifiés
         if (
           transfert.site_destination.toUpperCase() === siteNormalized &&
           transfert.date_debut <= dateFin &&
@@ -285,6 +286,24 @@ export default function GanttPage() {
     return ressourcesFiltrees
   }, [toutesRessources, ressourceFilter, viewMode, site, transferts, dateDebut, dateFin])
 
+  // Créer un Set des IDs de ressources transférées pour faciliter les vérifications
+  const ressourcesTransfereesIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (viewMode === 'site' && site) {
+      const siteNormalized = site.toUpperCase().trim()
+      transferts.forEach((transfert) => {
+        if (
+          transfert.site_destination.toUpperCase() === siteNormalized &&
+          transfert.date_debut <= dateFin &&
+          transfert.date_fin >= dateDebut
+        ) {
+          ids.add(transfert.ressource_id)
+        }
+      })
+    }
+    return ids
+  }, [viewMode, site, transferts, dateDebut, dateFin])
+
   // Charger toutes les absences
   const { absences, loading: loadingAbsences } = useAbsences({})
 
@@ -301,9 +320,17 @@ export default function GanttPage() {
     return affectations.filter((a) => {
       const aDebut = new Date(a.date_debut)
       const aFin = new Date(a.date_fin)
-      return aDebut <= dateFin && aFin >= dateDebut
+      const chevauchePeriode = aDebut <= dateFin && aFin >= dateDebut
+      
+      // En mode site, inclure aussi les affectations des ressources transférées
+      // même si elles ne sont pas du site sélectionné (elles sont sur le site de destination)
+      if (viewMode === 'site' && site && ressourcesTransfereesIds.has(a.ressource_id)) {
+        return chevauchePeriode
+      }
+      
+      return chevauchePeriode
     })
-  }, [affectations, dateDebut, dateFin])
+  }, [affectations, dateDebut, dateFin, viewMode, site, ressourcesTransfereesIds])
 
   const absencesFiltrees = useMemo(() => {
     return absences.filter((a) => {
