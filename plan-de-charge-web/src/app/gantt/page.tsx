@@ -533,15 +533,37 @@ export default function GanttPage() {
           </div>
         </div>
 
-        {/* Navigation et paramètres de période */}
+        {/* Navigation et paramètres de période - Même sélection que BesoinsGrid */}
         <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
           <div className="flex items-center gap-4 flex-wrap">
             {/* Sélection de précision */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <label className="text-sm font-semibold text-gray-700">Précision:</label>
               <select
                 value={precision}
-                onChange={(e) => setPrecision(e.target.value as Precision)}
+                onChange={(e) => {
+                  const newPrecision = e.target.value as Precision
+                  setPrecision(newPrecision)
+                  
+                  // Ajuster les dates selon la nouvelle précision
+                  const now = new Date()
+                  if (newPrecision === 'JOUR') {
+                    setDateDebut(now)
+                    setDateFin(now)
+                  } else if (newPrecision === 'SEMAINE') {
+                    const monthStart = startOfMonthFn(now)
+                    const dayOfWeek = monthStart.getDay() || 7
+                    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+                    const weekStart = new Date(monthStart)
+                    weekStart.setDate(monthStart.getDate() - daysToMonday)
+                    setDateDebut(weekStart)
+                    setDateFin(endOfMonthFn(monthStart))
+                  } else if (newPrecision === 'MOIS') {
+                    const monthStart = startOfMonthFn(now)
+                    setDateDebut(monthStart)
+                    setDateFin(endOfMonthFn(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1)))
+                  }
+                }}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
               >
                 <option value="JOUR">Jour</option>
@@ -550,8 +572,8 @@ export default function GanttPage() {
               </select>
             </div>
 
-            {/* Navigation de période */}
-            <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-1.5 border border-blue-100 shadow-sm">
+            {/* Navigation de période - S'étend sur toute la largeur restante */}
+            <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-1.5 border border-blue-100 shadow-sm flex-1 min-w-[300px]">
               <button
                 onClick={() => {
                   let newDateDebut: Date
@@ -581,11 +603,11 @@ export default function GanttPage() {
                   setDateDebut(newDateDebut)
                   setDateFin(newDateFin)
                 }}
-                className="p-2 hover:bg-blue-200 rounded-lg transition-all text-blue-700 hover:text-blue-900"
+                className="p-2 hover:bg-blue-200 rounded-lg transition-all text-blue-700 hover:text-blue-900 flex-shrink-0"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="px-4 py-2 text-center min-w-[220px] relative group">
+              <div className="px-4 py-2 text-center flex-1 relative group">
                 <div className="font-semibold text-gray-800 pointer-events-none">
                   {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
                 </div>
@@ -661,7 +683,7 @@ export default function GanttPage() {
                   setDateDebut(newDateDebut)
                   setDateFin(newDateFin)
                 }}
-                className="p-2 hover:bg-blue-200 rounded-lg transition-all text-blue-700 hover:text-blue-900"
+                className="p-2 hover:bg-blue-200 rounded-lg transition-all text-blue-700 hover:text-blue-900 flex-shrink-0"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
