@@ -188,32 +188,6 @@ export function AffectationPanel({
 
   if (!besoin) return null
 
-  // Identifier les IDs des ressources déjà affectées pour les exclure des listes disponibles
-  const ressourcesDejaAffecteesIds = useMemo(() => {
-    return new Set(ressourcesDejaAffectees.map((r) => r.ressourceId))
-  }, [ressourcesDejaAffectees])
-
-  // Séparer les candidats :
-  // - Disponibles du même site (selectable && !necessiteTransfert) - EXCLURE celles déjà affectées
-  // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - EXCLURE celles déjà affectées
-  // - Indisponibles (absents ou en conflit) - non sélectionnables, mais uniquement celles qui ont la compétence
-  const candidatsDisponiblesMemeSite = candidats.filter(
-    (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
-  )
-  const candidatsNecessitantTransfert = candidats.filter(
-    (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
-  )
-  // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
-  // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
-  const candidatsIndisponibles = candidats.filter(
-    (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
-  )
-  
-  // Ressources avec conflit partiel (affichées dans une section séparée)
-  const candidatsConflitPartiel = candidats.filter(
-    (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
-  )
-
   // Identifier les ressources déjà affectées à cette affaire pour cette période
   const ressourcesDejaAffectees = useMemo(() => {
     if (!besoin) return []
@@ -247,6 +221,32 @@ export function AffectationPanel({
         }
       })
   }, [besoin, affectations, ressources, competences])
+
+  // Identifier les IDs des ressources déjà affectées pour les exclure des listes disponibles
+  const ressourcesDejaAffecteesIds = useMemo(() => {
+    return new Set(ressourcesDejaAffectees.map((r) => r.ressourceId))
+  }, [ressourcesDejaAffectees])
+
+  // Séparer les candidats :
+  // - Disponibles du même site (selectable && !necessiteTransfert) - EXCLURE celles déjà affectées
+  // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - EXCLURE celles déjà affectées
+  // - Indisponibles (absents ou en conflit) - non sélectionnables, mais uniquement celles qui ont la compétence
+  const candidatsDisponiblesMemeSite = candidats.filter(
+    (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+  )
+  const candidatsNecessitantTransfert = candidats.filter(
+    (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+  )
+  // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
+  // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
+  const candidatsIndisponibles = candidats.filter(
+    (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
+  )
+  
+  // Ressources avec conflit partiel (affichées dans une section séparée)
+  const candidatsConflitPartiel = candidats.filter(
+    (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
+  )
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
