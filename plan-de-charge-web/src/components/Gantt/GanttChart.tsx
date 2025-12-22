@@ -276,6 +276,34 @@ export function GanttChart({
     return ressources.filter((r) => ressourceIds.has(r.id))
   }, [ressources, bars])
 
+  // Extraire les sites uniques et leurs couleurs pour la légende
+  const sitesAvecCouleurs = useMemo(() => {
+    const sitesSet = new Set<string>()
+    ressourcesAffichees.forEach((r) => {
+      if (r.site) {
+        sitesSet.add(r.site)
+      }
+    })
+    
+    const sitesColors: Record<string, string> = {
+      'PARIS': '#3B82F6', // Bleu
+      'LYON': '#10B981', // Vert
+      'MARSEILLE': '#F59E0B', // Orange
+      'TOULOUSE': '#EF4444', // Rouge
+      'NANTES': '#8B5CF6', // Violet
+      'SAVIGNY': '#9AD3C7', // Turquoise
+      'SAINT-LAURENT': '#FBBF24', // Jaune
+      'BLAYAIS': '#EC4899', // Rose
+    }
+    
+    return Array.from(sitesSet)
+      .sort()
+      .map((site) => ({
+        site,
+        color: sitesColors[site.toUpperCase()] || '#9AD3C7', // Turquoise par défaut
+      }))
+  }, [ressourcesAffichees])
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-full">
@@ -351,6 +379,27 @@ export function GanttChart({
 
                     {/* Zone des barres */}
                     <div className="flex-1 relative h-full">
+                      {/* Fond pour week-ends et jours fériés (en arrière-plan) */}
+                      {precision === 'JOUR' && columns.map((col, colIndex) => {
+                        const isWeekendDay = isWeekend(col)
+                        const isHoliday = !isBusinessDay(col) && !isWeekendDay
+                        
+                        if (!isWeekendDay && !isHoliday) return null
+                        
+                        return (
+                          <div
+                            key={`bg-${colIndex}`}
+                            className="absolute top-0 bottom-0"
+                            style={{
+                              left: `${colIndex * columnWidth}px`,
+                              width: `${columnWidth}px`,
+                              backgroundColor: isWeekendDay ? '#F3F4F6' : '#DBEAFE', // Gris clair pour week-end, bleu clair pour férié
+                              zIndex: 0,
+                            }}
+                          />
+                        )
+                      })}
+                      
                       {ressourceBars.map((bar) => {
                         const style = getBarStyle(bar)
                         const tooltip = 
@@ -370,6 +419,7 @@ export function GanttChart({
                               backgroundColor: bar.color,
                               top: '50%',
                               transform: 'translateY(-50%)',
+                              zIndex: 10,
                             }}
                             title={tooltip}
                           >
@@ -403,36 +453,72 @@ export function GanttChart({
       {/* Légende */}
       <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
         <div className="text-sm font-semibold text-gray-700 mb-3">Légende</div>
-        <div className="flex flex-wrap gap-4">
-          {viewMode === 'affaire' && (
-            <>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-yellow-400"></div>
-                <span className="text-sm text-gray-700">Besoin</span>
-              </div>
+        <div className="space-y-3">
+          {/* Légende des types */}
+          <div className="flex flex-wrap gap-4">
+            {viewMode === 'affaire' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-yellow-400"></div>
+                  <span className="text-sm text-gray-700">Besoin</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-500"></div>
+                  <span className="text-sm text-gray-700">Affectation</span>
+                </div>
+              </>
+            )}
+            {viewMode === 'site' && (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-blue-500"></div>
                 <span className="text-sm text-gray-700">Affectation</span>
               </div>
-            </>
-          )}
-          {viewMode === 'site' && (
+            )}
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-500"></div>
-              <span className="text-sm text-gray-700">Par site (couleur variable)</span>
+              <div className="w-4 h-4 rounded bg-purple-300"></div>
+              <span className="text-sm text-gray-700">Formation</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-cyan-300"></div>
+              <span className="text-sm text-gray-700">Congés payés</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-blue-300"></div>
+              <span className="text-sm text-gray-700">Maladie</span>
+            </div>
+          </div>
+          
+          {/* Légende des sites */}
+          {sitesAvecCouleurs.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-gray-600 mb-2">Couleurs par site :</div>
+              <div className="flex flex-wrap gap-3">
+                {sitesAvecCouleurs.map(({ site, color }) => (
+                  <div key={site} className="flex items-center gap-2">
+                    <div 
+                      className="w-4 h-4 rounded" 
+                      style={{ backgroundColor: color }}
+                    ></div>
+                    <span className="text-sm text-gray-700">{site}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-purple-300"></div>
-            <span className="text-sm text-gray-700">Formation</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-cyan-300"></div>
-            <span className="text-sm text-gray-700">Congés payés</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-blue-300"></div>
-            <span className="text-sm text-gray-700">Maladie</span>
+          
+          {/* Légende week-ends et fériés */}
+          <div>
+            <div className="text-xs font-semibold text-gray-600 mb-2">Fonds :</div>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-gray-100"></div>
+                <span className="text-sm text-gray-700">Week-end</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-50"></div>
+                <span className="text-sm text-gray-700">Jour férié</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
