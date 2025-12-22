@@ -857,11 +857,14 @@ export default function Planning2({
 
   // Mise à jour optimiste de la grille locale (comme GrilleCharge)
   const updateGrilleLocal = useCallback((competence: string, col: ColonneDate, value: number) => {
+    console.log('[Planning2] updateGrilleLocal appelé:', { competence, col: col.date.toISOString(), value })
     setGrilleChargeLocal((prev) => {
       const newGrille = new Map(prev)
       const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
       const cellKey = `${competence}|${colIndex}`
+      console.log('[Planning2] updateGrilleLocal - cellKey:', cellKey, 'ancienne valeur:', prev.get(cellKey), 'nouvelle valeur:', value)
       newGrille.set(cellKey, value)
+      console.log('[Planning2] updateGrilleLocal - nouvelle grille size:', newGrille.size)
       return newGrille
     })
   }, [colonnes])
