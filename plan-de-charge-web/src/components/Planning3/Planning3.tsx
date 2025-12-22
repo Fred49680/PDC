@@ -334,8 +334,8 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           besoin={selectedBesoin}
           affaireId={affaireId}
           affaireUuid={affaireUuid}
-          ressources={ressources}
-          competences={competences}
+          ressources={allRessources}
+          competences={allCompetences}
           affectations={affectations}
           absences={absences}
           onClose={() => setSelectedBesoin(null)}
