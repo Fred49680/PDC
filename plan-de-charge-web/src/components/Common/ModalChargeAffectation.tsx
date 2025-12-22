@@ -417,6 +417,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     site={site}
                     dateDebut={dateDebut}
                     dateFin={dateFin}
+                    precision={precision}
                   />
                 </div>
               </>

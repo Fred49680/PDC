@@ -16,14 +16,17 @@ import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { periodeToBesoin } from '@/utils/planning/planning.compute'
 // Note: triggerConsolidationPeriodesCharge retiré - la consolidation se fait automatiquement via les triggers SQL
 
+import type { Precision } from '@/types/charge'
+
 interface Planning3Props {
   affaireId: string
   site: string
   dateDebut?: Date
   dateFin?: Date
+  precision?: Precision
 }
 
-export function Planning3({ affaireId, site, dateDebut, dateFin }: Planning3Props) {
+export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR' }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
@@ -212,6 +215,11 @@ export function Planning3({ affaireId, site, dateDebut, dateFin }: Planning3Prop
           besoins={besoins}
           onAffecter={handleAffecter}
           onAffecterMasse={handleAffecterMasse}
+          affaireId={affaireId}
+          site={site}
+          dateDebut={dateDebut || new Date()}
+          dateFin={dateFin || new Date()}
+          precision={precision}
         />
       )}
 
