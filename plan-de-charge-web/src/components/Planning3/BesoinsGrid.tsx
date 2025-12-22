@@ -264,15 +264,35 @@ export function BesoinsGrid({
     }
     
     // Trier les compétences et les ressources dans chaque groupe
+    // Priorité 1 : ressources affectées (triées alphabétiquement)
+    // Priorité 2 : ressources non affectées (triées alphabétiquement)
     const sortedMap = new Map<string, typeof ressources>()
     Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([competence, ressources]) => {
-        sortedMap.set(competence, ressources.sort((a, b) => a.nom.localeCompare(b.nom)))
+      .forEach(([competence, ressourcesComp]) => {
+        // Identifier les ressources affectées pour cette compétence
+        const ressourcesAffecteesIds = new Set<string>()
+        affectations.forEach((aff) => {
+          if (aff.competence === competence) {
+            ressourcesAffecteesIds.add(aff.ressource_id)
+          }
+        })
+        
+        // Séparer affectées et non affectées
+        const affectees = ressourcesComp.filter((r) => ressourcesAffecteesIds.has(r.id))
+        const nonAffectees = ressourcesComp.filter((r) => !ressourcesAffecteesIds.has(r.id))
+        
+        // Trier chaque groupe par ordre alphabétique
+        const triees = [
+          ...affectees.sort((a, b) => a.nom.localeCompare(b.nom)),
+          ...nonAffectees.sort((a, b) => a.nom.localeCompare(b.nom)),
+        ]
+        
+        sortedMap.set(competence, triees)
       })
     
     return sortedMap
-  }, [ressources, competences, competencesAvecBesoins, site, showExternesGlobal])
+  }, [ressources, competences, competencesAvecBesoins, site, showExternesGlobal, affectations])
 
   // Générer les colonnes de dates selon la précision
   const colonnes = useMemo(() => {
