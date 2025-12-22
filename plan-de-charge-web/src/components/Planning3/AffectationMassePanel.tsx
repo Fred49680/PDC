@@ -100,14 +100,19 @@ export function AffectationMassePanel({
           hasConflit,
           necessiteTransfert,
           selectable: hasCompetence && isDispo,
+          hasCompetence, // Ajouter cette info pour filtrer les indisponibles
         }
       })
-      .filter((r) => r.selectable || r.necessiteTransfert) // Afficher aussi celles nécessitant transfert
+      // Afficher toutes les ressources qui ont la compétence (disponibles, nécessitant transfert, ou indisponibles)
+      .filter((r) => r.hasCompetence)
   }, [besoins, ressources, competences, affectations, absences, affaireUuid, competencesUniques, sitesUniques])
 
   const candidatsDisponibles = ressourcesCandidates.filter((c) => c.selectable && !c.necessiteTransfert)
   const candidatsNecessitantTransfert = ressourcesCandidates.filter((c) => c.selectable && c.necessiteTransfert)
-  const candidatsIndisponibles = ressourcesCandidates.filter((c) => !c.selectable)
+  // Filtrer les indisponibles : seulement celles qui ont la compétence (absentes ou en conflit)
+  const candidatsIndisponibles = ressourcesCandidates.filter(
+    (c) => !c.selectable && (c.isAbsente || c.hasConflit)
+  )
 
   const handleToggleRessource = (ressourceId: string) => {
     setSelectedRessourceIds((prev) => {

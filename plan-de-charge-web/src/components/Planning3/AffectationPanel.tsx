@@ -120,14 +120,19 @@ export function AffectationPanel({
   // Séparer les candidats :
   // - Disponibles du même site (selectable && !necessiteTransfert)
   // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - maintenant sélectionnables
-  // - Indisponibles (absents ou en conflit) - non sélectionnables
+  // - Indisponibles (absents ou en conflit) - non sélectionnables, mais uniquement celles qui ont la compétence
   const candidatsDisponiblesMemeSite = candidats.filter(
     (c) => c.selectable && !c.necessiteTransfert
   )
   const candidatsNecessitantTransfert = candidats.filter(
     (c) => c.selectable && c.necessiteTransfert
   )
-  const candidatsIndisponibles = candidats.filter((c) => !c.selectable)
+  // Filtrer les indisponibles : seulement celles qui ont la compétence (absentes ou en conflit)
+  // On vérifie qu'elles ont la compétence en vérifiant qu'elles sont absentes OU en conflit
+  // mais pas simplement "pas sélectionnables" (car ça inclurait celles sans compétence)
+  const candidatsIndisponibles = candidats.filter(
+    (c) => !c.selectable && (c.isAbsente || c.hasConflit)
+  )
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
