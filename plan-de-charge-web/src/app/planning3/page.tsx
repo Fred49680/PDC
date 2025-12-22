@@ -287,9 +287,10 @@ export default function Planning3Page() {
                     let newDateFin: Date
                     
                     if (precision === 'JOUR') {
-                      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
-                      newDateDebut = subDays(dateDebut, diffDays + 1)
-                      newDateFin = subDays(dateFin, diffDays + 1)
+                      // En mode JOUR : naviguer mois par mois, toujours commencer le 01
+                      const previousMonth = subMonths(startOfMonthFn(dateDebut), 1)
+                      newDateDebut = previousMonth
+                      newDateFin = endOfMonthFn(previousMonth)
                     } else if (precision === 'SEMAINE') {
                       const monthStart = startOfMonthFn(dateDebut)
                       const previousMonthStart = subMonths(monthStart, 1)
@@ -322,7 +323,7 @@ export default function Planning3Page() {
                     <Calendar className="w-3.5 h-3.5" />
                     {formatPlageSemainesISO(dateDebut, dateFin)}
                   </div>
-                  <input
+                    <input
                     type="date"
                     value={dateDebut.toISOString().split('T')[0]}
                     onChange={(e) => {
@@ -331,23 +332,33 @@ export default function Planning3Page() {
                         const newDateDebut = new Date(dateStr + 'T12:00:00')
                         if (isNaN(newDateDebut.getTime())) return
                         
-                        setDateDebut(newDateDebut)
+                        let finalDateDebut: Date
                         let newDateFin: Date
-                        if (precision === 'SEMAINE') {
+                        
+                        if (precision === 'JOUR') {
+                          // En mode JOUR : toujours commencer le 01 du mois sélectionné
+                          const monthStart = startOfMonthFn(newDateDebut)
+                          finalDateDebut = monthStart
+                          newDateFin = endOfMonthFn(monthStart)
+                        } else if (precision === 'SEMAINE') {
                           const monthStart = startOfMonthFn(newDateDebut)
                           const weekStart = new Date(monthStart)
                           const dayOfWeek = weekStart.getDay() || 7
                           const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
                           weekStart.setDate(weekStart.getDate() - daysToMonday)
+                          finalDateDebut = weekStart
                           newDateFin = endOfMonthFn(monthStart)
-                          setDateDebut(weekStart)
                         } else if (precision === 'MOIS') {
                           const monthStart = startOfMonthFn(newDateDebut)
+                          finalDateDebut = monthStart
                           newDateFin = endOfMonthFn(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1))
                         } else {
                           const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
+                          finalDateDebut = newDateDebut
                           newDateFin = new Date(newDateDebut.getTime() + diffDays * 24 * 60 * 60 * 1000)
                         }
+                        
+                        setDateDebut(finalDateDebut)
                         setDateFin(newDateFin)
                       }
                     }}
@@ -362,9 +373,10 @@ export default function Planning3Page() {
                     let newDateFin: Date
                     
                     if (precision === 'JOUR') {
-                      const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
-                      newDateDebut = addDays(dateDebut, diffDays + 1)
-                      newDateFin = addDays(dateFin, diffDays + 1)
+                      // En mode JOUR : naviguer mois par mois, toujours commencer le 01
+                      const nextMonth = addMonths(startOfMonthFn(dateDebut), 1)
+                      newDateDebut = nextMonth
+                      newDateFin = endOfMonthFn(nextMonth)
                     } else if (precision === 'SEMAINE') {
                       const currentMonthEnd = endOfMonthFn(dateFin)
                       const nextMonthStart = addMonths(startOfMonthFn(currentMonthEnd), 1)
