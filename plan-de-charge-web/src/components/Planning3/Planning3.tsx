@@ -156,34 +156,6 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     }
   }, [affaireId, site])
 
-  // Filtrer les ressources selon la compétence sélectionnée pour le modal
-  // et vérifier les conflits/absences
-  const ressourcesFiltrees = useMemo(() => {
-    if (!chargeMasseForm.competence || !chargeMasseForm.dateDebut || !chargeMasseForm.dateFin) return []
-    
-    return ressourcesSite
-      .filter((ressource) => {
-        const ressourceCompetences = competencesSite.get(ressource.id) || []
-        return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
-      })
-      .map((ressource) => {
-        const conflitInfo = hasConflitOuAbsence(ressource.id, chargeMasseForm.dateDebut, chargeMasseForm.dateFin)
-        return {
-          ...ressource,
-          hasConflit: conflitInfo.hasConflit,
-          hasAbsence: conflitInfo.hasAbsence,
-          raison: conflitInfo.raison,
-          disabled: conflitInfo.hasConflit || conflitInfo.hasAbsence,
-        }
-      })
-      .sort((a, b) => {
-        // Trier : disponibles d'abord, puis conflits/absences
-        if (a.disabled && !b.disabled) return 1
-        if (!a.disabled && b.disabled) return -1
-        return a.nom.localeCompare(b.nom)
-      })
-  }, [ressourcesSite, competencesSite, chargeMasseForm.competence, chargeMasseForm.dateDebut, chargeMasseForm.dateFin, hasConflitOuAbsence])
-
   // Charger TOUTES les absences (pas seulement du site) pour vérifier les disponibilités
   // des ressources d'autres sites dans le modal AffectationPanel
   const { absences, loading: loadingAbsences } = useAbsences({
@@ -257,6 +229,34 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
 
     return { hasConflit: false, hasAbsence: false }
   }, [absences, allAffectations, affaireUuid])
+
+  // Filtrer les ressources selon la compétence sélectionnée pour le modal
+  // et vérifier les conflits/absences
+  const ressourcesFiltrees = useMemo(() => {
+    if (!chargeMasseForm.competence || !chargeMasseForm.dateDebut || !chargeMasseForm.dateFin) return []
+    
+    return ressourcesSite
+      .filter((ressource) => {
+        const ressourceCompetences = competencesSite.get(ressource.id) || []
+        return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
+      })
+      .map((ressource) => {
+        const conflitInfo = hasConflitOuAbsence(ressource.id, chargeMasseForm.dateDebut, chargeMasseForm.dateFin)
+        return {
+          ...ressource,
+          hasConflit: conflitInfo.hasConflit,
+          hasAbsence: conflitInfo.hasAbsence,
+          raison: conflitInfo.raison,
+          disabled: conflitInfo.hasConflit || conflitInfo.hasAbsence,
+        }
+      })
+      .sort((a, b) => {
+        // Trier : disponibles d'abord, puis conflits/absences
+        if (a.disabled && !b.disabled) return 1
+        if (!a.disabled && b.disabled) return -1
+        return a.nom.localeCompare(b.nom)
+      })
+  }, [ressourcesSite, competencesSite, chargeMasseForm.competence, chargeMasseForm.dateDebut, chargeMasseForm.dateFin, hasConflitOuAbsence])
 
   // Récupérer l'UUID de l'affaire depuis les périodes ou depuis la base de données
   const affaireUuid = useMemo(() => {
