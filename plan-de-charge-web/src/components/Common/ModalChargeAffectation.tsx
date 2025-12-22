@@ -92,30 +92,20 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     }
   }
 
-  // Mettre à jour le site automatiquement quand une affaire est sélectionnée (si le site ne correspond pas)
-  // Note: Ce useEffect est nécessaire pour synchroniser le site avec l'affaire sélectionnée
-  useEffect(() => {
-    if (affaireId) {
-      const affaire = affairesFiltreesFinales.find((a) => a.affaire_id === affaireId)
-      if (affaire && affaire.site !== site) {
-        setSite(affaire.site)
-      }
-    }
-  }, [affaireId, affairesFiltreesFinales, site])
-
-  // Sélection automatique de l'affaire si un numéro de compte correspond exactement
-  // Note: Ce useEffect est nécessaire pour la recherche automatique par numéro de compte
-  useEffect(() => {
-    if (numeroCompte && numeroCompte.trim() !== '') {
+  const handleNumeroCompteChange = (value: string) => {
+    setNumeroCompte(value)
+    
+    // Recherche automatique si le numéro de compte correspond exactement
+    if (value && value.trim() !== '') {
       const affaireTrouvee = affairesFiltreesFinales.find(
-        (a) => a.affaire_id && a.affaire_id.toLowerCase() === numeroCompte.toLowerCase().trim()
+        (a) => a.affaire_id && a.affaire_id.toLowerCase() === value.toLowerCase().trim()
       )
       if (affaireTrouvee && affaireTrouvee.affaire_id && affaireTrouvee.affaire_id !== affaireId) {
         setAffaireId(affaireTrouvee.affaire_id)
         setSite(affaireTrouvee.site)
       }
     }
-  }, [numeroCompte, affairesFiltreesFinales, affaireId])
+  }
 
   if (!isOpen) return null
 
@@ -152,7 +142,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
               <input
                 type="text"
                 value={numeroCompte}
-                onChange={(e) => setNumeroCompte(e.target.value)}
+                onChange={(e) => handleNumeroCompteChange(e.target.value)}
                 placeholder="Rechercher..."
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
               />
