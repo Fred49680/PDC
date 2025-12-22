@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAbsences } from '@/hooks/useAbsences'
 import { useRessources } from '@/hooks/useRessources'
