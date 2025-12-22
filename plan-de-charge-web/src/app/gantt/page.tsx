@@ -536,21 +536,35 @@ export default function GanttPage() {
         {/* Navigation et paramètres de période - Même sélection que BesoinsGrid */}
         <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
           <div className="flex items-center gap-4 flex-wrap">
-            {/* Sélection de précision */}
+            {/* Sélection de précision - Style segmented control */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <label className="text-sm font-semibold text-gray-700">Précision:</label>
-              <select
-                value={precision}
-                onChange={(e) => {
-                  const newPrecision = e.target.value as Precision
-                  setPrecision(newPrecision)
-                  
-                  // Ajuster les dates selon la nouvelle précision
-                  const now = new Date()
-                  if (newPrecision === 'JOUR') {
+              <div className="inline-flex bg-gray-200 rounded-lg p-1 gap-1">
+                <button
+                  onClick={() => {
+                    const newPrecision: Precision = 'JOUR'
+                    setPrecision(newPrecision)
+                    
+                    // Ajuster les dates selon la nouvelle précision
+                    const now = new Date()
                     setDateDebut(now)
                     setDateFin(now)
-                  } else if (newPrecision === 'SEMAINE') {
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    precision === 'JOUR'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  Jour
+                </button>
+                <button
+                  onClick={() => {
+                    const newPrecision: Precision = 'SEMAINE'
+                    setPrecision(newPrecision)
+                    
+                    // Ajuster les dates selon la nouvelle précision
+                    const now = new Date()
                     const monthStart = startOfMonthFn(now)
                     const dayOfWeek = monthStart.getDay() || 7
                     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
@@ -558,18 +572,35 @@ export default function GanttPage() {
                     weekStart.setDate(monthStart.getDate() - daysToMonday)
                     setDateDebut(weekStart)
                     setDateFin(endOfMonthFn(monthStart))
-                  } else if (newPrecision === 'MOIS') {
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    precision === 'SEMAINE'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  Semaine
+                </button>
+                <button
+                  onClick={() => {
+                    const newPrecision: Precision = 'MOIS'
+                    setPrecision(newPrecision)
+                    
+                    // Ajuster les dates selon la nouvelle précision
+                    const now = new Date()
                     const monthStart = startOfMonthFn(now)
                     setDateDebut(monthStart)
                     setDateFin(endOfMonthFn(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1)))
-                  }
-                }}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
-              >
-                <option value="JOUR">Jour</option>
-                <option value="SEMAINE">Semaine</option>
-                <option value="MOIS">Mois</option>
-              </select>
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    precision === 'MOIS'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  Mois
+                </button>
+              </div>
             </div>
 
             {/* Navigation de période - S'étend sur toute la largeur restante */}
