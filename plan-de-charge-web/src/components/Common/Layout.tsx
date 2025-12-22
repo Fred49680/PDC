@@ -129,43 +129,42 @@ export function Layout({ children }: LayoutProps) {
               {navItems.map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
-                return (
-                  {item.isModal ? (
-                    <button
-                      onClick={() => {
-                        setModalChargeAffectationOpen(true)
-                        setMobileMenuOpen(false)
-                      }}
-                      className={`
-                        flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 w-full text-left
-                        ${
-                          active
-                            ? `bg-gradient-to-r ${item.color} text-white shadow-md`
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }
-                      `}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </button>
-                  ) : (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`
-                        flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                        ${
-                          active
-                            ? `bg-gradient-to-r ${item.color} text-white shadow-md`
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }
-                      `}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  )}
+                return item.isModal ? (
+                  <button
+                    key={item.href}
+                    onClick={() => {
+                      setModalChargeAffectationOpen(true)
+                      setMobileMenuOpen(false)
+                    }}
+                    className={`
+                      flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 w-full text-left
+                      ${
+                        active
+                          ? `bg-gradient-to-r ${item.color} text-white shadow-md`
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }
+                    `}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </button>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`
+                      flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                      ${
+                        active
+                          ? `bg-gradient-to-r ${item.color} text-white shadow-md`
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }
+                    `}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
                 )
               })}
           </div>
