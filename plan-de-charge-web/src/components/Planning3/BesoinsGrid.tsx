@@ -12,10 +12,11 @@ import { createClient } from '@/lib/supabase/client'
 import type { Precision } from '@/types/charge'
 import { useToast } from '@/components/UI/Toast'
 import type { Affectation } from '@/types/affectations'
+import { addDays, subDays, isBefore, isAfter } from 'date-fns'
 
 interface BesoinsGridProps {
   besoins: BesoinPeriode[]
-  onAffecter: (besoin: BesoinPeriode) => void
+  onAffecter?: (besoin: BesoinPeriode) => void
   onAffecterMasse?: (besoins: BesoinPeriode[]) => void
   affaireId: string
   site: string
@@ -44,6 +45,24 @@ interface CelluleInfo {
   affectationId?: string
   conflitAffaireId?: string // AffaireID où la ressource est affectée
   absenceCommentaire?: string // Commentaire de l'absence
+}
+
+interface AffectationWithAffaire {
+  id: string
+  affaire_id: string
+  ressource_id: string
+  competence: string
+  date_debut: string | Date
+  date_fin: string | Date
+  charge: number
+  site: string
+  affaires?: {
+    id: string
+    affaire_id: string
+  } | Array<{
+    id: string
+    affaire_id: string
+  }>
 }
 
 const isWeekend = (date: Date): boolean => [0, 6].includes(date.getDay())
@@ -93,8 +112,10 @@ const getSemaineISOWithYear = (date: Date): string => {
 
 export function BesoinsGrid({ 
   besoins, 
-  onAffecter, 
-  onAffecterMasse,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onAffecter: _onAffecter, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onAffecterMasse: _onAffecterMasse,
   affaireId,
   site,
   dateDebut,
@@ -181,22 +202,29 @@ export function BesoinsGrid({
             .order('date_debut', { ascending: true })
           
           if (!error && allAff) {
-            const affectationsAvecDates = allAff.map((a: any) => ({
-              ...a,
+            const affectationsAvecDates = allAff.map((a: AffectationWithAffaire): Affectation => ({
+              id: a.id,
+              affaire_id: a.affaire_id,
+              site: a.site,
+              ressource_id: a.ressource_id,
+              competence: a.competence,
               date_debut: a.date_debut ? new Date(a.date_debut) : new Date(),
               date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
-            })) as any[]
+              charge: a.charge,
+              created_at: new Date(),
+              updated_at: new Date(),
+            }))
             setAllAffectations(affectationsAvecDates)
             
             // Créer une map UUID -> affaire_id
             const map = new Map<string, string>()
-            affectationsAvecDates.forEach((aff: any) => {
+            allAff.forEach((aff: AffectationWithAffaire) => {
               if (aff.affaires && Array.isArray(aff.affaires) && aff.affaires.length > 0) {
                 const affaire = aff.affaires[0]
                 if (affaire.id && affaire.affaire_id) {
                   map.set(affaire.id, affaire.affaire_id)
                 }
-              } else if (aff.affaires && aff.affaires.id && aff.affaires.affaire_id) {
+              } else if (aff.affaires && !Array.isArray(aff.affaires) && aff.affaires.id && aff.affaires.affaire_id) {
                 map.set(aff.affaires.id, aff.affaires.affaire_id)
               }
             })
@@ -366,45 +394,8 @@ export function BesoinsGrid({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Calculer la charge totale (besoin) par colonne de date
-  const chargeParColonne = useMemo(() => {
-    const charges = new Map<number, number>() // Index colonne -> charge totale
-    
-    colonnes.forEach((col, colIndex) => {
-      let totalCharge = 0
-      
-      besoins.forEach((besoin) => {
-        const besoinDateDebut = normalizeDateToUTC(new Date(besoin.dateDebut))
-        const besoinDateFin = normalizeDateToUTC(new Date(besoin.dateFin))
-        const colDate = normalizeDateToUTC(col.date)
-        
-        let correspond = false
-        if (precision === 'JOUR') {
-          correspond = besoinDateDebut <= colDate && besoinDateFin >= colDate
-        } else if (precision === 'SEMAINE') {
-          if (col.weekStart && col.weekEnd) {
-            const weekStartUTC = normalizeDateToUTC(col.weekStart)
-            const weekEndUTC = normalizeDateToUTC(col.weekEnd)
-            correspond = besoinDateDebut <= weekEndUTC && besoinDateFin >= weekStartUTC
-          }
-        } else if (precision === 'MOIS') {
-          if (col.weekStart && col.weekEnd) {
-            const monthStartUTC = normalizeDateToUTC(col.weekStart)
-            const monthEndUTC = normalizeDateToUTC(col.weekEnd)
-            correspond = besoinDateDebut <= monthEndUTC && besoinDateFin >= monthStartUTC
-          }
-        }
-        
-        if (correspond) {
-          totalCharge += besoin.nbRessources
-        }
-      })
-      
-      charges.set(colIndex, totalCharge)
-    })
-    
-    return charges
-  }, [colonnes, besoins, precision])
+  // Note: chargeParColonne n'est plus utilisé car le calcul est fait directement dans le rendu
+  // pour chaque compétence individuellement
 
   // Construire la grille avec informations sur conflits et absences
   const grille = useMemo(() => {
@@ -442,7 +433,7 @@ export function BesoinsGrid({
         const isAffectee = !!affectationActuelle
         
         // Vérifier conflit autre affaire (même ressource, même date, autre affaire)
-        const conflitAutreAffaireData = affaireUuid ? allAffectations.find((aff: any) => {
+        const conflitAutreAffaireData = affaireUuid ? allAffectations.find((aff) => {
           if (aff.ressource_id !== ressource.id) return false
           if (aff.affaire_id === affaireUuid) return false // Même affaire, pas un conflit
           
@@ -469,16 +460,8 @@ export function BesoinsGrid({
         const conflitAutreAffaire = !!conflitAutreAffaireData
         let conflitAffaireId: string | undefined = undefined
         if (conflitAutreAffaireData && conflitAutreAffaireData.affaire_id) {
-          // Récupérer l'affaire_id depuis la map ou depuis la structure de l'affectation
+          // Récupérer l'affaire_id depuis la map
           conflitAffaireId = affairesMap.get(conflitAutreAffaireData.affaire_id)
-          if (!conflitAffaireId && (conflitAutreAffaireData as any).affaires) {
-            const affaires = (conflitAutreAffaireData as any).affaires
-            if (Array.isArray(affaires) && affaires.length > 0) {
-              conflitAffaireId = affaires[0].affaire_id
-            } else if (affaires && affaires.affaire_id) {
-              conflitAffaireId = affaires.affaire_id
-            }
-          }
         }
         
         // Vérifier conflit autre compétence (même ressource, même date, même affaire, autre compétence)
@@ -563,15 +546,117 @@ export function BesoinsGrid({
     
     if (!cellInfo) return
 
-    // Si déjà affectée, supprimer l'affectation
+    // Si déjà affectée, casser la période au lieu de supprimer complètement
     if (cellInfo.isAffectee && cellInfo.affectationId) {
       try {
+        // Trouver l'affectation complète
+        const affectationComplete = affectations.find(aff => aff.id === cellInfo.affectationId)
+        if (!affectationComplete) {
+          // Si on ne trouve pas l'affectation, supprimer simplement
+          await deleteAffectation(cellInfo.affectationId)
+          addToast('Affectation supprimée', 'success')
+          await refreshAffectations()
+          return
+        }
+
+        const dateDebutAff = normalizeDateToUTC(new Date(affectationComplete.date_debut))
+        const dateFinAff = normalizeDateToUTC(new Date(affectationComplete.date_fin))
+        
+        // Déterminer la date à supprimer selon la précision
+        let dateASupprimer: Date
+        if (precision === 'JOUR') {
+          dateASupprimer = normalizeDateToUTC(col.date)
+        } else if (precision === 'SEMAINE') {
+          if (!col.weekStart || !col.weekEnd) return
+          // Pour une semaine, on supprime toute la semaine
+          dateASupprimer = normalizeDateToUTC(col.weekStart)
+        } else if (precision === 'MOIS') {
+          if (!col.weekStart || !col.weekEnd) return
+          // Pour un mois, on supprime tout le mois
+          dateASupprimer = normalizeDateToUTC(col.weekStart)
+        } else {
+          return
+        }
+
+        // Supprimer l'affectation originale
         await deleteAffectation(cellInfo.affectationId)
-        addToast('Affectation supprimée', 'success')
+
+        // Créer les nouvelles affectations (casser en deux si nécessaire)
+        const affectationsACreer: Array<{
+          ressource_id: string
+          competence: string
+          date_debut: Date
+          date_fin: Date
+          charge: number
+        }> = []
+
+        // Période avant (si elle existe et est valide)
+        if (isBefore(dateDebutAff, dateASupprimer)) {
+          const dateFinAvant = subDays(dateASupprimer, 1)
+          if (!isAfter(dateDebutAff, dateFinAvant)) {
+            affectationsACreer.push({
+              ressource_id: affectationComplete.ressource_id,
+              competence: affectationComplete.competence,
+              date_debut: dateDebutAff,
+              date_fin: dateFinAvant,
+              charge: affectationComplete.charge,
+            })
+          }
+        }
+
+        // Période après (si elle existe et est valide)
+        if (precision === 'JOUR') {
+          // Pour JOUR, on ajoute 1 jour après la date supprimée
+          const dateDebutApres = addDays(dateASupprimer, 1)
+          if (!isAfter(dateDebutApres, dateFinAff)) {
+            affectationsACreer.push({
+              ressource_id: affectationComplete.ressource_id,
+              competence: affectationComplete.competence,
+              date_debut: dateDebutApres,
+              date_fin: dateFinAff,
+              charge: affectationComplete.charge,
+            })
+          }
+        } else if (precision === 'SEMAINE' && col.weekEnd) {
+          // Pour SEMAINE, on ajoute 1 jour après la fin de la semaine
+          const dateDebutApres = addDays(normalizeDateToUTC(col.weekEnd), 1)
+          if (!isAfter(dateDebutApres, dateFinAff)) {
+            affectationsACreer.push({
+              ressource_id: affectationComplete.ressource_id,
+              competence: affectationComplete.competence,
+              date_debut: dateDebutApres,
+              date_fin: dateFinAff,
+              charge: affectationComplete.charge,
+            })
+          }
+        } else if (precision === 'MOIS' && col.weekEnd) {
+          // Pour MOIS, on ajoute 1 jour après la fin du mois
+          const dateDebutApres = addDays(normalizeDateToUTC(col.weekEnd), 1)
+          if (!isAfter(dateDebutApres, dateFinAff)) {
+            affectationsACreer.push({
+              ressource_id: affectationComplete.ressource_id,
+              competence: affectationComplete.competence,
+              date_debut: dateDebutApres,
+              date_fin: dateFinAff,
+              charge: affectationComplete.charge,
+            })
+          }
+        }
+
+        // Créer les nouvelles affectations
+        for (const aff of affectationsACreer) {
+          await saveAffectation(aff)
+        }
+
+        if (affectationsACreer.length > 0) {
+          addToast(`Période modifiée (${affectationsACreer.length} période(s) créée(s))`, 'success')
+        } else {
+          addToast('Affectation supprimée', 'success')
+        }
         await refreshAffectations()
       } catch (err) {
-        console.error('[BesoinsGrid] Erreur suppression affectation:', err)
-        addToast('Erreur lors de la suppression', 'error')
+        console.error('[BesoinsGrid] Erreur modification affectation:', err)
+        addToast('Erreur lors de la modification', 'error')
       }
       return
     }
@@ -621,7 +706,7 @@ export function BesoinsGrid({
       console.error('[BesoinsGrid] Erreur ajout affectation:', err)
       addToast('Erreur lors de l\'ajout', 'error')
     }
-  }, [affaireUuid, colonnes, grille, precision, saveAffectation, deleteAffectation, refreshAffectations, addToast])
+  }, [affaireUuid, colonnes, grille, precision, saveAffectation, deleteAffectation, refreshAffectations, addToast, affectations])
 
   const loading = loadingAffectations || loadingRessources || loadingAbsences || loadingAllAffectations
 
