@@ -198,211 +198,42 @@ export default function Planning2({
     if (dateFinDiff > 24 * 60 * 60 * 1000) setDateFin(propDateFin) // Différence > 1 jour
   }, [propPrecision, propDateDebut, propDateFin, precision, dateDebut, dateFin])
   
-  // Chargement des données
+  // Chargement des données - Même câblage que Planning3
   const { periodes, loading: loadingCharge, savePeriode, deletePeriode, consolidate: consolidateCharge, refresh: refreshCharge } = useCharge({
     affaireId,
     site,
-    autoRefresh,
+    autoRefresh: true,
+    enableRealtime: true,
   })
 
   const { affectations, loading: loadingAffectations, saveAffectation, deleteAffectation, consolidate: consolidateAffectations, refresh: refreshAffectations } = useAffectations({
     affaireId,
     site,
-    autoRefresh,
+    autoRefresh: true,
+    enableRealtime: true,
   })
 
-  const { absences } = useAbsences({})
+  // Charger TOUTES les absences (pas seulement du site) pour vérifier les disponibilités
+  // des ressources d'autres sites comme dans Planning3
+  const { absences, loading: loadingAbsences } = useAbsences({
+    // site non spécifié = charger toutes les absences de tous les sites
+  })
   
-  // Charger les ressources actives du site
+  // Charger TOUTES les ressources actives (pas seulement du site) pour permettre les transferts
+  // Le modal doit pouvoir afficher les ressources d'autres sites comme dans Planning3
   const { ressources: ressourcesActives, competences: competencesMapActives, loading: loadingRessourcesActives } = useRessources({
-    site,
     actif: true,
+    // site non spécifié = charger toutes les ressources de tous les sites
   })
   
-  // Charger les ressources avec transfert actif vers ce site
-  const [ressourcesTransferees, setRessourcesTransferees] = useState<typeof ressourcesActives>([])
-  const [competencesMapTransferees, setCompetencesMapTransferees] = useState<typeof competencesMapActives>(new Map())
-  const [loadingRessourcesTransferees, setLoadingRessourcesTransferees] = useState(false)
-
-  // Charger toutes les ressources (pour sélection externe)
-  const [toutesRessources, setToutesRessources] = useState<typeof ressourcesActives>([])
-  const [competencesMapToutes, setCompetencesMapToutes] = useState<typeof competencesMapActives>(new Map())
-  const [loadingToutesRessources, setLoadingToutesRessources] = useState(false)
-  
-  // Charger toutes les compétences disponibles (depuis toutes les ressources)
+  // Charger toutes les compétences distinctes depuis la base de données (comme dans Planning3)
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
+  const [loadingCompetences, setLoadingCompetences] = useState(true)
   
-  useEffect(() => {
-    const loadRessourcesTransferees = async () => {
-      if (!site) {
-        setRessourcesTransferees([])
-        setCompetencesMapTransferees(new Map())
-        return
-      }
-      
-      try {
-        setLoadingRessourcesTransferees(true)
-        const supabase = createClient()
-        const aujourdhui = new Date().toISOString().split('T')[0]
-        
-        // Récupérer les transferts actifs vers ce site
-        const { data: transfertsData, error: transfertsError } = await supabase
-          .from('transferts')
-          .select('ressource_id')
-          .eq('site_destination', site.toUpperCase())
-          .eq('statut', 'Appliqué')
-          .gte('date_fin', aujourdhui)
-          .lte('date_debut', aujourdhui)
-        
-        if (transfertsError) throw transfertsError
-        
-        if (!transfertsData || transfertsData.length === 0) {
-          setRessourcesTransferees([])
-          setCompetencesMapTransferees(new Map())
-          return
-        }
-        
-        // Récupérer les ressources correspondantes
-        const ressourceIds = transfertsData.map((t) => t.ressource_id)
-        const { data: ressourcesData, error: ressourcesError } = await supabase
-          .from('ressources')
-          .select('*')
-          .in('id', ressourceIds)
-          .order('nom', { ascending: true })
-        
-        if (ressourcesError) throw ressourcesError
-        
-        const ressourcesList = (ressourcesData || []).map((item) => ({
-          id: item.id,
-          nom: item.nom,
-          site: item.site,
-          type_contrat: item.type_contrat,
-          responsable: item.responsable,
-          adresse_domicile: item.adresse_domicile || undefined,
-          date_debut_contrat: item.date_debut_contrat ? new Date(item.date_debut_contrat) : undefined,
-          date_fin_contrat: item.date_fin_contrat ? new Date(item.date_fin_contrat) : undefined,
-          actif: item.actif ?? true,
-          created_at: new Date(item.created_at),
-          updated_at: new Date(item.updated_at),
-        }))
-        
-        setRessourcesTransferees(ressourcesList)
-        
-        // Charger les compétences de ces ressources
-        if (ressourcesList.length > 0) {
-          const { data: competencesData, error: competencesError } = await supabase
-            .from('ressources_competences')
-            .select('*')
-            .in('ressource_id', ressourceIds)
-          
-          if (competencesError) throw competencesError
-          
-          const competencesMap = new Map<string, RessourceCompetence[]>()
-          ;(competencesData || []).forEach((comp) => {
-            const resId = comp.ressource_id
-            if (!competencesMap.has(resId)) {
-              competencesMap.set(resId, [])
-            }
-            competencesMap.get(resId)!.push({
-              id: comp.id,
-              ressource_id: comp.ressource_id,
-              competence: comp.competence,
-              niveau: comp.niveau,
-              type_comp: comp.type_comp || 'S',
-              created_at: new Date(comp.created_at),
-            })
-          })
-          
-          setCompetencesMapTransferees(competencesMap)
-        }
-      } catch (err) {
-        console.error('[Planning2] Erreur chargement ressources transférées:', err)
-        setRessourcesTransferees([])
-        setCompetencesMapTransferees(new Map())
-      } finally {
-        setLoadingRessourcesTransferees(false)
-      }
-    }
-    
-    loadRessourcesTransferees()
-  }, [site])
-
-  // Charger toutes les ressources actives (pour sélection externe)
-  useEffect(() => {
-    const loadToutesRessources = async () => {
-      try {
-        setLoadingToutesRessources(true)
-        const supabase = createClient()
-        
-        // Récupérer toutes les ressources actives
-        const { data: ressourcesData, error: ressourcesError } = await supabase
-          .from('ressources')
-          .select('*')
-          .eq('actif', true)
-          .order('nom', { ascending: true })
-        
-        if (ressourcesError) throw ressourcesError
-        
-        const ressourcesList = (ressourcesData || []).map((item) => ({
-          id: item.id,
-          nom: item.nom,
-          site: item.site,
-          type_contrat: item.type_contrat,
-          responsable: item.responsable,
-          adresse_domicile: item.adresse_domicile || undefined,
-          date_debut_contrat: item.date_debut_contrat ? new Date(item.date_debut_contrat) : undefined,
-          date_fin_contrat: item.date_fin_contrat ? new Date(item.date_fin_contrat) : undefined,
-          actif: item.actif ?? true,
-          created_at: new Date(item.created_at),
-          updated_at: new Date(item.updated_at),
-        }))
-        
-        setToutesRessources(ressourcesList)
-        
-        // Charger les compétences de toutes les ressources
-        if (ressourcesList.length > 0) {
-          const ressourceIds = ressourcesList.map(r => r.id)
-          const { data: competencesData, error: competencesError } = await supabase
-            .from('ressources_competences')
-            .select('*')
-            .in('ressource_id', ressourceIds)
-          
-          if (competencesError) throw competencesError
-          
-          const competencesMap = new Map<string, RessourceCompetence[]>()
-          ;(competencesData || []).forEach((comp) => {
-            const resId = comp.ressource_id
-            if (!competencesMap.has(resId)) {
-              competencesMap.set(resId, [])
-            }
-            competencesMap.get(resId)!.push({
-              id: comp.id,
-              ressource_id: comp.ressource_id,
-              competence: comp.competence,
-              niveau: comp.niveau,
-              type_comp: comp.type_comp || 'S',
-              created_at: new Date(comp.created_at),
-            })
-          })
-          
-          setCompetencesMapToutes(competencesMap)
-        }
-      } catch (err) {
-        console.error('[Planning2] Erreur chargement toutes ressources:', err)
-        setToutesRessources([])
-        setCompetencesMapToutes(new Map())
-      } finally {
-        setLoadingToutesRessources(false)
-      }
-    }
-    
-    loadToutesRessources()
-  }, [])
-
-  // Charger toutes les compétences distinctes depuis la base de données
   useEffect(() => {
     const loadToutesCompetences = async () => {
       try {
+        setLoadingCompetences(true)
         const supabase = createClient()
         
         // Récupérer toutes les compétences distinctes depuis ressources_competences
@@ -426,44 +257,24 @@ export default function Planning2({
       } catch (err) {
         console.error('[Planning2] Erreur chargement toutes compétences:', err)
         setToutesCompetences([])
+      } finally {
+        setLoadingCompetences(false)
       }
     }
     
     loadToutesCompetences()
   }, [])
   
-  // Fusionner les ressources actives et les ressources transférées (sans doublons)
+  // Utiliser directement les ressources chargées par useRessources (toutes les ressources actives)
+  // Comme dans Planning3, toutes les ressources sont déjà chargées, pas besoin de fusionner
   const ressources = useMemo(() => {
-    const ressourcesMap = new Map<string, typeof ressourcesActives[0]>()
-    
-    // Ajouter toutes les ressources actives
-    ressourcesActives.forEach((r) => {
-      ressourcesMap.set(r.id, r)
-    })
-    
-    // Ajouter les ressources transférées (si pas déjà présentes)
-    ressourcesTransferees.forEach((r) => {
-      if (!ressourcesMap.has(r.id)) {
-        ressourcesMap.set(r.id, r)
-      }
-    })
-    
-    return Array.from(ressourcesMap.values()).sort((a, b) => a.nom.localeCompare(b.nom))
-  }, [ressourcesActives, ressourcesTransferees])
+    return ressourcesActives.sort((a, b) => a.nom.localeCompare(b.nom))
+  }, [ressourcesActives])
   
-  // Fusionner les compétences
-  const competencesMap = useMemo(() => {
-    const competencesMapMerged = new Map(competencesMapActives)
-    
-    // Ajouter les compétences des ressources transférées
-    competencesMapTransferees.forEach((comps, resId) => {
-      competencesMapMerged.set(resId, comps)
-    })
-    
-    return competencesMapMerged
-  }, [competencesMapActives, competencesMapTransferees])
+  // Utiliser directement les compétences chargées par useRessources
+  const competencesMap = competencesMapActives
   
-  const loadingRessources = loadingRessourcesActives || loadingRessourcesTransferees
+  const loadingRessources = loadingRessourcesActives
 
   // État pour toutes les affectations (toutes affaires)
   const [toutesAffectationsRessources, setToutesAffectationsRessources] = useState<Map<string, Affectation[]>>(new Map())
@@ -1414,17 +1225,17 @@ export default function Planning2({
 
   // Fonction pour obtenir les ressources externes par compétence
   const getRessourcesExternesParCompetence = useCallback((competence: string) => {
-    return toutesRessources.filter((r) => {
+    return ressources.filter((r) => {
       // Filtrer les ressources qui ne sont pas sur le site actuel
       if (r.site.toUpperCase() === site.toUpperCase()) {
         return false
       }
       
       // Filtrer par compétence
-      const competencesRessource = competencesMapToutes.get(r.id) || []
+      const competencesRessource = competencesMap.get(r.id) || []
       return competencesRessource.some((c) => c.competence === competence)
     })
-  }, [toutesRessources, competencesMapToutes, site])
+  }, [ressources, competencesMap, site])
 
   // Fonction pour ouvrir le modal de sélection de ressources externes
   const ouvrirModalRessourceExterne = useCallback((competence: string, colIndex: number) => {
@@ -2523,7 +2334,7 @@ export default function Planning2({
     return 'bg-purple-100 border-purple-400'
   }, [])
 
-  const loading = loadingCharge || loadingAffectations || loadingRessources
+  const loading = loadingCharge || loadingAffectations || loadingRessources || loadingAbsences || loadingCompetences
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
@@ -3146,7 +2957,7 @@ export default function Planning2({
                     </p>
                   </div>
                 </div>
-              ) : loadingToutesRessources ? (
+              ) : loadingRessources ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
                 </div>
@@ -3156,7 +2967,7 @@ export default function Planning2({
                     const estDejaSelectionnee = ressourceExterneModal.ressourcesSelectionnees.some(
                       r => r.ressourceId === ressource.id
                     )
-                    const competencesRessource = competencesMapToutes.get(ressource.id) || []
+                    const competencesRessource = competencesMap.get(ressource.id) || []
                     const competenceInfo = competencesRessource.find(c => c.competence === ressourceExterneModal.competence)
                     
                     return (
