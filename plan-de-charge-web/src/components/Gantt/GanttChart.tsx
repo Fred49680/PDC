@@ -39,6 +39,8 @@ interface GanttBar {
   nbRessources?: number
   absenceType?: string
   color: string
+  affaireId?: string
+  compte?: string
 }
 
 // Fonction pour générer une couleur déterministe à partir d'une chaîne
@@ -230,6 +232,8 @@ export function GanttChart({
         dateFin,
         charge: affectation.charge || 1,
         color: viewMode === 'site' ? siteColor : '#3B82F6', // Bleu pour les affectations
+        affaireId: (affectation as any).affaire_id_display || undefined,
+        compte: (affectation as any).compte || undefined,
       })
     })
 
@@ -527,12 +531,20 @@ export function GanttChart({
                       
                       {ressourceBars.map((bar) => {
                         const style = getBarStyle(bar)
-                        const tooltip = 
-                          bar.type === 'besoin'
-                            ? `Besoin: ${bar.competence} - ${bar.nbRessources} ressource(s)`
-                            : bar.type === 'affectation'
-                            ? `Affectation: ${bar.ressourceNom} - ${bar.competence}`
-                            : `Absence: ${bar.ressourceNom} - ${bar.absenceType}`
+                        let tooltip = ''
+                        if (bar.type === 'besoin') {
+                          tooltip = `Besoin: ${bar.competence} - ${bar.nbRessources} ressource(s)`
+                        } else if (bar.type === 'affectation') {
+                          tooltip = `Affectation: ${bar.ressourceNom} - ${bar.competence}`
+                          if (bar.affaireId) {
+                            tooltip += `\nAffaire: ${bar.affaireId}`
+                          }
+                          if (bar.compte) {
+                            tooltip += `\nCompte: ${bar.compte}`
+                          }
+                        } else {
+                          tooltip = `Absence: ${bar.ressourceNom} - ${bar.absenceType}`
+                        }
                         
                         return (
                           <div

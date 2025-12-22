@@ -191,7 +191,13 @@ export default function GanttPage() {
           
           let query = supabase
             .from('affectations')
-            .select('*')
+            .select(`
+              *,
+              affaires!inner (
+                affaire_id,
+                compte
+              )
+            `)
           
           // Si un site est sélectionné, filtrer par site, sinon charger tous les sites
           if (site) {
@@ -209,6 +215,8 @@ export default function GanttPage() {
             date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
             created_at: a.created_at ? new Date(a.created_at) : new Date(),
             updated_at: a.updated_at ? new Date(a.updated_at) : new Date(),
+            affaire_id_display: a.affaires?.affaire_id || null,
+            compte: a.affaires?.compte || null,
           }))
 
           setAffectationsSite(affectationsAvecDates)
