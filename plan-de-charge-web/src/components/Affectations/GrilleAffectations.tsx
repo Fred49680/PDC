@@ -303,6 +303,29 @@ export function GrilleAffectations({
               })}
             </tr>
           ))}
+          {/* Ligne de total par compétence */}
+          <tr className="bg-blue-50 font-bold">
+            <td className="border border-gray-300 p-2 bg-blue-100">
+              Total ({competence})
+            </td>
+            {colonnes.map((col, idx) => {
+              // Compter le nombre de ressources affectées pour cette colonne
+              const totalCol = ressourcesTriees.reduce((count, ressource) => {
+                const cellKey = `${ressource.id}|${col.date.getTime()}`
+                const isAffecte = grille.get(cellKey) || false
+                return isAffecte ? count + 1 : count
+              }, 0)
+
+              return (
+                <td
+                  key={idx}
+                  className="border border-gray-300 p-2 text-center bg-blue-100"
+                >
+                  {totalCol}
+                </td>
+              )
+            })}
+          </tr>
         </tbody>
       </table>
     </div>
