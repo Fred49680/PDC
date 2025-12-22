@@ -41,7 +41,6 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     ressourceId: '',
   })
   const [isGeneratingChargeMasse, setIsGeneratingChargeMasse] = useState(false)
-  const [affaireUuid, setAffaireUuid] = useState<string | null>(null)
   const { addToast } = useToast()
 
   // Hooks pour charger les données
@@ -128,7 +127,9 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     loadToutesCompetences()
   }, [])
 
-  // Charger l'UUID de l'affaire pour le modal de charge
+  // Charger l'UUID de l'affaire depuis la base de données (pour le modal de charge)
+  const [affaireUuidFromDb, setAffaireUuidFromDb] = useState<string | null>(null)
+  
   useEffect(() => {
     const loadAffaireUuid = async () => {
       try {
@@ -141,7 +142,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           .maybeSingle()
         
         if (affaireData) {
-          setAffaireUuid(affaireData.id)
+          setAffaireUuidFromDb(affaireData.id)
         }
       } catch (err) {
         console.error('[Planning3] Erreur chargement UUID affaire:', err)
@@ -169,10 +170,13 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     // site non spécifié = charger toutes les absences de tous les sites
   })
 
-  // Récupérer l'UUID de l'affaire depuis les périodes (useMemo au lieu de useState + useEffect)
+  // Récupérer l'UUID de l'affaire depuis les périodes ou depuis la base de données
   const affaireUuid = useMemo(() => {
-    return periodes.length > 0 ? periodes[0].affaire_id : null
-  }, [periodes])
+    if (periodes.length > 0 && periodes[0].affaire_id) {
+      return periodes[0].affaire_id
+    }
+    return affaireUuidFromDb
+  }, [periodes, affaireUuidFromDb])
 
   // Note: La consolidation se fait automatiquement via les triggers SQL
   // Plus besoin d'appel manuel qui causait une récursion infinie
