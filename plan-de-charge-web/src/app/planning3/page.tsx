@@ -21,9 +21,10 @@ export default function Planning3Page() {
   const [numeroCompte, setNumeroCompte] = useState('')
   
   // État pour la période - Initialisation à la date de base : 01/01/2026
+  // Vue JOUR par défaut : 1 mois (01/01/2026 → 31/01/2026)
   const baseDate = new Date(2026, 0, 1) // 01/01/2026
   const [dateDebut, setDateDebut] = useState(baseDate)
-  const [dateFin, setDateFin] = useState(baseDate)
+  const [dateFin, setDateFin] = useState(endOfMonthFn(baseDate)) // 31/01/2026
   const [precision, setPrecision] = useState<Precision>('JOUR')
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
@@ -222,10 +223,11 @@ export default function Planning3Page() {
                       const newPrecision: Precision = 'JOUR'
                       setPrecision(newPrecision)
                       
-                      // Réinitialiser à la date de base : 01/01/2026
+                      // Vue JOUR : 1 mois (01/01/2026 → 31/01/2026)
                       const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                      const monthEnd = endOfMonthFn(baseDate) // 31/01/2026
                       setDateDebut(baseDate)
-                      setDateFin(baseDate)
+                      setDateFin(monthEnd)
                     }}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                       precision === 'JOUR'
@@ -240,15 +242,12 @@ export default function Planning3Page() {
                       const newPrecision: Precision = 'SEMAINE'
                       setPrecision(newPrecision)
                       
-                      // Réinitialiser à la date de base : 01/01/2026
+                      // Vue SEMAINE : 1 mois (01/01/2026 → 31/01/2026)
                       const baseDate = new Date(2026, 0, 1) // 01/01/2026
                       const monthStart = startOfMonthFn(baseDate)
-                      const dayOfWeek = monthStart.getDay() || 7
-                      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-                      const weekStart = new Date(monthStart)
-                      weekStart.setDate(monthStart.getDate() - daysToMonday)
-                      setDateDebut(weekStart)
-                      setDateFin(endOfMonthFn(monthStart))
+                      const monthEnd = endOfMonthFn(monthStart) // 31/01/2026
+                      setDateDebut(monthStart)
+                      setDateFin(monthEnd)
                     }}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                       precision === 'SEMAINE'
