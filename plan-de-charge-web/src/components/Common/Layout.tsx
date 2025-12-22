@@ -19,7 +19,13 @@ export function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [modalChargeAffectationOpen, setModalChargeAffectationOpen] = useState(false)
 
-  const navItems = [
+  const navItems: Array<{
+    href: string
+    label: string
+    icon: typeof Home
+    color: string
+    isModal?: boolean
+  }> = [
     { href: '/', label: 'Accueil', icon: Home, color: 'from-blue-500 to-indigo-600' },
     { href: '/affaires', label: 'Affaires', icon: Building2, color: 'from-indigo-500 to-purple-600' },
     { href: '/ressources', label: 'Ressources', icon: Users, color: 'from-green-500 to-emerald-600' },
