@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { X, BarChart3, Target } from 'lucide-react'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { Planning3 } from '@/components/Planning3'
