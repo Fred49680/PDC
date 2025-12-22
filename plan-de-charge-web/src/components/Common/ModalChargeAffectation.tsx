@@ -421,25 +421,6 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         <div className="flex-1 overflow-y-auto p-6 pb-12">
           {activeTab === 'charge' && (
             <div className="space-y-6">
-              {/* Boutons de précision et d'action au-dessus du tableau */}
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-1 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-1 border border-gray-200">
-                  {(['JOUR', 'SEMAINE', 'MOIS'] as Precision[]).map((prec) => (
-                    <button
-                      key={prec}
-                      onClick={() => setPrecision(prec)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                        precision === prec
-                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
-                          : 'text-gray-600 hover:bg-white hover:text-gray-800'
-                      }`}
-                    >
-                      {prec.charAt(0) + prec.slice(1).toLowerCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Grille de charge */}
               {affaireId && site ? (
                 <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
