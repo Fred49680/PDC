@@ -149,9 +149,9 @@ export function AffectationPanel({
 
     setLoading(true)
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        
       // Traiter les affectations modifiées (périodes cassées)
       for (const [affectationId, nouvellePeriode] of modifiedPeriodes.entries()) {
         const affectationOriginale = affectations.find((aff) => aff.id === affectationId)
@@ -377,6 +377,7 @@ export function AffectationPanel({
 
   // Calculer les besoins par compétence pour la période
   // IMPORTANT : Exclure les week-ends sauf si force_weekend_ferie = true
+  // Ce useMemo se met à jour automatiquement quand periodesCharge change (via Realtime)
   const besoinsParCompetence = useMemo(() => {
     if (!besoin || !periodesCharge || periodesCharge.length === 0) return new Map<string, number>()
     
@@ -387,6 +388,7 @@ export function AffectationPanel({
     // Vérifier si le besoin est sur un week-end (date début ET date fin sont des week-ends)
     const besoinIsWeekend = isWeekend(besoinDateDebut) && isWeekend(besoinDateFin)
     
+    // Parcourir toutes les périodes de charge pour détecter les nouvelles compétences
     periodesCharge.forEach((periode: PeriodeCharge) => {
       const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
       const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
@@ -401,6 +403,9 @@ export function AffectationPanel({
         
         const competence = periode.competence
         const nbRessources = periode.nb_ressources || 0
+        
+        // Prendre le maximum entre la valeur actuelle et la nouvelle valeur
+        // Cela permet d'afficher correctement les nouvelles compétences avec charge > 1
         const current = besoins.get(competence) || 0
         besoins.set(competence, Math.max(current, nbRessources))
       }
@@ -442,15 +447,15 @@ export function AffectationPanel({
   const candidatsDisponiblesMemeSiteRaw = useMemo(() => {
     if (!besoin) return []
     return candidats.filter(
-      (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
-    )
+    (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+  )
   }, [besoin, candidats, ressourcesDejaAffecteesIds])
 
   const candidatsNecessitantTransfertRaw = useMemo(() => {
     if (!besoin) return []
     return candidats.filter(
-      (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
-    )
+    (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+  )
   }, [besoin, candidats, ressourcesDejaAffecteesIds])
 
   // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
@@ -458,8 +463,8 @@ export function AffectationPanel({
   const candidatsIndisponiblesRaw = useMemo(() => {
     if (!besoin) return []
     return candidats.filter(
-      (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
-    )
+    (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
+  )
   }, [besoin, candidats])
   
   // Trier les indisponibles par ordre alphabétique
@@ -471,8 +476,8 @@ export function AffectationPanel({
   const candidatsConflitPartielRaw = useMemo(() => {
     if (!besoin) return []
     return candidats.filter(
-      (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
-    )
+    (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
+  )
   }, [besoin, candidats])
 
   // Trier les listes : ressources sélectionnées en premier, puis par ordre alphabétique
@@ -573,17 +578,17 @@ export function AffectationPanel({
                   const statut = getStatutIndicateur(couverture)
                   
                   return (
-                    <div key={competence} className="flex items-center justify-between text-sm">
+                  <div key={competence} className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <span className={`text-base ${statut.color}`}>{statut.emoji}</span>
-                        <span className="text-gray-600">{competence}:</span>
+                    <span className="text-gray-600">{competence}:</span>
                       </div>
-                      <span className={`font-medium ${
-                        competence === besoin.competence ? 'text-blue-600' : 'text-gray-800'
-                      }`}>
+                    <span className={`font-medium ${
+                      competence === besoin.competence ? 'text-blue-600' : 'text-gray-800'
+                    }`}>
                         {nbRessources} ressource{nbRessources > 1 ? 's' : ''} ({affecte} affectée{affecte > 1 ? 's' : ''})
-                      </span>
-                    </div>
+                    </span>
+                  </div>
                   )
                 })}
               </div>
@@ -713,7 +718,7 @@ export function AffectationPanel({
                                     }}
                                     className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
                                   />
-                                </div>
+                        </div>
                               )}
                             </div>
                           )}
