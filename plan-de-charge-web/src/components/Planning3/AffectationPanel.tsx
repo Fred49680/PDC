@@ -179,15 +179,14 @@ export function AffectationPanel({
       addToast(message, 'success')
       onSuccess()
       onClose()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de l\'affectation:', error)
-      addToast(error.message || 'Erreur lors de l\'affectation', 'error')
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de l\'affectation'
+      addToast(errorMessage, 'error')
     } finally {
       setLoading(false)
     }
   }
-
-  if (!besoin) return null
 
   // Identifier les ressources déjà affectées à cette affaire pour cette période
   const ressourcesDejaAffectees = useMemo(() => {
@@ -227,6 +226,8 @@ export function AffectationPanel({
   const ressourcesDejaAffecteesIds = useMemo(() => {
     return new Set(ressourcesDejaAffectees.map((r) => r.ressourceId))
   }, [ressourcesDejaAffectees])
+
+  if (!besoin) return null
 
   // Séparer les candidats :
   // - Disponibles du même site (selectable && !necessiteTransfert) - EXCLURE celles déjà affectées
@@ -285,7 +286,7 @@ export function AffectationPanel({
                 Ressources déjà affectées ({ressourcesDejaAffectees.length})
               </h3>
               <p className="text-sm text-gray-600 mb-3">
-                Décochez pour désaffecter ces ressources de l'affaire
+                Décochez pour désaffecter ces ressources de l&apos;affaire
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {ressourcesDejaAffectees.map((ressource) => {
