@@ -289,9 +289,14 @@ export function AffectationPanel({
   )
   // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
   // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
-  const candidatsIndisponibles = candidats.filter(
+  const candidatsIndisponiblesRaw = candidats.filter(
     (c) => !c.selectable && (c.isAbsente || c.hasConflit) && !c.hasConflitPartiel
   )
+  
+  // Trier les indisponibles par ordre alphabétique
+  const candidatsIndisponibles = useMemo(() => {
+    return [...candidatsIndisponiblesRaw].sort((a, b) => a.nom.localeCompare(b.nom))
+  }, [candidatsIndisponiblesRaw])
   
   // Ressources avec conflit partiel (affichées dans une section séparée)
   const candidatsConflitPartielRaw = candidats.filter(
