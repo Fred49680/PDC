@@ -69,7 +69,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       setSite('')
       setAffaireId('')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [responsable])
 
   // Réinitialiser affaire quand le site change
@@ -77,7 +77,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     if (site) {
       setAffaireId('')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [site])
 
   // Mettre à jour le site automatiquement quand une affaire est sélectionnée
@@ -88,7 +88,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         setSite(affaire.site)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [affaireId, affairesFiltreesFinales, site])
 
   // Sélection automatique de l'affaire si un numéro de compte correspond exactement
@@ -102,7 +102,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         setSite(affaireTrouvee.site)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [numeroCompte, affairesFiltreesFinales, affaireId])
 
   if (!isOpen) return null
