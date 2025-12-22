@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
 import { createClient } from '@/lib/supabase/client'
-import { businessDaysBetween, formatSemaineISO, normalizeDateToUTC } from '@/utils/calendar'
+import { businessDaysBetween, formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
@@ -100,13 +100,6 @@ export function GrilleCharge({
     enableRealtime: true,
   })
 
-  const { saveAffectation } = useAffectations({
-    affaireId,
-    site,
-    autoRefresh: false, // Pas besoin de refresh automatique ici
-    enableRealtime: false,
-  })
-
   const { addToast } = useToast()
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   // État local pour les valeurs en cours de saisie (permet les valeurs vides)
@@ -115,58 +108,6 @@ export function GrilleCharge({
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [showAddCompetence, setShowAddCompetence] = useState(false)
   const [newCompetence, setNewCompetence] = useState('')
-  const [showChargeMasseModal, setShowChargeMasseModal] = useState(false)
-  const [chargeMasseForm, setChargeMasseForm] = useState({
-    competence: '',
-    dateDebut: dateDebut,
-    dateFin: dateFin,
-    nbRessources: 1,
-    ressourceId: '', // ID de la ressource à affecter (facultatif)
-  })
-  const [isGeneratingChargeMasse, setIsGeneratingChargeMasse] = useState(false)
-  const [affaireUuid, setAffaireUuid] = useState<string | null>(null)
-
-  // Charger les ressources et compétences pour le champ ressource
-  const { ressources, competences: competencesMap } = useRessources({
-    site,
-    actif: true,
-    enableRealtime: false, // Pas besoin de Realtime pour le modal
-  })
-
-  // Charger l'UUID de l'affaire
-  useEffect(() => {
-    const loadAffaireUuid = async () => {
-      try {
-        const supabase = createClient()
-        const { data: affaireData } = await supabase
-          .from('affaires')
-          .select('id')
-          .eq('affaire_id', affaireId)
-          .eq('site', site)
-          .maybeSingle()
-        
-        if (affaireData) {
-          setAffaireUuid(affaireData.id)
-        }
-      } catch (err) {
-        console.error('[GrilleCharge] Erreur chargement UUID affaire:', err)
-      }
-    }
-    
-    if (affaireId && site) {
-      loadAffaireUuid()
-    }
-  }, [affaireId, site])
-
-  // Filtrer les ressources selon la compétence sélectionnée
-  const ressourcesFiltrees = useMemo(() => {
-    if (!chargeMasseForm.competence) return []
-    
-    return ressources.filter((ressource) => {
-      const ressourceCompetences = competencesMap.get(ressource.id) || []
-      return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
-    }).sort((a, b) => a.nom.localeCompare(b.nom))
-  }, [ressources, competencesMap, chargeMasseForm.competence])
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
     title: string
