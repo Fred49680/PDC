@@ -9,6 +9,7 @@ import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
 import { useRessources } from '@/hooks/useRessources'
 import { useAbsences } from '@/hooks/useAbsences'
+import { useSites } from '@/hooks/useSites'
 import { startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, addWeeks, subWeeks, startOfMonth as startOfMonthFn, endOfMonth as endOfMonthFn } from 'date-fns'
 import { formatPlageSemainesISO } from '@/utils/calendar'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -21,6 +22,7 @@ type ViewMode = 'affaire' | 'site'
 
 export default function GanttPage() {
   const { affaires, loading: loadingAffaires } = useAffaires()
+  const { sites: sitesList, loading: loadingSites } = useSites({ actif: true })
   
   const [viewMode, setViewMode] = useState<ViewMode>('affaire')
   const [affaireId, setAffaireId] = useState('')
@@ -268,7 +270,7 @@ export default function GanttPage() {
     })
   }, [absences, dateDebut, dateFin])
 
-  const loading = loadingAffaires || loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences
+  const loading = loadingAffaires || loadingPeriodes || loadingAffectations || loadingRessources || loadingAbsences || loadingSites
 
   return (
     <Layout>
@@ -607,6 +609,7 @@ export default function GanttPage() {
               viewMode={viewMode}
               affaireId={viewMode === 'affaire' ? affaireId : undefined}
               site={site}
+              sitesList={sitesList}
             />
           </div>
         ) : (

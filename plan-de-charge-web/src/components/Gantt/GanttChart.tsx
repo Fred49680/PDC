@@ -9,6 +9,7 @@ import type { Affectation } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
 import type { Ressource } from '@/types/affectations'
 import type { Precision } from '@/types/charge'
+import type { Site } from '@/types/sites'
 
 interface GanttChartProps {
   periodes: PeriodeCharge[]
@@ -21,6 +22,7 @@ interface GanttChartProps {
   viewMode: 'affaire' | 'site'
   affaireId?: string
   site: string
+  sitesList?: Site[]
 }
 
 interface GanttBar {
@@ -37,6 +39,39 @@ interface GanttBar {
   color: string
 }
 
+// Fonction pour générer une couleur déterministe à partir d'une chaîne
+function generateColorFromString(str: string): string {
+  // Hash simple pour générer un nombre à partir de la chaîne
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  
+  // Palette de couleurs prédéfinie (couleurs distinctes et visibles)
+  const palette = [
+    '#3B82F6', // Bleu
+    '#10B981', // Vert
+    '#F59E0B', // Orange
+    '#EF4444', // Rouge
+    '#8B5CF6', // Violet
+    '#EC4899', // Rose
+    '#06B6D4', // Cyan
+    '#84CC16', // Vert lime
+    '#F97316', // Orange foncé
+    '#6366F1', // Indigo
+    '#14B8A6', // Teal
+    '#F43F5E', // Rose foncé
+    '#A855F7', // Violet foncé
+    '#22C55E', // Vert émeraude
+    '#EAB308', // Jaune
+    '#0EA5E9', // Bleu ciel
+  ]
+  
+  // Utiliser le hash pour sélectionner une couleur de la palette
+  const index = Math.abs(hash) % palette.length
+  return palette[index]
+}
+
 export function GanttChart({
   periodes,
   affectations,
@@ -48,6 +83,7 @@ export function GanttChart({
   viewMode,
   affaireId,
   site,
+  sitesList = [],
 }: GanttChartProps) {
   // Générer les colonnes selon la précision
   const columns = useMemo(() => {
@@ -67,18 +103,24 @@ export function GanttChart({
     return 120
   }, [precision])
 
+  // Générer un mapping des couleurs par site depuis la liste des sites
+  const siteColors = useMemo(() => {
+    const colors: Record<string, string> = {}
+    
+    // Créer un mapping depuis la liste des sites
+    sitesList.forEach((siteItem) => {
+      const siteKey = siteItem.site_key || siteItem.site
+      if (siteKey) {
+        colors[siteKey.toUpperCase()] = generateColorFromString(siteKey)
+      }
+    })
+    
+    return colors
+  }, [sitesList])
+
   // Créer les barres Gantt
   const bars = useMemo(() => {
     const ganttBars: GanttBar[] = []
-
-    // Couleurs pour les sites (si vue par site)
-    const siteColors: Record<string, string> = {
-      'PARIS': '#3B82F6', // Bleu
-      'LYON': '#10B981', // Vert
-      'MARSEILLE': '#F59E0B', // Orange
-      'TOULOUSE': '#EF4444', // Rouge
-      'NANTES': '#8B5CF6', // Violet
-    }
 
     // Couleurs pour les types d'absence
     const absenceColors: Record<string, string> = {
@@ -94,7 +136,8 @@ export function GanttChart({
     // Ajouter les besoins (périodes de charge)
     periodes.forEach((periode) => {
       const affaire = periode.affaire_id // UUID de l'affaire
-      const siteColor = siteColors[periode.site] || '#9AD3C7' // Turquoise par défaut
+      const siteKey = periode.site.toUpperCase()
+      const siteColor = siteColors[siteKey] || generateColorFromString(siteKey) // Générer une couleur si non trouvée
       
       ganttBars.push({
         id: `besoin-${periode.id}`,
@@ -111,7 +154,8 @@ export function GanttChart({
     affectations.forEach((affectation) => {
       const ressource = ressources.find((r) => r.id === affectation.ressource_id)
       const ressourceNom = ressource?.nom || 'Ressource inconnue'
-      const siteColor = siteColors[affectation.site] || '#9AD3C7'
+      const siteKey = affectation.site.toUpperCase()
+      const siteColor = siteColors[siteKey] || generateColorFromString(siteKey) // Générer une couleur si non trouvée
       
       ganttBars.push({
         id: `affectation-${affectation.id}`,
@@ -147,7 +191,7 @@ export function GanttChart({
     })
 
     return ganttBars
-  }, [periodes, affectations, absences, ressources, viewMode])
+  }, [periodes, affectations, absences, ressources, viewMode, siteColors])
 
   // Grouper les barres par ressource (pour l'affichage)
   const barsByRessource = useMemo(() => {
@@ -281,28 +325,20 @@ export function GanttChart({
     const sitesSet = new Set<string>()
     ressourcesAffichees.forEach((r) => {
       if (r.site) {
-        sitesSet.add(r.site)
+        sitesSet.add(r.site.toUpperCase())
       }
     })
     
-    const sitesColors: Record<string, string> = {
-      'PARIS': '#3B82F6', // Bleu
-      'LYON': '#10B981', // Vert
-      'MARSEILLE': '#F59E0B', // Orange
-      'TOULOUSE': '#EF4444', // Rouge
-      'NANTES': '#8B5CF6', // Violet
-      'SAVIGNY': '#9AD3C7', // Turquoise
-      'SAINT-LAURENT': '#FBBF24', // Jaune
-      'BLAYAIS': '#EC4899', // Rose
-    }
-    
     return Array.from(sitesSet)
       .sort()
-      .map((site) => ({
-        site,
-        color: sitesColors[site.toUpperCase()] || '#9AD3C7', // Turquoise par défaut
-      }))
-  }, [ressourcesAffichees])
+      .map((site) => {
+        const siteKey = site.toUpperCase()
+        return {
+          site,
+          color: siteColors[siteKey] || generateColorFromString(siteKey),
+        }
+      })
+  }, [ressourcesAffichees, siteColors])
 
   return (
     <div className="w-full overflow-x-auto">
