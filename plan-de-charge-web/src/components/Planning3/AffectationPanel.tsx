@@ -185,18 +185,23 @@ export function AffectationPanel({
 
         // Log détaillé pour chaque ressource sélectionnée
         console.log('[AffectationPanel] Détail ressources sélectionnées', {
-          affectationsToCreate: affectationsToCreate.map(aff => ({
-            ressourceId: aff.ressourceId,
-            ressourceSite: ressourcesMap.find(r => r.id === aff.ressourceId)?.site || 'NON TROUVÉ',
-            besoinSite: besoin.site,
-            necessiteTransfert: ressourcesMap.find(r => r.id === aff.ressourceId)?.site.toUpperCase() !== besoin.site.toUpperCase(),
-          })),
+          affectationsToCreate: affectationsToCreate.map(aff => {
+            const ressource = ressourcesMap.find(r => r.id === aff.ressourceId)
+            return {
+              ressourceId: aff.ressourceId,
+              ressourceSite: ressource?.site || 'NON TROUVÉ',
+              besoinSite: besoin.site,
+              necessiteTransfert: ressource ? ressource.site.toUpperCase() !== besoin.site.toUpperCase() : 'INCONNU',
+              ressourceDansMap: !!ressource,
+            }
+          }),
         })
 
         console.log('[AffectationPanel] Appel applyAffectationsBatch', {
           affaireId,
           site: besoin.site,
           nbAffectations: affectationsToCreate.length,
+          ressourcesMapSize: ressourcesMap.length,
           ressourcesMap: ressourcesMap.map(r => ({ id: r.id, site: r.site })),
         })
 
