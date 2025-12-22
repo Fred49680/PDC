@@ -705,13 +705,43 @@ export function BesoinsGrid({
                           </th>
                         ))}
                       </tr>
-                      {/* Ligne de rappel de charge */}
+                      {/* Ligne de rappel de charge - UNIQUEMENT pour cette compétence */}
                       <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
                         <th className="border-b border-r border-gray-300 px-4 py-2 text-left text-xs font-bold text-indigo-800 sticky left-0 z-10 bg-gradient-to-r from-indigo-50 to-purple-50">
-                          Charge
+                          Charge ({competence})
                         </th>
                         {colonnes.map((col, idx) => {
-                          const charge = chargeParColonne.get(idx) || 0
+                          // Calculer la charge UNIQUEMENT pour cette compétence
+                          let charge = 0
+                          besoins.forEach((besoin) => {
+                            if (besoin.competence !== competence) return
+                            
+                            const besoinDateDebut = normalizeDateToUTC(new Date(besoin.dateDebut))
+                            const besoinDateFin = normalizeDateToUTC(new Date(besoin.dateFin))
+                            const colDate = normalizeDateToUTC(col.date)
+                            
+                            let correspond = false
+                            if (precision === 'JOUR') {
+                              correspond = besoinDateDebut <= colDate && besoinDateFin >= colDate
+                            } else if (precision === 'SEMAINE') {
+                              if (col.weekStart && col.weekEnd) {
+                                const weekStartUTC = normalizeDateToUTC(col.weekStart)
+                                const weekEndUTC = normalizeDateToUTC(col.weekEnd)
+                                correspond = besoinDateDebut <= weekEndUTC && besoinDateFin >= weekStartUTC
+                              }
+                            } else if (precision === 'MOIS') {
+                              if (col.weekStart && col.weekEnd) {
+                                const monthStartUTC = normalizeDateToUTC(col.weekStart)
+                                const monthEndUTC = normalizeDateToUTC(col.weekEnd)
+                                correspond = besoinDateDebut <= monthEndUTC && besoinDateFin >= monthStartUTC
+                              }
+                            }
+                            
+                            if (correspond) {
+                              charge += besoin.nbRessources
+                            }
+                          })
+                          
                           return (
                             <th
                               key={idx}

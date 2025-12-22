@@ -828,9 +828,15 @@ export function GrilleCharge({
               Charge totale
             </td>
             {colonnes.map((col, idx) => {
+              // Calculer le total en prenant en compte les valeurs de la grille ET les valeurs en cours d'édition
               const totalCol = competences.reduce((sum, comp) => {
                 const cellKey = `${comp}|${idx}`
-                return sum + (grille.get(cellKey) || 0)
+                // Utiliser la valeur en cours d'édition si elle existe, sinon la valeur de la grille
+                const editValue = editingValues.get(cellKey)
+                const value = editValue !== undefined 
+                  ? (editValue === '' ? 0 : parseFloat(editValue) || 0)
+                  : (grille.get(cellKey) || 0)
+                return sum + value
               }, 0)
               return (
                 <td 
