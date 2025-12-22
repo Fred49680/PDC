@@ -24,7 +24,6 @@ interface Planning3Props {
 export function Planning3({ affaireId, site }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
-  const [besoinToDelete, setBesoinToDelete] = useState<BesoinPeriode | null>(null)
   const { addToast } = useToast()
 
   // Hooks pour charger les données
@@ -182,8 +181,6 @@ export function Planning3({ affaireId, site }: Planning3Props) {
       <BesoinsList
         besoins={besoins}
         onAffecter={handleAffecter}
-        onModifier={handleModifier}
-        onSupprimer={handleSupprimer}
         onAffecterMasse={handleAffecterMasse}
       />
 
