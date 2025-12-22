@@ -121,6 +121,25 @@ export function GanttChart({
     return colors
   }, [sitesList])
 
+  // Créer un Set des ressources réellement transférées vers le site sélectionné pendant la période
+  const ressourcesTransfereesIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (viewMode === 'site' && site) {
+      const siteNormalized = site.toUpperCase().trim()
+      transferts.forEach((transfert) => {
+        // Vérifier si le transfert est vers le site sélectionné et chevauche la période
+        if (
+          transfert.site_destination.toUpperCase() === siteNormalized &&
+          transfert.date_debut <= dateFin &&
+          transfert.date_fin >= dateDebut
+        ) {
+          ids.add(transfert.ressource_id)
+        }
+      })
+    }
+    return ids
+  }, [viewMode, site, transferts, dateDebut, dateFin])
+
   // Créer les barres Gantt
   const bars = useMemo(() => {
     const ganttBars: GanttBar[] = []
