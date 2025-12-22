@@ -263,11 +263,23 @@ export function AffectationPanel({
   }, [besoin, periodesCharge])
 
   // Calculer le nombre total de ressources qui seront affectées (sélectionnées - désélectionnées)
+  // IMPORTANT : Ne compter que les ressources avec la compétence du besoin
   const nbRessourcesAffectees = useMemo(() => {
     if (!besoin) return 0
+    
+    // Compter les ressources déjà affectées à cette compétence (qui ne sont pas désélectionnées)
     const nbDejaAffectees = ressourcesDejaAffectees.filter(r => !idsToRemove.has(r.affectationId)).length
-    return nbDejaAffectees + selectedIds.size
-  }, [besoin, selectedIds, idsToRemove, ressourcesDejaAffectees])
+    
+    // Compter les ressources sélectionnées qui ont la compétence du besoin
+    // Les candidats sont déjà filtrés par compétence dans getRessourcesCandidates,
+    // mais on vérifie explicitement pour être sûr
+    const nbNouvellesSelectionnees = Array.from(selectedIds).filter((ressourceId) => {
+      const ressourceCompetences = competences.get(ressourceId) || []
+      return ressourceCompetences.some((comp) => comp.competence === besoin.competence)
+    }).length
+    
+    return nbDejaAffectees + nbNouvellesSelectionnees
+  }, [besoin, selectedIds, idsToRemove, ressourcesDejaAffectees, competences])
 
   // Vérifier si on dépasse le besoin
   const depasseBesoin = useMemo(() => {
