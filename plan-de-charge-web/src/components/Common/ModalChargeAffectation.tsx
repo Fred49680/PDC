@@ -163,10 +163,10 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div
         ref={modalRef}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[calc(100vh-4rem)] flex flex-col my-auto"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[calc(100vh-2rem)] flex flex-col"
         style={{
           transform: `translate(${position.x}px, ${position.y}px)`,
           cursor: isDragging ? 'grabbing' : 'default',
