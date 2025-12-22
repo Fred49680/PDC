@@ -9,16 +9,12 @@ import { grouperBesoinsParCompetence } from '@/utils/planning/planning.compute'
 interface BesoinsListProps {
   besoins: BesoinPeriode[]
   onAffecter: (besoin: BesoinPeriode) => void
-  onModifier: (besoin: BesoinPeriode) => void
-  onSupprimer: (besoin: BesoinPeriode) => void
   onAffecterMasse?: (besoins: BesoinPeriode[]) => void
 }
 
 export function BesoinsList({ 
   besoins, 
   onAffecter, 
-  onModifier, 
-  onSupprimer,
   onAffecterMasse 
 }: BesoinsListProps) {
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -143,8 +139,6 @@ export function BesoinsList({
                 key={besoin.id}
                 besoin={besoin}
                 onAffecter={onAffecter}
-                onModifier={onModifier}
-                onSupprimer={onSupprimer}
                 isSelectionMode={isSelectionMode}
                 isSelected={selectedBesoins.has(besoin.id)}
                 onToggleSelect={handleToggleSelect}

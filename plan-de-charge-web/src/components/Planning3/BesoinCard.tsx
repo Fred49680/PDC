@@ -3,15 +3,14 @@
 import React from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Calendar, Users, CheckCircle2, AlertCircle, XCircle, Edit, Trash2 } from 'lucide-react'
+import { Calendar, Users, CheckCircle2 } from 'lucide-react'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { getStatutIndicateur } from '@/utils/planning/planning.compute'
+import { getISOWeek, getISOYear } from '@/utils/calendar'
 
 interface BesoinCardProps {
   besoin: BesoinPeriode
   onAffecter: (besoin: BesoinPeriode) => void
-  onModifier: (besoin: BesoinPeriode) => void
-  onSupprimer: (besoin: BesoinPeriode) => void
   isSelectionMode?: boolean
   isSelected?: boolean
   onToggleSelect?: (besoin: BesoinPeriode) => void
@@ -20,8 +19,6 @@ interface BesoinCardProps {
 export function BesoinCard({ 
   besoin, 
   onAffecter, 
-  onModifier, 
-  onSupprimer,
   isSelectionMode = false,
   isSelected = false,
   onToggleSelect
@@ -62,7 +59,10 @@ export function BesoinCard({
             {format(besoin.dateDebut, 'dd/MM', { locale: fr })} → {format(besoin.dateFin, 'dd/MM', { locale: fr })}
           </div>
           <div className="text-xs text-gray-500">
-            {format(besoin.dateDebut, 'yyyy', { locale: fr })}
+            {format(besoin.dateDebut, 'yyyy', { locale: fr })}{' '}
+            <span className="text-gray-400">
+              (S{String(getISOWeek(besoin.dateDebut)).padStart(2, '0')}-{getISOYear(besoin.dateDebut)})
+            </span>
           </div>
         </div>
       </div>
@@ -107,26 +107,6 @@ export function BesoinCard({
           >
             <Users className="w-3.5 h-3.5" />
             Affecter
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onModifier(besoin)
-            }}
-            className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="Modifier"
-          >
-            <Edit className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onSupprimer(besoin)
-            }}
-            className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Supprimer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
