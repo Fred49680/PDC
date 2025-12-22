@@ -435,9 +435,128 @@ export function GrilleCharge({
     )
   }
 
+  // Boutons de précision et d'action
+  const precisionButtons = onPrecisionChange ? (
+    <div className="flex items-center gap-1 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-1 border border-gray-200">
+      {(['JOUR', 'SEMAINE', 'MOIS'] as Precision[]).map((prec) => (
+        <button
+          key={prec}
+          onClick={() => onPrecisionChange(prec)}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            precision === prec
+              ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
+              : 'text-gray-600 hover:bg-white hover:text-gray-800'
+          }`}
+        >
+          {prec.charAt(0) + prec.slice(1).toLowerCase()}
+        </button>
+      ))}
+    </div>
+  ) : null
+
+  const actionButtons = (
+    <div className="flex items-center gap-2 flex-wrap">
+      {!showAddCompetence ? (
+        <>
+          <button
+            onClick={() => setShowAddCompetence(true)}
+            className="px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter une compétence
+          </button>
+          <button
+            onClick={() => setShowChargeMasseModal(true)}
+            className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            Déclarer charge période
+          </button>
+        </>
+      ) : (
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={newCompetence}
+            onChange={(e) => setNewCompetence(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newCompetence) {
+                if (!competences.includes(newCompetence)) {
+                  setCompetences([...competences, newCompetence].sort())
+                }
+                setNewCompetence('')
+                setShowAddCompetence(false)
+              }
+            }}
+          >
+            <option value="">Sélectionner une compétence...</option>
+            {competencesList
+              .filter((comp) => !competences.includes(comp))
+              .map((comp) => (
+                <option key={comp} value={comp}>
+                  {comp}
+                </option>
+              ))}
+          </select>
+          <input
+            type="text"
+            value={newCompetence}
+            onChange={(e) => setNewCompetence(e.target.value)}
+            placeholder="Ou saisir une nouvelle compétence"
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[200px]"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newCompetence.trim()) {
+                const comp = newCompetence.trim()
+                if (!competences.includes(comp)) {
+                  setCompetences([...competences, comp].sort())
+                }
+                setNewCompetence('')
+                setShowAddCompetence(false)
+              }
+            }}
+          />
+          <button
+            onClick={() => {
+              if (newCompetence.trim()) {
+                const comp = newCompetence.trim()
+                if (!competences.includes(comp)) {
+                  setCompetences([...competences, comp].sort())
+                }
+                setNewCompetence('')
+                setShowAddCompetence(false)
+              }
+            }}
+            disabled={!newCompetence.trim()}
+            className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          >
+            Ajouter
+          </button>
+          <button
+            onClick={() => {
+              setShowAddCompetence(false)
+              setNewCompetence('')
+            }}
+            className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-      <table className="min-w-full border-collapse">
+    <div>
+      {/* Boutons au-dessus du tableau si showButtonsAbove est true */}
+      {showButtonsAbove && (
+        <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
+          {precisionButtons}
+          {actionButtons}
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+        <table className="min-w-full border-collapse">
         <thead>
           <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
             <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100">
@@ -519,96 +638,14 @@ export function GrilleCharge({
           })}
         </tbody>
       </table>
-
-      {/* Boutons d'action */}
-      <div className="mt-4 flex items-center gap-2 flex-wrap">
-        {!showAddCompetence ? (
-          <>
-            <button
-              onClick={() => setShowAddCompetence(true)}
-              className="px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              Ajouter une compétence
-            </button>
-            <button
-              onClick={() => setShowChargeMasseModal(true)}
-              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              Déclarer charge période
-            </button>
-          </>
-        ) : (
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={newCompetence}
-              onChange={(e) => setNewCompetence(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newCompetence) {
-                  if (!competences.includes(newCompetence)) {
-                    setCompetences([...competences, newCompetence].sort())
-                  }
-                  setNewCompetence('')
-                  setShowAddCompetence(false)
-                }
-              }}
-            >
-              <option value="">Sélectionner une compétence...</option>
-              {competencesList
-                .filter((comp) => !competences.includes(comp))
-                .map((comp) => (
-                  <option key={comp} value={comp}>
-                    {comp}
-                  </option>
-                ))}
-            </select>
-            <input
-              type="text"
-              value={newCompetence}
-              onChange={(e) => setNewCompetence(e.target.value)}
-              placeholder="Ou saisir une nouvelle compétence"
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[200px]"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newCompetence.trim()) {
-                  const comp = newCompetence.trim()
-                  if (!competences.includes(comp)) {
-                    setCompetences([...competences, comp].sort())
-                  }
-                  setNewCompetence('')
-                  setShowAddCompetence(false)
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                if (newCompetence.trim()) {
-                  const comp = newCompetence.trim()
-                  if (!competences.includes(comp)) {
-                    setCompetences([...competences, comp].sort())
-                  }
-                  setNewCompetence('')
-                  setShowAddCompetence(false)
-                }
-              }}
-              disabled={!newCompetence.trim()}
-              className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              Ajouter
-            </button>
-            <button
-              onClick={() => {
-                setShowAddCompetence(false)
-                setNewCompetence('')
-              }}
-              className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-            >
-              Annuler
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* Boutons d'action en bas si showButtonsAbove est false */}
+      {!showButtonsAbove && (
+        <div className="mt-4">
+          {actionButtons}
+        </div>
+      )}
 
       {/* Dialog de confirmation */}
       <ConfirmDialog

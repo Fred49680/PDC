@@ -7,7 +7,7 @@ import { Planning3 } from '@/components/Planning3'
 import { useAffaires } from '@/hooks/useAffaires'
 import { startOfMonth, endOfMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import { formatSemaineISO, formatPlageSemainesISO } from '@/utils/calendar'
+import { formatPlageSemainesISO } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
 import { addMonths, addDays, addWeeks, subDays, subWeeks, subMonths, startOfMonth as startOfMonthFn, endOfMonth as endOfMonthFn } from 'date-fns'
 
