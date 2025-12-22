@@ -34,6 +34,7 @@ export function AffectationMassePanel({
   onSuccess,
 }: AffectationMassePanelProps) {
   const [selectedRessourceIds, setSelectedRessourceIds] = useState<Set<string>>(new Set())
+  const [idsToRemove, setIdsToRemove] = useState<Set<string>>(new Set()) // IDs des affectations à supprimer
   const [loading, setLoading] = useState(false)
   const { addToast } = useToast()
 
@@ -114,6 +115,46 @@ export function AffectationMassePanel({
     (c) => !c.selectable && (c.isAbsente || c.hasConflit)
   )
 
+  // Identifier les ressources déjà affectées à cette affaire pour ces périodes
+  const ressourcesDejaAffectees = useMemo(() => {
+    if (besoins.length === 0 || competencesUniques.length !== 1) return []
+    
+    const competence = competencesUniques[0]
+    
+    return affectations
+      .filter((aff) => {
+        // Vérifier que l'affectation correspond à au moins une période et la compétence
+        const chevaucheAvecAuMoinsUnePeriode = besoins.some(
+          (besoin) =>
+            aff.date_debut <= besoin.dateFin &&
+            aff.date_fin >= besoin.dateDebut &&
+            aff.competence === competence
+        )
+        return chevaucheAvecAuMoinsUnePeriode
+      })
+      .map((aff) => {
+        const ressource = ressources.find((r) => r.id === aff.ressource_id)
+        const ressourceCompetences = competences.get(aff.ressource_id) || []
+        const isPrincipale = ressourceCompetences.some(
+          (comp) => comp.competence === competence && comp.type_comp === 'P'
+        )
+        const necessiteTransfert = ressource
+          ? ressource.site.toUpperCase() !== sitesUniques[0]?.toUpperCase()
+          : false
+
+        return {
+          affectationId: aff.id,
+          ressourceId: aff.ressource_id,
+          nom: ressource?.nom || 'Ressource inconnue',
+          site: ressource?.site || '',
+          isPrincipale,
+          necessiteTransfert,
+          dateDebut: aff.date_debut,
+          dateFin: aff.date_fin,
+        }
+      })
+  }, [besoins, affectations, ressources, competences, competencesUniques, sitesUniques])
+
   const handleToggleRessource = (ressourceId: string) => {
     setSelectedRessourceIds((prev) => {
       const next = new Set(prev)
@@ -145,9 +186,21 @@ export function AffectationMassePanel({
     }
   }
 
+  const handleToggleDejaAffectee = (affectationId: string) => {
+    setIdsToRemove((prev) => {
+      const next = new Set(prev)
+      if (next.has(affectationId)) {
+        next.delete(affectationId)
+      } else {
+        next.add(affectationId)
+      }
+      return next
+    })
+  }
+
   const handleValider = async () => {
-    if (selectedRessourceIds.size === 0) {
-      addToast('Veuillez sélectionner au moins une ressource', 'error')
+    if (selectedRessourceIds.size === 0 && idsToRemove.size === 0) {
+      addToast('Veuillez sélectionner au moins une ressource ou en désélectionner une', 'error')
       return
     }
 
@@ -158,40 +211,65 @@ export function AffectationMassePanel({
 
     setLoading(true)
     try {
-      const competence = competencesUniques[0]
-      const site = sitesUniques[0] || besoins[0].site
-
-      // Créer une affectation pour chaque combinaison ressource × période
-      const affectationsToCreate: Array<{
-        ressourceId: string
-        competence: string
-        dateDebut: Date
-        dateFin: Date
-        charge: number
-      }> = []
-
-      for (const ressourceId of selectedRessourceIds) {
-        for (const besoin of besoins) {
-          affectationsToCreate.push({
-            ressourceId,
-            competence,
-            dateDebut: besoin.dateDebut,
-            dateFin: besoin.dateFin,
-            charge: 1,
-          })
+      // Supprimer les affectations désélectionnées
+      if (idsToRemove.size > 0) {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        
+        for (const affectationId of idsToRemove) {
+          const { error } = await supabase.from('affectations').delete().eq('id', affectationId)
+          if (error) {
+            console.error('Erreur suppression affectation:', error)
+            throw new Error(`Erreur lors de la suppression: ${error.message}`)
+          }
         }
       }
 
-      // Fournir les ressources pour éviter les requêtes supplémentaires lors de la création des transferts
-      const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
+      // Créer les nouvelles affectations
+      if (selectedRessourceIds.size > 0) {
+        const competence = competencesUniques[0]
+        const site = sitesUniques[0] || besoins[0].site
 
-      await applyAffectationsBatch(affaireId, site, affectationsToCreate, ressourcesMap)
+        // Créer une affectation pour chaque combinaison ressource × période
+        const affectationsToCreate: Array<{
+          ressourceId: string
+          competence: string
+          dateDebut: Date
+          dateFin: Date
+          charge: number
+        }> = []
+
+        for (const ressourceId of selectedRessourceIds) {
+          for (const besoin of besoins) {
+            affectationsToCreate.push({
+              ressourceId,
+              competence,
+              dateDebut: besoin.dateDebut,
+              dateFin: besoin.dateFin,
+              charge: 1,
+            })
+          }
+        }
+
+        // Fournir les ressources pour éviter les requêtes supplémentaires lors de la création des transferts
+        const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
+
+        await applyAffectationsBatch(affaireId, site, affectationsToCreate, ressourcesMap)
+      }
 
       const nbTransferts = Array.from(selectedRessourceIds).filter(
         (id) => ressourcesCandidates.find((c) => c.id === id)?.necessiteTransfert
       ).length
 
-      let message = `${affectationsToCreate.length} affectation(s) créée(s) avec succès`
+      let message = ''
+      if (selectedRessourceIds.size > 0) {
+        message += `${selectedRessourceIds.size * besoins.length} affectation(s) créée(s)`
+      }
+      if (idsToRemove.size > 0) {
+        if (message) message += ' • '
+        message += `${idsToRemove.size} affectation(s) supprimée(s)`
+      }
+      message += ' avec succès'
       if (nbTransferts > 0) {
         message += ` (${nbTransferts} transfert(s) créé(s) automatiquement)`
       }
@@ -272,11 +350,82 @@ export function AffectationMassePanel({
             </div>
           </div>
 
+          {/* Ressources déjà affectées */}
+          {ressourcesDejaAffectees.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" />
+                Ressources déjà affectées ({ressourcesDejaAffectees.length})
+              </h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Décochez pour désaffecter ces ressources de l'affaire
+              </p>
+              <div className="space-y-2">
+                {ressourcesDejaAffectees.map((ressource) => {
+                  const isToRemove = idsToRemove.has(ressource.affectationId)
+                  return (
+                    <div
+                      key={ressource.affectationId}
+                      onClick={() => handleToggleDejaAffectee(ressource.affectationId)}
+                      className={`
+                        p-3 rounded-lg border-2 cursor-pointer transition-all
+                        ${
+                          isToRemove
+                            ? 'border-red-500 bg-red-50'
+                            : 'border-purple-200 hover:border-purple-400 hover:bg-purple-50'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={!isToRemove}
+                          onChange={() => handleToggleDejaAffectee(ressource.affectationId)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">{ressource.nom}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-600 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {ressource.site}
+                            </span>
+                            {ressource.isPrincipale && (
+                              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                ⭐ Principale
+                              </span>
+                            )}
+                            {ressource.necessiteTransfert && (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                🔄 Transfert
+                              </span>
+                            )}
+                            {isToRemove && (
+                              <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
+                                ⚠️ À désaffecter
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {ressource.dateDebut.toLocaleDateString('fr-FR')} →{' '}
+                            {ressource.dateFin.toLocaleDateString('fr-FR')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Sélection de la ressource */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-gray-800">
-                Sélectionner des ressources ({selectedRessourceIds.size} sélectionnée(s)) :
+                Sélectionner des ressources ({selectedRessourceIds.size} sélectionnée(s)
+                {idsToRemove.size > 0 ? ` • ${idsToRemove.size} à désaffecter` : ''}) :
               </h3>
               {candidatsDisponibles.length > 0 && (
                 <button
@@ -458,7 +607,7 @@ export function AffectationMassePanel({
           </button>
           <button
             onClick={handleValider}
-            disabled={loading || selectedRessourceIds.size === 0 || competencesUniques.length !== 1}
+            disabled={loading || (selectedRessourceIds.size === 0 && idsToRemove.size === 0) || competencesUniques.length !== 1}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
@@ -469,7 +618,7 @@ export function AffectationMassePanel({
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Valider ({selectedRessourceIds.size * besoins.length} affectation(s))
+                Valider ({selectedRessourceIds.size > 0 ? `+${selectedRessourceIds.size * besoins.length}` : ''}{idsToRemove.size > 0 ? ` -${idsToRemove.size}` : ''})
               </>
             )}
           </button>
