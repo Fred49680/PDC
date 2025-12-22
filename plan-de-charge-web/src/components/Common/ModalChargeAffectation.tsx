@@ -149,11 +149,13 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     }
   }, [isDragging, dragStart])
 
-  // Réinitialiser la position quand le modal se ferme (pour éviter setState dans useEffect)
-  if (!isOpen && (position.x !== 0 || position.y !== 0)) {
-    // Utiliser un setTimeout pour éviter setState pendant le render
-    setTimeout(() => setPosition({ x: 0, y: 0 }), 0)
+  // Réinitialiser la position quand le modal s'ouvre
+  const prevIsOpenRef = useRef(isOpen)
+  if (isOpen && !prevIsOpenRef.current) {
+    // Le modal vient de s'ouvrir, réinitialiser la position
+    setPosition({ x: 0, y: 0 })
   }
+  prevIsOpenRef.current = isOpen
 
   if (!isOpen) return null
 
