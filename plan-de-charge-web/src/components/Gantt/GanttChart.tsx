@@ -10,6 +10,7 @@ import type { Absence } from '@/types/absences'
 import type { Ressource } from '@/types/affectations'
 import type { Precision } from '@/types/charge'
 import type { Site } from '@/types/sites'
+import type { Transfert } from '@/types/transferts'
 
 interface GanttChartProps {
   periodes: PeriodeCharge[]
@@ -23,6 +24,7 @@ interface GanttChartProps {
   affaireId?: string
   site: string
   sitesList?: Site[]
+  transferts?: Transfert[]
 }
 
 interface GanttBar {
@@ -472,7 +474,7 @@ export function GanttChart({
                       <div className="font-semibold whitespace-nowrap">{ressource.nom}</div>
                       <div className="text-xs text-gray-500 whitespace-nowrap">
                         {ressource.site}
-                        {viewMode === 'site' && (
+                        {viewMode === 'site' && ressourcesTransfereesIds.has(ressource.id) && (
                           <span className="ml-1 text-blue-600" title="Ressource transférée sur ce site pendant cette période">
                             (transférée)
                           </span>
