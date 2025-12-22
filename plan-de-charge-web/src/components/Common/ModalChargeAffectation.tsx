@@ -46,6 +46,9 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   const [dateFin, setDateFin] = useState(endOfMonth(new Date()))
   const [precision, setPrecision] = useState<Precision>('JOUR')
 
+  // Ref pour stocker la fonction d'ouverture du modal de charge depuis Planning3
+  const openChargeModalRef = useRef<(() => void) | null>(null)
+
   // Filtrer les affaires actives et ouvertes/prévisionnelles
   const affairesActives = affaires.filter(
     (a) => a.actif && (a.statut === 'Ouverte' || a.statut === 'Prévisionnelle')
@@ -392,9 +395,9 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
 
         {/* Contenu principal */}
         <div className="flex-1 overflow-y-auto p-6 pb-12">
-          <div className="space-y-6">
-            {/* Grille de charge */}
-            {affaireId && site ? (
+            <div className="space-y-6">
+              {/* Grille de charge */}
+              {affaireId && site ? (
               <>
                 <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
                   <GrilleCharge
@@ -407,6 +410,11 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     onDateFinChange={setDateFin}
                     onPrecisionChange={setPrecision}
                     showButtonsAbove={true}
+                    onOpenChargeModal={() => {
+                      if (openChargeModalRef.current) {
+                        openChargeModalRef.current()
+                      }
+                    }}
                   />
                 </div>
                 
@@ -418,22 +426,25 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     dateDebut={dateDebut}
                     dateFin={dateFin}
                     precision={precision}
+                    onRegisterOpenChargeModal={(fn) => {
+                      openChargeModalRef.current = fn
+                    }}
                   />
                 </div>
               </>
-            ) : (
-              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
-                    <Target className="w-6 h-6 text-white" />
-                  </div>
-                  <p className="text-amber-800 font-medium">
+              ) : (
+                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
+                      <Target className="w-6 h-6 text-white" />
+                    </div>
+                    <p className="text-amber-800 font-medium">
                     Veuillez renseigner l&apos;Affaire ID et le Site pour afficher la grille de charge et le planning.
-                  </p>
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
         </div>
       </div>
     </div>

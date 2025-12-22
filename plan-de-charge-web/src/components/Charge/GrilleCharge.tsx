@@ -22,6 +22,7 @@ interface GrilleChargeProps {
   onDateFinChange?: (newDateFin: Date) => void
   onPrecisionChange?: (precision: Precision) => void
   showButtonsAbove?: boolean
+  onOpenChargeModal?: () => void // Callback pour ouvrir le modal de charge depuis Planning3
 }
 
 interface ColonneDate {
@@ -93,6 +94,7 @@ export function GrilleCharge({
   onDateFinChange,
   onPrecisionChange,
   showButtonsAbove = false,
+  onOpenChargeModal,
 }: GrilleChargeProps) {
   const { periodes, loading, error, savePeriode, savePeriodesBatch } = useCharge({
     affaireId,
@@ -529,6 +531,15 @@ export function GrilleCharge({
             <Plus className="w-4 h-4" />
             Ajouter une compétence
           </button>
+          {onOpenChargeModal && (
+            <button
+              onClick={onOpenChargeModal}
+              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              Déclarer charge période
+            </button>
+          )}
         </>
       ) : (
         <div className="flex items-center gap-2 flex-wrap">

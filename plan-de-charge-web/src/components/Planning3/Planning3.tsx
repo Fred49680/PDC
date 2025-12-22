@@ -25,9 +25,10 @@ interface Planning3Props {
   dateDebut?: Date
   dateFin?: Date
   precision?: Precision
+  onRegisterOpenChargeModal?: (fn: () => void) => void // Callback pour enregistrer la fonction d'ouverture du modal
 }
 
-export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR' }: Planning3Props) {
+export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
@@ -247,15 +248,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   return (
     <>
       {/* Toggle pour basculer entre vue tuile et vue grille + Toggle ressources externes */}
-      <div className="flex justify-between items-center mb-4 gap-4">
-        <button
-          onClick={() => setShowChargeMasseModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-        >
-          <Plus className="w-4 h-4" />
-          Déclarer charge période
-        </button>
-        
+      <div className="flex justify-end items-center mb-4 gap-4">
         <div className="flex items-center gap-4">
           {/* Toggle ressources externes global */}
           <div className="flex items-center gap-2 bg-white/70 backdrop-blur-sm rounded-xl shadow-md border border-gray-200/50 px-3 py-2">
