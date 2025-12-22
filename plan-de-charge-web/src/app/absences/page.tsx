@@ -32,8 +32,72 @@ export default function AbsencesPage() {
   // Charger toutes les ressources pour la liste déroulante
   const { ressources, competences: ressourcesCompetences } = useRessources()
 
+  // Charger tous les types d'absences existants
+  const [typesAbsences, setTypesAbsences] = useState<string[]>([])
+  const [loadingTypes, setLoadingTypes] = useState(false)
+  
+  useEffect(() => {
+    const loadTypesAbsences = async () => {
+      try {
+        setLoadingTypes(true)
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        
+        const { data, error } = await supabase
+          .from('absences')
+          .select('type')
+          .not('type', 'is', null)
+        
+        if (error) throw error
+        
+        // Extraire les types uniques
+        const typesSet = new Set<string>()
+        ;(data || []).forEach((item) => {
+          if (item.type && item.type.trim()) {
+            typesSet.add(item.type.trim())
+          }
+        })
+        
+        // Types par défaut
+        const defaultTypes = [
+          'Formation',
+          'Congés payés',
+          'Maladie',
+          'Paternité',
+          'Maternité',
+          'Parental',
+          'Autre'
+        ]
+        
+        // Fusionner les types par défaut avec ceux de la base
+        defaultTypes.forEach(type => typesSet.add(type))
+        
+        const typesList = Array.from(typesSet).sort()
+        setTypesAbsences(typesList)
+      } catch (err) {
+        console.error('[AbsencesPage] Erreur chargement types absences:', err)
+        // En cas d'erreur, utiliser les types par défaut
+        setTypesAbsences([
+          'Formation',
+          'Congés payés',
+          'Maladie',
+          'Paternité',
+          'Maternité',
+          'Parental',
+          'Autre'
+        ])
+      } finally {
+        setLoadingTypes(false)
+      }
+    }
+    
+    loadTypesAbsences()
+  }, [])
+
   const [isEditing, setIsEditing] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [isCustomType, setIsCustomType] = useState(false)
+  const [customType, setCustomType] = useState('')
   const [formData, setFormData] = useState({
     id: '',
     ressource_id: '',
@@ -52,6 +116,24 @@ export default function AbsencesPage() {
     const resCompetences = ressourcesCompetences.get(ressourceId) || []
     const principale = resCompetences.find(c => c.type_comp === 'P')
     return principale ? principale.competence : ''
+  }
+
+  // Fonction pour réinitialiser le formulaire
+  const resetForm = () => {
+    setIsCustomType(false)
+    setCustomType('')
+    setFormData({
+      id: '',
+      ressource_id: '',
+      site: '',
+      date_debut: format(new Date(), 'yyyy-MM-dd'),
+      date_fin: format(new Date(), 'yyyy-MM-dd'),
+      type: 'Congés payés',
+      competence: '',
+      commentaire: '',
+      statut: 'Actif',
+      type_arret_maladie: '',
+    })
   }
 
   // Handler quand une ressource est sélectionnée
@@ -87,6 +169,12 @@ export default function AbsencesPage() {
       return
     }
     
+    // Validation du type personnalisé
+    if (isCustomType && (!customType || !customType.trim())) {
+      alert('Veuillez saisir un type d\'absence')
+      return
+    }
+    
     try {
       // Préparer les données pour Supabase
       const absenceData: Partial<Absence> = {
@@ -113,21 +201,16 @@ export default function AbsencesPage() {
       }
 
       await saveAbsence(absenceData)
+      
+      // Si c'est un nouveau type, l'ajouter à la liste des types disponibles
+      if (isCustomType && customType.trim() && !typesAbsences.includes(customType.trim())) {
+        setTypesAbsences(prev => [...prev, customType.trim()].sort())
+      }
+      
       // Fermer le modal et réinitialiser
       setShowModal(false)
       setIsEditing(false)
-      setFormData({
-        id: '',
-        ressource_id: '',
-        site: '',
-        date_debut: format(new Date(), 'yyyy-MM-dd'),
-        date_fin: format(new Date(), 'yyyy-MM-dd'),
-        type: 'Congés payés',
-        competence: '',
-        commentaire: '',
-        statut: 'Actif',
-        type_arret_maladie: '',
-      })
+      resetForm()
       await refresh()
     } catch (err: any) {
       console.error('[AbsencesPage] Erreur complète:', err)
@@ -146,23 +229,16 @@ export default function AbsencesPage() {
 
   const handleNew = () => {
     setIsEditing(false)
-    setFormData({
-      id: '',
-      ressource_id: '',
-      site: '',
-      date_debut: format(new Date(), 'yyyy-MM-dd'),
-      date_fin: format(new Date(), 'yyyy-MM-dd'),
-      type: 'Congés payés',
-      competence: '',
-      commentaire: '',
-      statut: 'Actif',
-      type_arret_maladie: '',
-    })
+    resetForm()
     setShowModal(true)
   }
 
   const handleRowClick = (absence: Absence) => {
     setIsEditing(true)
+    // Vérifier si le type existe dans la liste, sinon activer le mode custom
+    const typeExists = typesAbsences.includes(absence.type)
+    setIsCustomType(!typeExists)
+    setCustomType(!typeExists ? absence.type : '')
     setFormData({
       id: absence.id,
       ressource_id: absence.ressource_id,
@@ -339,18 +415,7 @@ export default function AbsencesPage() {
             onClick={() => {
               setShowModal(false)
               setIsEditing(false)
-              setFormData({
-                id: '',
-                ressource_id: '',
-                site: '',
-                date_debut: format(new Date(), 'yyyy-MM-dd'),
-                date_fin: format(new Date(), 'yyyy-MM-dd'),
-                type: 'Congés payés',
-                competence: '',
-                commentaire: '',
-                statut: 'Actif',
-                type_arret_maladie: '',
-              })
+              resetForm()
             }}
           >
             <Card className="max-w-3xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -364,18 +429,7 @@ export default function AbsencesPage() {
                   <Button variant="ghost" size="sm" icon={<X className="w-5 h-5" />} onClick={() => {
                     setShowModal(false)
                     setIsEditing(false)
-                    setFormData({
-                      id: '',
-                      ressource_id: '',
-                      site: '',
-                      date_debut: format(new Date(), 'yyyy-MM-dd'),
-                      date_fin: format(new Date(), 'yyyy-MM-dd'),
-                      type: 'Congés payés',
-                      competence: '',
-                      commentaire: '',
-                      statut: 'Actif',
-                      type_arret_maladie: '',
-                    })
+                    resetForm()
                   }} />
                 </div>
               </div>
@@ -393,30 +447,56 @@ export default function AbsencesPage() {
                       ...ressources.map((ressource) => ({ value: ressource.id, label: ressource.nom }))
                     ]}
                   />
-                  <Select
-                    label="Type"
-                    value={formData.type}
-                    onChange={(e) => {
-                      const newType = e.target.value
-                      const isArretMaladie = newType.toLowerCase().includes('maladie') || newType.toLowerCase().includes('arrêt')
-                      setFormData({ 
-                        ...formData, 
-                        type: newType,
-                        // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
-                        type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
-                      })
-                    }}
-                    required
-                    options={[
-                      { value: 'Formation', label: 'Formation' },
-                      { value: 'Congés payés', label: 'Congés payés' },
-                      { value: 'Maladie', label: 'Maladie' },
-                      { value: 'Paternité', label: 'Paternité' },
-                      { value: 'Maternité', label: 'Maternité' },
-                      { value: 'Parental', label: 'Parental' },
-                      { value: 'Autre', label: 'Autre' }
-                    ]}
-                  />
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Type <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={isCustomType ? 'CUSTOM' : formData.type}
+                      onChange={(e) => {
+                        const selectedValue = e.target.value
+                        if (selectedValue === 'CUSTOM') {
+                          setIsCustomType(true)
+                          setCustomType('')
+                        } else {
+                          setIsCustomType(false)
+                          setCustomType('')
+                          const isArretMaladie = selectedValue.toLowerCase().includes('maladie') || selectedValue.toLowerCase().includes('arrêt')
+                          setFormData({ 
+                            ...formData, 
+                            type: selectedValue,
+                            // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
+                            type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
+                          })
+                        }
+                      }}
+                      required
+                      options={[
+                        ...typesAbsences.map(type => ({ value: type, label: type })),
+                        { value: 'CUSTOM', label: '+ Ajouter un nouveau type' }
+                      ]}
+                    />
+                    {isCustomType && (
+                      <Input
+                        type="text"
+                        value={customType}
+                        onChange={(e) => {
+                          const newType = e.target.value
+                          setCustomType(newType)
+                          const isArretMaladie = newType.toLowerCase().includes('maladie') || newType.toLowerCase().includes('arrêt')
+                          setFormData({ 
+                            ...formData, 
+                            type: newType,
+                            // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
+                            type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
+                          })
+                        }}
+                        placeholder="Saisir le nouveau type d'absence..."
+                        required
+                        className="mt-2"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* Deuxième ligne : Site et Compétence (automatiques) */}
@@ -519,18 +599,7 @@ export default function AbsencesPage() {
                     <Button variant="ghost" size="sm" onClick={() => {
                       setShowModal(false)
                       setIsEditing(false)
-                      setFormData({
-                        id: '',
-                        ressource_id: '',
-                        site: '',
-                        date_debut: format(new Date(), 'yyyy-MM-dd'),
-                        date_fin: format(new Date(), 'yyyy-MM-dd'),
-                        type: 'Congés payés',
-                        competence: '',
-                        commentaire: '',
-                        statut: 'Actif',
-                        type_arret_maladie: '',
-                      })
+                      resetForm()
                     }}>
                       Annuler
                     </Button>
