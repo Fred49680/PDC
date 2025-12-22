@@ -7,6 +7,17 @@ import { addDays, isSameDay } from 'date-fns'
 import type { PeriodeCharge } from '@/types/charge'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
+// Variable pour activer/désactiver les logs de debug
+const DEBUG_CHARGE = process.env.NODE_ENV === 'development' && false // Mettre à true pour activer les logs détaillés
+
+// Helper pour les logs de debug
+const debugLog = (...args: unknown[]) => {
+  if (DEBUG_CHARGE) console.log(...args)
+}
+const debugError = (...args: unknown[]) => {
+  if (DEBUG_CHARGE) console.error(...args)
+}
+
 // Type pour les données brutes retournées par Supabase
 interface PeriodeChargeRaw {
   id: string
@@ -135,7 +146,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
               filter: `affaire_id=eq.${affaireDbId}`,
             },
             (payload) => {
-              console.log('[useCharge] Changement Realtime:', payload.eventType)
+              debugLog('[useCharge] Changement Realtime:', payload.eventType)
               
               // Mise à jour optimiste
               if (payload.eventType === 'INSERT' && payload.new) {
@@ -185,7 +196,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           )
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log('[useCharge] Abonnement Realtime activé')
+              debugLog('[useCharge] Abonnement Realtime activé')
             }
           })
 
@@ -212,19 +223,19 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
   }, [affaireId, site, loadPeriodes])
 
   const savePeriode = useCallback(async (periode: Partial<PeriodeCharge>) => {
-    console.log('[useCharge] ========== DEBUT savePeriode ==========')
-    console.log('[useCharge] Étape 1 - Données d\'entrée brutes:', JSON.stringify(periode, null, 2))
+    debugLog('[useCharge] ========== DEBUT savePeriode ==========')
+    debugLog('[useCharge] Étape 1 - Données d\'entrée brutes:', JSON.stringify(periode, null, 2))
     
     try {
       setError(null)
 
       const supabase = getSupabaseClient()
-      console.log('[useCharge] Étape 2 - Client Supabase créé')
+      debugLog('[useCharge] Étape 2 - Client Supabase créé')
 
       // Récupérer l'ID de l'affaire
       // Normaliser le site en majuscules pour correspondre à la base de données
       const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
-      console.log('[useCharge] Étape 3 - Recherche de l\'affaire:', { affaireId, site, siteNormalized })
+      debugLog('[useCharge] Étape 3 - Recherche de l\'affaire:', { affaireId, site, siteNormalized })
       const { data: affaireData, error: affaireError } = await supabase
         .from('affaires')
         .select('id')
@@ -233,7 +244,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         .maybeSingle()
 
       if (affaireError) {
-        console.error('[useCharge] Étape 3 - ERREUR recherche affaire:', affaireError)
+        debugError('[useCharge] Étape 3 - ERREUR recherche affaire:', affaireError)
         throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
       }
       
@@ -242,7 +253,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
       }
       
-      console.log('[useCharge] Étape 3 - Affaire trouvée, ID:', affaireData.id)
+      debugLog('[useCharge] Étape 3 - Affaire trouvée, ID:', affaireData.id)
 
       // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
       // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
@@ -275,8 +286,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         periodeData.id = periode.id
       }
       
-      console.log('[useCharge] Étape 4 - Données après normalisation initiale:', JSON.stringify(periodeData, null, 2))
-      console.log('[useCharge] Étape 4 - Types:', {
+      debugLog('[useCharge] Étape 4 - Données après normalisation initiale:', JSON.stringify(periodeData, null, 2))
+      debugLog('[useCharge] Étape 4 - Types:', {
         affaire_id: typeof periodeData.affaire_id,
         site: typeof periodeData.site,
         competence: typeof periodeData.competence,
@@ -304,17 +315,17 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       // S'assurer que force_weekend_ferie est toujours un booléen valide
       const normalizeBoolean = (value: unknown): boolean => {
-        console.log('[useCharge] normalizeBoolean - Input:', { value, type: typeof value })
+        debugLog('[useCharge] normalizeBoolean - Input:', { value, type: typeof value })
         if (value === true || value === 'true' || value === 1 || value === '1') {
-          console.log('[useCharge] normalizeBoolean - Retourne: true')
+          debugLog('[useCharge] normalizeBoolean - Retourne: true')
           return true
         }
         if (value === false || value === 'false' || value === 0 || value === '0') {
-          console.log('[useCharge] normalizeBoolean - Retourne: false')
+          debugLog('[useCharge] normalizeBoolean - Retourne: false')
           return false
         }
         // Si undefined, null, ou chaîne vide, retourner false par défaut
-        console.log('[useCharge] normalizeBoolean - Valeur invalide, retourne: false (défaut)')
+        debugLog('[useCharge] normalizeBoolean - Valeur invalide, retourne: false (défaut)')
         return false
       }
       
@@ -345,8 +356,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         periodeDataClean.id = periodeData.id
       }
       
-      console.log('[useCharge] Étape 5 - Données nettoyées (periodeDataClean):', JSON.stringify(periodeDataClean, null, 2))
-      console.log('[useCharge] Étape 5 - Types après nettoyage:', {
+      debugLog('[useCharge] Étape 5 - Données nettoyées (periodeDataClean):', JSON.stringify(periodeDataClean, null, 2))
+      debugLog('[useCharge] Étape 5 - Types après nettoyage:', {
         affaire_id: typeof periodeDataClean.affaire_id,
         site: typeof periodeDataClean.site,
         competence: typeof periodeDataClean.competence,
@@ -368,10 +379,10 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       if (typeof periodeDataClean.force_weekend_ferie !== 'boolean') {
         console.error('[useCharge] Étape 7 - force_weekend_ferie n\'est pas un boolean:', typeof periodeDataClean.force_weekend_ferie, periodeDataClean.force_weekend_ferie)
         periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
-        console.log('[useCharge] Étape 7 - force_weekend_ferie corrigé:', periodeDataClean.force_weekend_ferie)
+        debugLog('[useCharge] Étape 7 - force_weekend_ferie corrigé:', periodeDataClean.force_weekend_ferie)
       }
       
-      console.log('[useCharge] Étape 8 - Recherche période existante avec clés:', {
+      debugLog('[useCharge] Étape 8 - Recherche période existante avec clés:', {
         affaire_id: periodeDataClean.affaire_id,
         site: periodeDataClean.site,
         competence: periodeDataClean.competence,
@@ -432,7 +443,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         }
       }
       
-      console.log('[useCharge] Étape 8 - Résultat recherche:', existingData ? `Période existante trouvée (ID: ${existingData.id})` : 'Aucune période existante')
+      debugLog('[useCharge] Étape 8 - Résultat recherche:', existingData ? `Période existante trouvée (ID: ${existingData.id})` : 'Aucune période existante')
       
       if (existingData) {
         // Enregistrement existant : UPDATE avec seulement les champs modifiables
@@ -448,13 +459,13 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           force_weekend_ferie: shouldForceWeekendFerieUpdate ? true : false, // Booléens littéraux stricts
         }
         
-        console.log('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
-        console.log('[useCharge] Étape 9 - UPDATE - Types:', {
+        debugLog('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
+        debugLog('[useCharge] Étape 9 - UPDATE - Types:', {
           nb_ressources: typeof updateDataOnly.nb_ressources,
           force_weekend_ferie: typeof updateDataOnly.force_weekend_ferie,
           'force_weekend_ferie value': updateDataOnly.force_weekend_ferie,
         })
-        console.log('[useCharge] Étape 9 - UPDATE - ID cible:', existingData.id)
+        debugLog('[useCharge] Étape 9 - UPDATE - ID cible:', existingData.id)
         
         const { data: updateData, error: updateError } = await supabase
           .from('periodes_charge')
@@ -475,7 +486,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           throw updateError
         }
         
-        console.log('[useCharge] Étape 9 - UPDATE réussi, données retournées:', JSON.stringify(updateData, null, 2))
+        debugLog('[useCharge] Étape 9 - UPDATE réussi, données retournées:', JSON.stringify(updateData, null, 2))
         data = updateData
       } else {
         // Nouvel enregistrement : INSERT
@@ -510,7 +521,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Cette fonction accepte TEXT pour force_weekend_ferie pour éviter les problèmes de sérialisation
         // Convertir le booléen en chaîne pour éviter les problèmes de sérialisation JSON
         const forceWeekendFerieText = insertData.force_weekend_ferie ? 'true' : 'false'
-        console.log('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify({ ...insertData, force_weekend_ferie: forceWeekendFerieText }, null, 2))
+        debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify({ ...insertData, force_weekend_ferie: forceWeekendFerieText }, null, 2))
         
         const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', {
           p_affaire_id: insertData.affaire_id,
@@ -537,14 +548,14 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         
         // La fonction RPC retourne un tableau, prendre le premier élément
         const periodeResult = Array.isArray(insertDataResult) && insertDataResult.length > 0 ? insertDataResult[0] : insertDataResult
-        console.log('[useCharge] Étape 10 - INSERT réussi via RPC, données retournées:', JSON.stringify(periodeResult, null, 2))
+        debugLog('[useCharge] Étape 10 - INSERT réussi via RPC, données retournées:', JSON.stringify(periodeResult, null, 2))
         if (!periodeResult) {
           throw new Error('La fonction RPC n\'a pas retourné de résultat')
         }
         data = periodeResult
       }
       
-      console.log('[useCharge] Étape 11 - Transformation des données retournées')
+      debugLog('[useCharge] Étape 11 - Transformation des données retournées')
       
       // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
       // Cela évite que le rechargement écrase les valeurs en cours de saisie
@@ -557,7 +568,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
       } as PeriodeCharge
 
-      console.log('[useCharge] Étape 12 - Mise à jour optimiste de l\'état local')
+      debugLog('[useCharge] Étape 12 - Mise à jour optimiste de l\'état local')
       // Mettre à jour optimistement periodes (remplacer ou ajouter la période)
       setPeriodes((prev) => {
         const newPeriodes = [...prev]
@@ -582,16 +593,16 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
       // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
       if (autoRefresh && !enableRealtime) {
-        console.log('[useCharge] Étape 13 - Rechargement des périodes (autoRefresh activé, Realtime désactivé)')
+        debugLog('[useCharge] Étape 13 - Rechargement des périodes (autoRefresh activé, Realtime désactivé)')
         await loadPeriodes()
       } else {
-        console.log('[useCharge] Étape 13 - Pas de rechargement (autoRefresh:', autoRefresh, ', Realtime:', enableRealtime, ')')
+        debugLog('[useCharge] Étape 13 - Pas de rechargement (autoRefresh:', autoRefresh, ', Realtime:', enableRealtime, ')')
       }
 
-      console.log('[useCharge] ========== FIN savePeriode - SUCCÈS ==========')
+      debugLog('[useCharge] ========== FIN savePeriode - SUCCÈS ==========')
       return periodeAvecDates
     } catch (err) {
-      console.error('[useCharge] ========== FIN savePeriode - ERREUR ==========')
+      console.error('[useCharge] ========== FIN savePeriode - ERREUR ==========') // Toujours afficher les erreurs
       console.error('[useCharge] Erreur complète:', err)
       console.error('[useCharge] Stack trace:', (err as Error)?.stack)
       setError(err as Error)
@@ -632,8 +643,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
   // Cette fonction désactive les triggers, insère toutes les périodes, puis réactive les triggers et consolide
   const savePeriodesBatch = useCallback(async (periodes: Partial<PeriodeCharge>[]) => {
     try {
-      console.log('[useCharge] ========== DEBUT savePeriodesBatch ==========')
-      console.log('[useCharge] Nombre de périodes à sauvegarder:', periodes.length)
+      debugLog('[useCharge] ========== DEBUT savePeriodesBatch ==========')
+      debugLog('[useCharge] Nombre de périodes à sauvegarder:', periodes.length)
       
       setError(null)
       const supabase = getSupabaseClient()
@@ -688,7 +699,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         force_weekend_ferie: normalizeBoolean(periode.force_weekend_ferie),
       }))
 
-      console.log('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesData.slice(0, 3), null, 2), '... (affiche les 3 premières)')
+      debugLog('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesData.slice(0, 3), null, 2), '... (affiche les 3 premières)')
 
       // Appeler la fonction RPC batch_insert_periodes_charge
       // Le site sera normalisé en majuscules dans la fonction RPC
@@ -703,20 +714,20 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         throw rpcError
       }
 
-      console.log('[useCharge] Batch insert réussi')
+      debugLog('[useCharge] Batch insert réussi')
 
       // Recharger les périodes pour mettre à jour l'état local
       if (autoRefresh) {
-        console.log('[useCharge] Rechargement des périodes après batch insert')
+        debugLog('[useCharge] Rechargement des périodes après batch insert')
         await loadPeriodes()
       } else {
-        console.log('[useCharge] Pas de rechargement automatique (autoRefresh: false)')
+        debugLog('[useCharge] Pas de rechargement automatique (autoRefresh: false)')
       }
 
-      console.log('[useCharge] ========== FIN savePeriodesBatch - SUCCÈS ==========')
+      debugLog('[useCharge] ========== FIN savePeriodesBatch - SUCCÈS ==========')
       return data
     } catch (err) {
-      console.error('[useCharge] ========== FIN savePeriodesBatch - ERREUR ==========')
+      console.error('[useCharge] ========== FIN savePeriodesBatch - ERREUR ==========') // Toujours afficher les erreurs
       console.error('[useCharge] Erreur complète:', err)
       setError(err as Error)
       throw err
