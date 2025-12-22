@@ -485,6 +485,7 @@ export default function Planning2({
   // Grilles de données
   // Construire la grille depuis les périodes avec préservation des valeurs locales (comme GrilleCharge)
   useEffect(() => {
+    console.log('[Planning2] useEffect reconstruction grille - periodes:', periodes.length)
     const newGrille = new Map<string, number>()
     
     periodes.forEach((periode) => {
@@ -527,6 +528,7 @@ export default function Planning2({
 
     // Préserver les valeurs locales qui sont en cours de sauvegarde (comme GrilleCharge)
     setGrilleChargeLocal((prevGrille) => {
+      console.log('[Planning2] Fusion grille - prevGrille size:', prevGrille.size, 'newGrille size:', newGrille.size, 'pendingSaves:', pendingSavesRef.current.size)
       const mergedGrille = new Map(newGrille)
       
       // Préserver les valeurs de la grille précédente qui sont en cours de sauvegarde
@@ -538,6 +540,7 @@ export default function Planning2({
           // ou si elle n'existe pas encore dans la nouvelle grille
           const grilleValue = mergedGrille.get(key) || 0
           if (value !== grilleValue || !mergedGrille.has(key)) {
+            console.log('[Planning2] Préservation valeur:', { key, value, grilleValue, hasKey: mergedGrille.has(key) })
             mergedGrille.set(key, value)
           }
         }
@@ -560,6 +563,7 @@ export default function Planning2({
         }
       })
       
+      console.log('[Planning2] Fusion terminée - mergedGrille size:', mergedGrille.size)
       return mergedGrille
     })
   }, [periodes, colonnes, precision])
@@ -875,11 +879,15 @@ export default function Planning2({
     const cellKey = `${competence}|${colIndex}`
     const nbRessources = Math.max(0, Math.floor(value))
     
+    console.log('[Planning2] handleChargeChange:', { competence, colIndex, value, nbRessources, cellKey })
+    
     // Stocker la sauvegarde en attente AVANT la mise à jour locale (comme GrilleCharge)
     pendingSavesRef.current.set(cellKey, { competence, col, value: nbRessources })
+    console.log('[Planning2] pendingSavesRef après ajout:', Array.from(pendingSavesRef.current.entries()))
     
     // Mise à jour optimiste immédiate
     updateGrilleLocal(competence, col, nbRessources)
+    console.log('[Planning2] updateGrilleLocal appelé avec:', { competence, col: col.date, value: nbRessources })
     
     setSavingCells(prev => new Set(prev).add(cellKey))
     

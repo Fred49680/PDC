@@ -8,7 +8,7 @@ import type { PeriodeCharge } from '@/types/charge'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Variable pour activer/désactiver les logs de debug
-const DEBUG_CHARGE = process.env.NODE_ENV === 'development' && false // Mettre à true pour activer les logs détaillés
+const DEBUG_CHARGE = process.env.NODE_ENV === 'development' && true // Mettre à true pour activer les logs détaillés
 
 // Helper pour les logs de debug
 const debugLog = (...args: unknown[]) => {
