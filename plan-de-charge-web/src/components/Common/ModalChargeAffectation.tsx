@@ -48,6 +48,8 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
 
   // Ref pour stocker la fonction d'ouverture du modal de charge depuis Planning3
   const openChargeModalRef = useRef<(() => void) | null>(null)
+  // Ref pour stocker la fonction de refresh de la grille de charge
+  const refreshGrilleChargeRef = useRef<(() => Promise<void>) | null>(null)
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
   const affairesActives = affaires.filter(
@@ -418,6 +420,9 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                         console.warn('[ModalChargeAffectation] Le ref est null, le modal ne peut pas s\'ouvrir')
                       }
                     }}
+                    onRegisterRefresh={(fn) => {
+                      refreshGrilleChargeRef.current = fn
+                    }}
                   />
                 </div>
                 
@@ -432,6 +437,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     onRegisterOpenChargeModal={(fn) => {
                       openChargeModalRef.current = fn
                     }}
+                    refreshGrilleChargeRef={refreshGrilleChargeRef}
                   />
                 </div>
               </>

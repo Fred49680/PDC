@@ -26,9 +26,10 @@ interface Planning3Props {
   dateFin?: Date
   precision?: Precision
   onRegisterOpenChargeModal?: (fn: () => void) => void // Callback pour enregistrer la fonction d'ouverture du modal
+  refreshGrilleChargeRef?: React.MutableRefObject<(() => Promise<void>) | null> // Ref pour appeler le refresh de la grille
 }
 
-export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal }: Planning3Props) {
+export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal, refreshGrilleChargeRef }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
@@ -510,10 +511,17 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                     setChargeMasseForm({ competence: '', dateDebut: dateDebut || new Date(), dateFin: dateFin || new Date(), nbRessources: 1, ressourceId: '' })
                     
                     // Rafraîchir toutes les données après création
-                    await Promise.all([
+                    const refreshPromises = [
                       refreshPeriodes(),
                       refreshAffectations()
-                    ])
+                    ]
+                    
+                    // Ajouter le refresh de la grille de charge si disponible
+                    if (refreshGrilleChargeRef?.current) {
+                      refreshPromises.push(refreshGrilleChargeRef.current())
+                    }
+                    
+                    await Promise.all(refreshPromises)
                     
                     // Attendre un peu pour que les données soient bien synchronisées
                     await new Promise(resolve => setTimeout(resolve, 500))

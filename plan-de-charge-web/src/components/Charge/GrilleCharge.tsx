@@ -21,6 +21,7 @@ interface GrilleChargeProps {
   onPrecisionChange?: (precision: Precision) => void
   showButtonsAbove?: boolean
   onOpenChargeModal?: () => void // Callback pour ouvrir le modal de charge depuis Planning3
+  onRegisterRefresh?: (fn: () => Promise<void>) => void // Callback pour enregistrer la fonction de refresh
 }
 
 interface ColonneDate {
@@ -93,12 +94,22 @@ export function GrilleCharge({
   onPrecisionChange,
   showButtonsAbove = false,
   onOpenChargeModal,
+  onRegisterRefresh,
 }: GrilleChargeProps) {
-  const { periodes, loading, error, savePeriode } = useCharge({
+  const { periodes, loading, error, savePeriode, refresh: refreshGrilleCharge } = useCharge({
     affaireId,
     site,
     enableRealtime: true,
   })
+
+  // Enregistrer la fonction de refresh dans le parent
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(async () => {
+        await refreshGrilleCharge()
+      })
+    }
+  }, [onRegisterRefresh, refreshGrilleCharge])
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   // État local pour les valeurs en cours de saisie (permet les valeurs vides)
   const [editingValues, setEditingValues] = useState<Map<string, string>>(new Map())
