@@ -18,9 +18,11 @@ import { periodeToBesoin } from '@/utils/planning/planning.compute'
 interface Planning3Props {
   affaireId: string
   site: string
+  dateDebut?: Date
+  dateFin?: Date
 }
 
-export function Planning3({ affaireId, site }: Planning3Props) {
+export function Planning3({ affaireId, site, dateDebut, dateFin }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const { addToast } = useToast()
@@ -104,12 +106,25 @@ export function Planning3({ affaireId, site }: Planning3Props) {
   // Plus besoin d'appel manuel qui causait une récursion infinie
 
   // Calculer les besoins avec couverture (useMemo au lieu de useState + useEffect)
+  // Filtrer par date si dateDebut et dateFin sont fournis
   const besoins = useMemo(() => {
     if (periodes.length > 0 && affectations.length >= 0) {
-      return periodes.map((periode) => periodeToBesoin(periode, affectations))
+      let periodesFiltrees = periodes
+      
+      // Filtrer par période si les dates sont fournies
+      if (dateDebut && dateFin) {
+        periodesFiltrees = periodes.filter((periode) => {
+          // Vérifier si la période chevauche avec la période sélectionnée
+          return (
+            (periode.date_debut <= dateFin && periode.date_fin >= dateDebut)
+          )
+        })
+      }
+      
+      return periodesFiltrees.map((periode) => periodeToBesoin(periode, affectations))
     }
     return []
-  }, [periodes, affectations])
+  }, [periodes, affectations, dateDebut, dateFin])
 
   const handleAffecter = (besoin: BesoinPeriode) => {
     setSelectedBesoin(besoin)

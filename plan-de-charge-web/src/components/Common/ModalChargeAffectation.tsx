@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { X, BarChart3, Target } from 'lucide-react'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { Planning3 } from '@/components/Planning3'
@@ -19,6 +19,12 @@ interface ModalChargeAffectationProps {
 export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectationProps) {
   const [activeTab, setActiveTab] = useState<'charge' | 'affectation'>('charge')
   const { affaires } = useAffaires()
+  
+  // État pour le drag & drop
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const modalRef = useRef<HTMLDivElement>(null)
 
   // État partagé pour l'affaire
   const [affaireId, setAffaireId] = useState('')
@@ -107,13 +113,66 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     }
   }
 
+  // Handlers pour le drag & drop
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button, input, select, a')) {
+      return // Ne pas démarrer le drag si on clique sur un élément interactif
+    }
+    setIsDragging(true)
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    })
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      })
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging, dragStart])
+
+  // Réinitialiser la position quand le modal s'ouvre
+  useEffect(() => {
+    if (isOpen) {
+      setPosition({ x: 0, y: 0 })
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[calc(100vh-4rem)] flex flex-col my-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <div
+        ref={modalRef}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[calc(100vh-4rem)] flex flex-col my-auto"
+        style={{
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          cursor: isDragging ? 'grabbing' : 'default',
+        }}
+      >
+        {/* Header - Zone de drag */}
+        <div
+          className="flex items-center justify-between p-6 border-b border-gray-200 cursor-grab active:cursor-grabbing select-none"
+          onMouseDown={handleMouseDown}
+        >
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Planification</h2>
             <p className="text-sm text-gray-600 mt-1">Gestion de la charge et des affectations</p>
@@ -372,7 +431,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         </div>
 
         {/* Contenu des onglets */}
-        <div className="flex-1 overflow-y-auto p-6 pb-8">
+        <div className="flex-1 overflow-y-auto p-6 pb-12">
           {activeTab === 'charge' && (
             <div className="space-y-6">
               {/* Grille de charge */}
@@ -407,7 +466,12 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
             <div>
               {affaireId && site ? (
                 <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
-                  <Planning3 affaireId={affaireId} site={site} />
+                  <Planning3 
+                    affaireId={affaireId} 
+                    site={site}
+                    dateDebut={dateDebut}
+                    dateFin={dateFin}
+                  />
                 </div>
               ) : (
                 <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
