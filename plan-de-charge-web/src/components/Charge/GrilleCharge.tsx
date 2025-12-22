@@ -20,6 +20,8 @@ interface GrilleChargeProps {
   precision: Precision
   onDateDebutChange?: (newDateDebut: Date) => void
   onDateFinChange?: (newDateFin: Date) => void
+  onPrecisionChange?: (precision: Precision) => void
+  showButtonsAbove?: boolean
 }
 
 interface ColonneDate {

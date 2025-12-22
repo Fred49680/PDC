@@ -54,6 +54,20 @@ export function formatSemaineISO(date: Date): string {
 }
 
 /**
+ * Formater une plage de semaines ISO (ex: "2025-49 à 2025-53")
+ */
+export function formatPlageSemainesISO(dateDebut: Date, dateFin: Date): string {
+  const semaineDebut = formatSemaineISO(dateDebut)
+  const semaineFin = formatSemaineISO(dateFin)
+  
+  if (semaineDebut === semaineFin) {
+    return semaineDebut
+  }
+  
+  return `${semaineDebut} à ${semaineFin}`
+}
+
+/**
  * Générer toutes les dates entre deux dates
  */
 export function getDatesBetween(start: Date, end: Date): Date[] {

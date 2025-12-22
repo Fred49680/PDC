@@ -7,7 +7,7 @@ import { Planning3 } from '@/components/Planning3'
 import { useAffaires } from '@/hooks/useAffaires'
 import { startOfMonth, endOfMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import { formatSemaineISO } from '@/utils/calendar'
+import { formatSemaineISO, formatPlageSemainesISO } from '@/utils/calendar'
 import type { Precision } from '@/types/charge'
 import { addMonths, addDays, addWeeks, subDays, subWeeks, subMonths, startOfMonth as startOfMonthFn, endOfMonth as endOfMonthFn } from 'date-fns'
 
@@ -271,9 +271,9 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
 
         {/* Navigation et paramètres de période - Partagés entre les deux onglets */}
         <div className="px-6 pt-4 pb-3 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            {/* Navigation avec flèches */}
-            <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-1.5 border border-blue-100 shadow-sm">
+          {/* Sélection de période sur toute la largeur */}
+          <div className="w-full mb-3">
+            <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-1.5 border border-blue-100 shadow-sm w-full justify-center">
               <button
                 onClick={() => {
                   let newDateDebut: Date
@@ -313,7 +313,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                 </div>
                 <div className="text-xs text-gray-600 flex items-center justify-center gap-1 pointer-events-none mt-0.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  {formatSemaineISO(dateDebut)}
+                  {formatPlageSemainesISO(dateDebut, dateFin)}
                 </div>
                 <input
                   type="date"
@@ -388,23 +388,6 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Précision */}
-            <div className="flex items-center gap-1 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-1 border border-gray-200">
-              {(['JOUR', 'SEMAINE', 'MOIS'] as Precision[]).map((prec) => (
-                <button
-                  key={prec}
-                  onClick={() => setPrecision(prec)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    precision === prec
-                      ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
-                      : 'text-gray-600 hover:bg-white hover:text-gray-800'
-                  }`}
-                >
-                  {prec.charAt(0) + prec.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -438,6 +421,25 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         <div className="flex-1 overflow-y-auto p-6 pb-12">
           {activeTab === 'charge' && (
             <div className="space-y-6">
+              {/* Boutons de précision et d'action au-dessus du tableau */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-1 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-1 border border-gray-200">
+                  {(['JOUR', 'SEMAINE', 'MOIS'] as Precision[]).map((prec) => (
+                    <button
+                      key={prec}
+                      onClick={() => setPrecision(prec)}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                        precision === prec
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
+                          : 'text-gray-600 hover:bg-white hover:text-gray-800'
+                      }`}
+                    >
+                      {prec.charAt(0) + prec.slice(1).toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Grille de charge */}
               {affaireId && site ? (
                 <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
@@ -449,6 +451,8 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     precision={precision}
                     onDateDebutChange={setDateDebut}
                     onDateFinChange={setDateFin}
+                    onPrecisionChange={setPrecision}
+                    showButtonsAbove={true}
                   />
                 </div>
               ) : (
