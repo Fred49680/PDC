@@ -58,7 +58,13 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
 
       let query = supabase
         .from('affectations')
-        .select('*')
+        .select(`
+          *,
+          affaires!inner (
+            affaire_id,
+            compte
+          )
+        `)
         .eq('affaire_id', affaireData.id)
         .eq('site', site)
 
