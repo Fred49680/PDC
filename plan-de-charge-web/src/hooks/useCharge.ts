@@ -937,6 +937,87 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
     }
   }, [affaireId, site, loadPeriodes, getSupabaseClient])
 
+  // Fonction pour mettre à jour toutes les périodes d'une compétence avec une nouvelle compétence
+  const updateCompetence = useCallback(async (ancienneCompetence: string, nouvelleCompetence: string) => {
+    try {
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) throw affaireError
+      if (!affaireData) throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+
+      // Mettre à jour toutes les périodes de cette compétence
+      const { error: updateError } = await supabase
+        .from('periodes_charge')
+        .update({ competence: nouvelleCompetence })
+        .eq('affaire_id', affaireData.id)
+        .eq('site', siteNormalized)
+        .eq('competence', ancienneCompetence)
+
+      if (updateError) throw updateError
+
+      // Recharger les périodes
+      if (autoRefresh) {
+        await loadPeriodes()
+      }
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur updateCompetence:', err)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, getSupabaseClient])
+
+  // Fonction pour supprimer toutes les périodes d'une compétence
+  const deleteCompetence = useCallback(async (competence: string) => {
+    try {
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) throw affaireError
+      if (!affaireData) throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+
+      // Supprimer toutes les périodes de cette compétence
+      const { error: deleteError } = await supabase
+        .from('periodes_charge')
+        .delete()
+        .eq('affaire_id', affaireData.id)
+        .eq('site', siteNormalized)
+        .eq('competence', competence)
+
+      if (deleteError) throw deleteError
+
+      // Mise à jour optimiste : supprimer les périodes de l'état local
+      setPeriodes((prev) => prev.filter((p) => p.competence !== competence))
+
+      // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
+      if (autoRefresh && !enableRealtime) {
+        await loadPeriodes()
+      }
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur deleteCompetence:', err)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, enableRealtime, getSupabaseClient])
+
   return {
     periodes,
     loading,
@@ -945,6 +1026,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
     savePeriodesBatch,
     deletePeriode,
     consolidate,
+    updateCompetence,
+    deleteCompetence,
     refresh: loadPeriodes,
   }
 }

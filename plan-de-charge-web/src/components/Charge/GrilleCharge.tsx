@@ -98,7 +98,7 @@ export function GrilleCharge({
   onOpenChargeModal,
   onRegisterRefresh,
 }: GrilleChargeProps) {
-  const { periodes, loading, error, savePeriode, refresh: refreshGrilleCharge } = useCharge({
+  const { periodes, loading, error, savePeriode, updateCompetence, deleteCompetence, refresh: refreshGrilleCharge } = useCharge({
     affaireId,
     site,
     enableRealtime: true,
@@ -118,6 +118,8 @@ export function GrilleCharge({
   const [competences, setCompetences] = useState<string[]>([])
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [newCompetence, setNewCompetence] = useState('') // Compétence en cours d'ajout dans la ligne vide
+  const [editingCompetence, setEditingCompetence] = useState<string | null>(null) // Compétence en cours d'édition
+  const [competenceInputValue, setCompetenceInputValue] = useState<string>('') // Valeur de l'input de compétence
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
     title: string
@@ -510,6 +512,50 @@ export function GrilleCharge({
     setNewCompetence('') // Réinitialiser pour créer une nouvelle ligne vide
   }, [competences])
 
+  // Gérer la modification de compétence
+  const handleCompetenceChange = useCallback(async (ancienneCompetence: string, nouvelleCompetence: string) => {
+    if (!nouvelleCompetence.trim()) return
+    
+    // Vérifier si c'est "effacer" (insensible à la casse)
+    if (nouvelleCompetence.trim().toLowerCase() === 'effacer') {
+      const confirme = await confirmAsync(
+        'Confirmer la suppression',
+        `Voulez-vous vraiment supprimer toutes les données de la compétence "${ancienneCompetence}" ?\n\nCette action est irréversible.`
+      )
+      if (confirme) {
+        try {
+          await deleteCompetence(ancienneCompetence)
+          setCompetences(prev => prev.filter(c => c !== ancienneCompetence))
+        } catch (err) {
+          console.error('[GrilleCharge] Erreur suppression compétence:', err)
+        }
+      }
+      setEditingCompetence(null)
+      setCompetenceInputValue('')
+      return
+    }
+
+    // Si la nouvelle compétence est différente de l'ancienne
+    if (nouvelleCompetence.trim() !== ancienneCompetence) {
+      try {
+        await updateCompetence(ancienneCompetence, nouvelleCompetence.trim())
+        // Mettre à jour la liste des compétences
+        setCompetences(prev => {
+          const newComps = prev.filter(c => c !== ancienneCompetence)
+          if (!newComps.includes(nouvelleCompetence.trim())) {
+            newComps.push(nouvelleCompetence.trim())
+          }
+          return newComps.sort()
+        })
+      } catch (err) {
+        console.error('[GrilleCharge] Erreur modification compétence:', err)
+      }
+    }
+    
+    setEditingCompetence(null)
+    setCompetenceInputValue('')
+  }, [updateCompetence, deleteCompetence, confirmAsync])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -604,12 +650,64 @@ export function GrilleCharge({
             }, 0)
             const isEven = compIdx % 2 === 0
 
+            const isEditing = editingCompetence === comp
+
             return (
               <tr key={comp} className={isEven ? 'bg-white' : 'bg-gray-50/50'}>
                 <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-10 ${
                   isEven ? 'bg-white' : 'bg-gray-50/50'
                 }`}>
-                  {comp}
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={competenceInputValue}
+                      onChange={(e) => setCompetenceInputValue(e.target.value)}
+                      onBlur={() => {
+                        if (competenceInputValue.trim()) {
+                          handleCompetenceChange(comp, competenceInputValue.trim())
+                        } else {
+                          setEditingCompetence(null)
+                          setCompetenceInputValue('')
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (competenceInputValue.trim()) {
+                            handleCompetenceChange(comp, competenceInputValue.trim())
+                          }
+                        } else if (e.key === 'Escape') {
+                          setEditingCompetence(null)
+                          setCompetenceInputValue('')
+                        }
+                      }}
+                      autoFocus
+                      className="w-full px-2 py-1 text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      placeholder="Nouvelle compétence ou 'effacer'"
+                    />
+                  ) : (
+                    <select
+                      value={comp}
+                      onChange={(e) => {
+                        if (e.target.value === '__EDIT__') {
+                          setEditingCompetence(comp)
+                          setCompetenceInputValue(comp)
+                        } else if (e.target.value !== comp) {
+                          handleCompetenceChange(comp, e.target.value)
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-gray-800 cursor-pointer"
+                    >
+                      <option value={comp}>{comp}</option>
+                      <option value="__EDIT__">✏️ Modifier...</option>
+                      {competencesList
+                        .filter((c) => c !== comp)
+                        .map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                    </select>
+                  )}
                 </td>
                 {colonnes.map((col, idx) => {
                   const cellKey = `${comp}|${idx}`
