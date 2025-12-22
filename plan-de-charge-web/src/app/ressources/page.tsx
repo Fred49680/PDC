@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useRessources } from '@/hooks/useRessources'
 import { useSites } from '@/hooks/useSites'
@@ -25,26 +25,38 @@ import { businessDaysBetween } from '@/utils/calendar'
 export const dynamic = 'force-dynamic'
 
 export default function RessourcesPage() {
-  const [filters, setFilters] = useState({ site: '', actif: true, type_contrat: '' })
+  const [filters, setFilters] = useState({ search: '', actif: true, type_contrat: '' })
   const [showImport, setShowImport] = useState(false)
   const [activeCategoryTab, setActiveCategoryTab] = useState<'tous' | 'CDI' | 'Intérim' | 'APP' | 'Sous-traitance'>('tous')
   
-  // Mémoriser l'objet options pour useRessources
+  // Mémoriser l'objet options pour useRessources (sans filtre site, on filtre côté client)
   const ressourcesOptions = useMemo(() => ({
-    site: filters.site || undefined,
     actif: filters.actif,
     type_contrat: activeCategoryTab !== 'tous' 
       ? (activeCategoryTab === 'Intérim' ? 'ETT' : activeCategoryTab)
       : undefined,
-  }), [filters.site, filters.actif, activeCategoryTab])
+  }), [filters.actif, activeCategoryTab])
   
-  const { ressources, competences, loading, error, saveRessource, deleteRessource, saveCompetencesBatch, loadRessources } =
+  const { ressources: allRessourcesRaw, competences, loading, error, saveRessource, deleteRessource, saveCompetencesBatch, loadRessources } =
     useRessources(ressourcesOptions)
+  
+  // Filtrer les ressources par nom (recherche intelligente)
+  const ressources = useMemo(() => {
+    if (!filters.search.trim()) {
+      return allRessourcesRaw
+    }
+    
+    const searchTerm = filters.search.toLowerCase().trim()
+    return allRessourcesRaw.filter((r) => {
+      const nom = (r.nom || '').toLowerCase()
+      // Recherche intelligente : correspondance partielle insensible à la casse
+      return nom.includes(searchTerm)
+    })
+  }, [allRessourcesRaw, filters.search])
   
   // Charger toutes les ressources pour le comptage (sans filtre type_contrat)
   const { ressources: allRessources } = useRessources({ 
-    actif: filters.actif, 
-    site: filters.site || undefined,
+    actif: filters.actif,
     enableRealtime: false // Pas besoin de Realtime pour le comptage
   })
   
@@ -613,15 +625,15 @@ export default function RessourcesPage() {
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" />
-                  <span className="text-xs sm:text-sm font-medium text-gray-600">Site:</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-600">Ressource:</span>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <input
                     type="text"
-                    value={filters.site}
-                    onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-                    placeholder="Filtrer par site..."
+                    value={filters.search}
+                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                    placeholder="Rechercher une ressource..."
                     className="pl-8 pr-2 sm:pr-3 py-1.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 w-36 sm:w-48"
                   />
                 </div>
