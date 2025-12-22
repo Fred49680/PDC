@@ -540,135 +540,15 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
           return
         }
 
-        // Calculer le nombre de jours ouvrés
-        const { businessDaysBetween } = await import('@/utils/calendar')
-        const nbJoursOuvres = businessDaysBetween(dateDebut, dateFin)
-
-        if (nbJoursOuvres <= 0) {
-          console.log('[useTransferts] Aucun jour ouvré dans la période')
-          return
-        }
-
         // Normaliser les sites en majuscules
         const siteDestinationUpper = siteDestination.trim().toUpperCase()
         const siteOrigineUpper = siteOrigine.trim().toUpperCase()
 
-        // Vérifier s'il existe déjà des affectations réelles (non-TRANSFERT) pour cette période
-        // Si oui, ne pas créer d'affectations de transfert factices
-        const { data: affectationsExistantes, error: checkError } = await supabase
-          .from('affectations')
-          .select('id, affaire_id, affaires!inner(affaire_id)')
-          .eq('ressource_id', ressourceId)
-          .eq('site', siteDestinationUpper)
-          .lte('date_debut', dateFin.toISOString().split('T')[0])
-          .gte('date_fin', dateDebut.toISOString().split('T')[0])
-          .not('affaires.affaire_id', 'like', 'TRANSFERT_%')
-
-        if (checkError) {
-          console.error('[useTransferts] Erreur vérification affectations existantes:', checkError)
-          // Continuer même en cas d'erreur
-        }
-
-        // Si des affectations réelles existent déjà, ne pas créer d'affectations de transfert
-        if (affectationsExistantes && affectationsExistantes.length > 0) {
-          console.log(
-            `[useTransferts] Affectations réelles existantes trouvées (${affectationsExistantes.length}), pas de création d'affectations de transfert`
-          )
-          // Logger quand même dans les alertes
-          try {
-            await createAlerte({
-              type_alerte: 'TRANSFERT_APPLIQUE',
-              ressource_id: ressourceId,
-              site: siteDestinationUpper,
-              date_debut: dateDebut,
-              date_fin: dateFin,
-              action: `Transfert appliqué de ${siteOrigineUpper} vers ${siteDestinationUpper} - Affectations réelles déjà présentes`,
-              prise_en_compte: 'Non',
-            })
-          } catch (alerteError) {
-            console.error('[useTransferts] Erreur création alerte:', alerteError)
-          }
-          return
-        }
-
-        // Pour chaque compétence, créer une affectation "générique" sur le site de destination
-        // Utiliser une affaire factice "TRANSFERT" pour tracer (seulement si aucune affectation réelle n'existe)
-        const affaireTransfert = `TRANSFERT_${siteDestinationUpper}`
-
-        // Vérifier si l'affaire existe, sinon la créer
-        // Utiliser .limit(1) au lieu de .maybeSingle() pour éviter l'erreur 406 avec les espaces dans les noms
-        const { data: affairesExistantes, error: affaireCheckError } = await supabase
-          .from('affaires')
-          .select('id')
-          .eq('affaire_id', affaireTransfert)
-          .limit(1)
-
-        // Si erreur lors de la vérification, la propager
-        if (affaireCheckError) {
-          console.error('[useTransferts] Erreur vérification affaire transfert:', affaireCheckError)
-          throw affaireCheckError
-        }
-
-        let affaireId: string
-
-        if (!affairesExistantes || affairesExistantes.length === 0) {
-          // Créer l'affaire factice (site en majuscules)
-          const { data: nouvelleAffaire, error: affaireError } = await supabase
-            .from('affaires')
-            .insert({
-              affaire_id: affaireTransfert,
-              site: siteDestinationUpper,
-              libelle: `Transfert automatique vers ${siteDestinationUpper}`,
-              actif: true,
-            })
-            .select('id')
-            .single()
-
-          if (affaireError) {
-            // Si l'erreur est une duplication (contrainte unique), réessayer de récupérer l'affaire
-            if (affaireError.code === '23505') {
-              const { data: affaireExistante, error: retryError } = await supabase
-                .from('affaires')
-                .select('id')
-                .eq('affaire_id', affaireTransfert)
-                .limit(1)
-
-              if (retryError || !affaireExistante || affaireExistante.length === 0) {
-                console.error('[useTransferts] Erreur récupération affaire après duplication:', retryError)
-                throw affaireError
-              }
-
-              affaireId = affaireExistante[0].id
-            } else {
-              console.error('[useTransferts] Erreur création affaire transfert:', affaireError)
-              throw affaireError
-            }
-          } else {
-            affaireId = nouvelleAffaire.id
-          }
-        } else {
-          affaireId = affairesExistantes[0].id
-        }
-
-        // Créer les affectations pour chaque compétence (site en majuscules)
-        const affectations = competences.map((comp) => ({
-          affaire_id: affaireId,
-          site: siteDestinationUpper,
-          ressource_id: ressourceId,
-          competence: comp.competence,
-          date_debut: dateDebut.toISOString().split('T')[0],
-          date_fin: dateFin.toISOString().split('T')[0],
-          charge: nbJoursOuvres,
-        }))
-
-        const { error: affectationsError } = await supabase.from('affectations').insert(affectations)
-
-        if (affectationsError) {
-          console.error('[useTransferts] Erreur création affectations:', affectationsError)
-          throw affectationsError
-        }
-
-        // Logger dans les alertes (sites en majuscules)
+        // Ne plus créer d'affectations automatiques lors de l'application d'un transfert
+        // Le transfert sert uniquement à indiquer que la ressource est disponible sur le site de destination
+        // Les affectations réelles seront faites manuellement sur des affaires existantes
+        
+        // Logger dans les alertes pour tracer l'application du transfert
         try {
           await createAlerte({
             type_alerte: 'TRANSFERT_APPLIQUE',
@@ -676,7 +556,7 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
             site: siteDestinationUpper,
             date_debut: dateDebut,
             date_fin: dateFin,
-            action: `Transfert appliqué de ${siteOrigineUpper} vers ${siteDestinationUpper} - ${competences.length} compétence(s) affectée(s)`,
+            action: `Transfert appliqué de ${siteOrigineUpper} vers ${siteDestinationUpper} - Ressource disponible sur le site de destination`,
             prise_en_compte: 'Non',
           })
         } catch (alerteError) {
@@ -685,7 +565,7 @@ export function useTransferts(options: UseTransfertsOptions = {}) {
         }
 
         console.log(
-          `[useTransferts] Transfert appliqué : ${competences.length} affectation(s) créée(s) pour ${competences.length} compétence(s)`
+          `[useTransferts] Transfert appliqué : ressource disponible sur ${siteDestinationUpper} du ${dateDebut.toISOString().split('T')[0]} au ${dateFin.toISOString().split('T')[0]}`
         )
       } catch (err) {
         console.error('[useTransferts] Erreur appliquerTransfert:', err)
