@@ -644,12 +644,45 @@ export function BesoinsGrid({
         }
 
         // Créer les nouvelles affectations
+        // Note: Le trigger check_absences_on_affectation_insert peut bloquer silencieusement
+        // les affectations qui chevauchent avec des absences (retourne NULL)
+        let nbCreees = 0
+        let nbBloquees = 0
+
         for (const aff of affectationsACreer) {
-          await saveAffectation(aff)
+          try {
+            // Vérifier d'abord si cette période chevauche avec une absence
+            const hasAbsence = absences.some((abs) => {
+              if (abs.ressource_id !== aff.ressource_id || abs.statut !== 'Actif') return false
+              const absDateDebut = normalizeDateToUTC(new Date(abs.date_debut))
+              const absDateFin = normalizeDateToUTC(new Date(abs.date_fin))
+              const affDateDebut = normalizeDateToUTC(aff.date_debut)
+              const affDateFin = normalizeDateToUTC(aff.date_fin)
+              return absDateDebut <= affDateFin && absDateFin >= affDateDebut
+            })
+
+            if (hasAbsence) {
+              // Ne pas créer cette affectation car elle chevauche avec une absence
+              nbBloquees++
+              console.log('[BesoinsGrid] Affectation bloquée par absence:', aff)
+            } else {
+              // Créer l'affectation
+              await saveAffectation(aff)
+              nbCreees++
+            }
+          } catch (err) {
+            console.error('[BesoinsGrid] Erreur création affectation:', err)
+            nbBloquees++
+          }
         }
 
-        if (affectationsACreer.length > 0) {
-          addToast(`Période modifiée (${affectationsACreer.length} période(s) créée(s))`, 'success')
+        // Afficher un message approprié
+        if (nbCreees > 0 && nbBloquees === 0) {
+          addToast(`Période modifiée (${nbCreees} période(s) créée(s))`, 'success')
+        } else if (nbCreees > 0 && nbBloquees > 0) {
+          addToast(`Période partiellement modifiée (${nbCreees} créée(s), ${nbBloquees} bloquée(s) par absence)`, 'warning')
+        } else if (nbBloquees > 0 && affectationsACreer.length > 0) {
+          addToast(`Impossible de créer les périodes : conflit avec une absence`, 'error')
         } else {
           addToast('Affectation supprimée', 'success')
         }
@@ -706,7 +739,7 @@ export function BesoinsGrid({
       console.error('[BesoinsGrid] Erreur ajout affectation:', err)
       addToast('Erreur lors de l\'ajout', 'error')
     }
-  }, [affaireUuid, colonnes, grille, precision, saveAffectation, deleteAffectation, refreshAffectations, addToast, affectations])
+  }, [affaireUuid, colonnes, grille, precision, saveAffectation, deleteAffectation, refreshAffectations, addToast, affectations, absences])
 
   const loading = loadingAffectations || loadingRessources || loadingAbsences || loadingAllAffectations
 
