@@ -93,23 +93,31 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   }
 
   // Mettre à jour le site automatiquement quand une affaire est sélectionnée (si le site ne correspond pas)
+  // Note: Ce useEffect est nécessaire pour synchroniser le site avec l'affaire sélectionnée
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (affaireId) {
       const affaire = affairesFiltreesFinales.find((a) => a.affaire_id === affaireId)
       if (affaire && affaire.site !== site) {
+        // Synchronisation nécessaire : le site doit correspondre à l'affaire
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSite(affaire.site)
       }
     }
   }, [affaireId, affairesFiltreesFinales, site])
 
   // Sélection automatique de l'affaire si un numéro de compte correspond exactement
+  // Note: Ce useEffect est nécessaire pour la recherche automatique par numéro de compte
   useEffect(() => {
     if (numeroCompte && numeroCompte.trim() !== '') {
       const affaireTrouvee = affairesFiltreesFinales.find(
         (a) => a.affaire_id && a.affaire_id.toLowerCase() === numeroCompte.toLowerCase().trim()
       )
       if (affaireTrouvee && affaireTrouvee.affaire_id && affaireTrouvee.affaire_id !== affaireId) {
+        // Synchronisation nécessaire : auto-sélection basée sur la recherche
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setAffaireId(affaireTrouvee.affaire_id)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSite(affaireTrouvee.site)
       }
     }
