@@ -32,9 +32,10 @@ export default function GanttPage() {
   const [numeroCompte, setNumeroCompte] = useState('')
   const [ressourceFilter, setRessourceFilter] = useState('')
   
-  // État pour la période
-  const [dateDebut, setDateDebut] = useState(startOfMonth(new Date()))
-  const [dateFin, setDateFin] = useState(endOfMonth(new Date()))
+  // État pour la période - Initialisation à la date de base : 01/01/2026
+  const baseDate = new Date(2026, 0, 1) // 01/01/2026
+  const [dateDebut, setDateDebut] = useState(baseDate)
+  const [dateFin, setDateFin] = useState(baseDate)
   const [precision, setPrecision] = useState<Precision>('JOUR')
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
@@ -545,10 +546,10 @@ export default function GanttPage() {
                     const newPrecision: Precision = 'JOUR'
                     setPrecision(newPrecision)
                     
-                    // Ajuster les dates selon la nouvelle précision
-                    const now = new Date()
-                    setDateDebut(now)
-                    setDateFin(now)
+                    // Réinitialiser à la date de base : 01/01/2026
+                    const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                    setDateDebut(baseDate)
+                    setDateFin(baseDate)
                   }}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                     precision === 'JOUR'
@@ -563,9 +564,9 @@ export default function GanttPage() {
                     const newPrecision: Precision = 'SEMAINE'
                     setPrecision(newPrecision)
                     
-                    // Ajuster les dates selon la nouvelle précision
-                    const now = new Date()
-                    const monthStart = startOfMonthFn(now)
+                    // Réinitialiser à la date de base : 01/01/2026
+                    const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                    const monthStart = startOfMonthFn(baseDate)
                     const dayOfWeek = monthStart.getDay() || 7
                     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
                     const weekStart = new Date(monthStart)
@@ -586,9 +587,9 @@ export default function GanttPage() {
                     const newPrecision: Precision = 'MOIS'
                     setPrecision(newPrecision)
                     
-                    // Ajuster les dates selon la nouvelle précision
-                    const now = new Date()
-                    const monthStart = startOfMonthFn(now)
+                    // Réinitialiser à la date de base : 01/01/2026
+                    const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                    const monthStart = startOfMonthFn(baseDate)
                     setDateDebut(monthStart)
                     setDateFin(endOfMonthFn(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1)))
                   }}
