@@ -183,11 +183,15 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   useEffect(() => {
     if (onRegisterOpenChargeModal) {
       const openModal = () => {
-        console.log('[Planning3] Fonction openModal appelée')
+        console.log('[Planning3] Fonction openModal appelée, ouverture du modal')
         setShowChargeMasseModal(true)
       }
       console.log('[Planning3] Enregistrement de la fonction d\'ouverture du modal')
       onRegisterOpenChargeModal(openModal)
+      return () => {
+        // Nettoyer le ref quand le composant se démonte
+        onRegisterOpenChargeModal(() => {})
+      }
     }
   }, [onRegisterOpenChargeModal])
 
