@@ -188,15 +188,20 @@ export function AffectationPanel({
 
   if (!besoin) return null
 
+  // Identifier les IDs des ressources déjà affectées pour les exclure des listes disponibles
+  const ressourcesDejaAffecteesIds = useMemo(() => {
+    return new Set(ressourcesDejaAffectees.map((r) => r.ressourceId))
+  }, [ressourcesDejaAffectees])
+
   // Séparer les candidats :
-  // - Disponibles du même site (selectable && !necessiteTransfert)
-  // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - maintenant sélectionnables
+  // - Disponibles du même site (selectable && !necessiteTransfert) - EXCLURE celles déjà affectées
+  // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - EXCLURE celles déjà affectées
   // - Indisponibles (absents ou en conflit) - non sélectionnables, mais uniquement celles qui ont la compétence
   const candidatsDisponiblesMemeSite = candidats.filter(
-    (c) => c.selectable && !c.necessiteTransfert
+    (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
   )
   const candidatsNecessitantTransfert = candidats.filter(
-    (c) => c.selectable && c.necessiteTransfert
+    (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
   )
   // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
   // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
@@ -394,6 +399,63 @@ export function AffectationPanel({
                               </span>
                             )}
                           </div>
+                          {isSelected && (
+                            <div className="mt-2 space-y-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setShowPeriodSelector(showPeriodSelector === candidat.id ? null : candidat.id)
+                                }}
+                                className="w-full text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                              >
+                                {selectedPeriodes.has(candidat.id)
+                                  ? `Période: ${format(selectedPeriodes.get(candidat.id)!.dateDebut, 'dd/MM', { locale: fr })} → ${format(selectedPeriodes.get(candidat.id)!.dateFin, 'dd/MM', { locale: fr })}`
+                                  : 'Choisir période partielle'}
+                              </button>
+                              {showPeriodSelector === candidat.id && (
+                                <div className="mt-1 p-2 bg-white rounded border border-gray-300">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Date début:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      selectedPeriodes.has(candidat.id)
+                                        ? format(selectedPeriodes.get(candidat.id)!.dateDebut, 'yyyy-MM-dd')
+                                        : format(besoin.dateDebut, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateDebut = new Date(e.target.value)
+                                      const dateFin = selectedPeriodes.get(candidat.id)?.dateFin || besoin.dateFin
+                                      handleSetPeriodePartielle(candidat.id, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                  <label className="block text-xs font-medium text-gray-700 mb-1 mt-1">
+                                    Date fin:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      selectedPeriodes.has(candidat.id)
+                                        ? format(selectedPeriodes.get(candidat.id)!.dateFin, 'yyyy-MM-dd')
+                                        : format(besoin.dateFin, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateFin = new Date(e.target.value)
+                                      const dateDebut = selectedPeriodes.get(candidat.id)?.dateDebut || besoin.dateDebut
+                                      handleSetPeriodePartielle(candidat.id, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -455,6 +517,63 @@ export function AffectationPanel({
                               🔄 Transfert auto
                             </span>
                           </div>
+                          {isSelected && (
+                            <div className="mt-2 space-y-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setShowPeriodSelector(showPeriodSelector === candidat.id ? null : candidat.id)
+                                }}
+                                className="w-full text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                              >
+                                {selectedPeriodes.has(candidat.id)
+                                  ? `Période: ${format(selectedPeriodes.get(candidat.id)!.dateDebut, 'dd/MM', { locale: fr })} → ${format(selectedPeriodes.get(candidat.id)!.dateFin, 'dd/MM', { locale: fr })}`
+                                  : 'Choisir période partielle'}
+                              </button>
+                              {showPeriodSelector === candidat.id && (
+                                <div className="mt-1 p-2 bg-white rounded border border-gray-300">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Date début:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      selectedPeriodes.has(candidat.id)
+                                        ? format(selectedPeriodes.get(candidat.id)!.dateDebut, 'yyyy-MM-dd')
+                                        : format(besoin.dateDebut, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateDebut = new Date(e.target.value)
+                                      const dateFin = selectedPeriodes.get(candidat.id)?.dateFin || besoin.dateFin
+                                      handleSetPeriodePartielle(candidat.id, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                  <label className="block text-xs font-medium text-gray-700 mb-1 mt-1">
+                                    Date fin:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      selectedPeriodes.has(candidat.id)
+                                        ? format(selectedPeriodes.get(candidat.id)!.dateFin, 'yyyy-MM-dd')
+                                        : format(besoin.dateFin, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateFin = new Date(e.target.value)
+                                      const dateDebut = selectedPeriodes.get(candidat.id)?.dateDebut || besoin.dateDebut
+                                      handleSetPeriodePartielle(candidat.id, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
