@@ -8,6 +8,7 @@ import {
   MapPin, AlertCircle, Menu, X, Sparkles, ArrowRightLeft, Target
 } from 'lucide-react'
 import { InstallPWA } from '@/components/UI/InstallPWA'
+import { ModalChargeAffectation } from './ModalChargeAffectation'
 
 interface LayoutProps {
   children: ReactNode
@@ -16,6 +17,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [modalChargeAffectationOpen, setModalChargeAffectationOpen] = useState(false)
 
   const navItems = [
     { href: '/', label: 'Accueil', icon: Home, color: 'from-blue-500 to-indigo-600' },
@@ -23,7 +25,7 @@ export function Layout({ children }: LayoutProps) {
     { href: '/ressources', label: 'Ressources', icon: Users, color: 'from-green-500 to-emerald-600' },
     { href: '/charge', label: 'Charge', icon: BarChart3, color: 'from-blue-500 to-indigo-600' },
     { href: '/planning2', label: 'Planning', icon: Sparkles, color: 'from-indigo-500 to-purple-600' },
-    { href: '/planning3', label: 'Planning v3', icon: Target, color: 'from-purple-500 to-pink-600' },
+    { href: '#', label: 'Planning v3', icon: Target, color: 'from-purple-500 to-pink-600', isModal: true },
     { href: '/absences', label: 'Absences', icon: Calendar, color: 'from-purple-500 to-indigo-600' },
     { href: '/transferts', label: 'Transferts', icon: ArrowRightLeft, color: 'from-cyan-500 to-blue-600' },
     { href: '/alertes', label: 'Alertes', icon: AlertCircle, color: 'from-orange-500 to-amber-600' },
@@ -63,25 +65,46 @@ export function Layout({ children }: LayoutProps) {
                 const Icon = item.icon
                 const active = isActive(item.href)
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`
-                      relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
-                      flex items-center gap-2 group
-                      ${
-                        active
-                          ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
-                          : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
-                      }
-                    `}
-                  >
-                    <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
-                    <span>{item.label}</span>
-                    {active && (
-                      <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
-                    )}
-                  </Link>
+                  {item.isModal ? (
+                    <button
+                      onClick={() => setModalChargeAffectationOpen(true)}
+                      className={`
+                        relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
+                        flex items-center gap-2 group
+                        ${
+                          active
+                            ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
+                            : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
+                        }
+                      `}
+                    >
+                      <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
+                      <span>{item.label}</span>
+                      {active && (
+                        <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
+                      )}
+                    </button>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`
+                        relative px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300
+                        flex items-center gap-2 group
+                        ${
+                          active
+                            ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
+                            : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
+                        }
+                      `}
+                    >
+                      <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
+                      <span>{item.label}</span>
+                      {active && (
+                        <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-md" />
+                      )}
+                    </Link>
+                  )}
                 )
               })}
             </div>
@@ -102,22 +125,42 @@ export function Layout({ children }: LayoutProps) {
                 const Icon = item.icon
                 const active = isActive(item.href)
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                      ${
-                        active
-                          ? `bg-gradient-to-r ${item.color} text-white shadow-md`
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }
-                    `}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </Link>
+                  {item.isModal ? (
+                    <button
+                      onClick={() => {
+                        setModalChargeAffectationOpen(true)
+                        setMobileMenuOpen(false)
+                      }}
+                      className={`
+                        flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 w-full text-left
+                        ${
+                          active
+                            ? `bg-gradient-to-r ${item.color} text-white shadow-md`
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }
+                      `}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </button>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`
+                        flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                        ${
+                          active
+                            ? `bg-gradient-to-r ${item.color} text-white shadow-md`
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }
+                      `}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </Link>
+                  )}
                 )
               })}
           </div>
@@ -147,6 +190,12 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Bannière d'installation PWA */}
       <InstallPWA />
+
+      {/* Modal Charge et Affectation */}
+      <ModalChargeAffectation
+        isOpen={modalChargeAffectationOpen}
+        onClose={() => setModalChargeAffectationOpen(false)}
+      />
     </div>
   )
 }
