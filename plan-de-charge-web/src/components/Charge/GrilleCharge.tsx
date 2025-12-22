@@ -89,8 +89,8 @@ export function GrilleCharge({
   dateDebut,
   dateFin,
   precision,
-  onDateDebutChange,
-  onDateFinChange,
+  onDateDebutChange: _onDateDebutChange,
+  onDateFinChange: _onDateFinChange,
   onPrecisionChange,
   showButtonsAbove = false,
   onOpenChargeModal,
@@ -115,8 +115,7 @@ export function GrilleCharge({
   const [editingValues, setEditingValues] = useState<Map<string, string>>(new Map())
   const [competences, setCompetences] = useState<string[]>([])
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
-  const [showAddCompetence, setShowAddCompetence] = useState(false)
-  const [newCompetence, setNewCompetence] = useState('')
+  const [newCompetence, setNewCompetence] = useState('') // Compétence en cours d'ajout dans la ligne vide
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
     title: string
@@ -249,14 +248,23 @@ export function GrilleCharge({
     return Array.from(compSet).sort()
   }, [toutesCompetences, periodes])
 
-  // Extraire les compétences affichées dans la grille (celles qui ont des périodes + celles ajoutées manuellement)
+  // Extraire les compétences affichées dans la grille (uniquement celles qui ont des périodes avec nb_ressources > 0)
   useEffect(() => {
-    setCompetences((prevCompetences) => {
-      const comps = new Set<string>(prevCompetences)
-      periodes.forEach((p) => comps.add(p.competence))
-      return Array.from(comps).sort()
+    const compsWithData = new Set<string>()
+    periodes.forEach((p) => {
+      if (p.competence && p.nb_ressources > 0) {
+        compsWithData.add(p.competence)
+      }
     })
-  }, [periodes])
+    // Garder aussi les compétences qui ont des valeurs dans la grille (en cours de saisie)
+    grille.forEach((value, key) => {
+      if (value > 0) {
+        const [comp] = key.split('|')
+        compsWithData.add(comp)
+      }
+    })
+    setCompetences(Array.from(compsWithData).sort())
+  }, [periodes, grille])
 
   // Construire la grille depuis les périodes (comme Planning2 avec gestion week-end/férié)
   // Préserver les valeurs locales en cours de sauvegarde
@@ -492,6 +500,14 @@ export function GrilleCharge({
     }
   }, [])
 
+  // Gérer l'ajout de compétence depuis la ligne vide
+  const handleAddCompetence = useCallback((comp: string) => {
+    if (comp.trim() && !competences.includes(comp.trim())) {
+      setCompetences([...competences, comp.trim()].sort())
+    }
+    setNewCompetence('') // Réinitialiser pour créer une nouvelle ligne vide
+  }, [competences])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -529,93 +545,14 @@ export function GrilleCharge({
 
   const actionButtons = (
     <div className="flex items-center gap-2 flex-wrap">
-      {!showAddCompetence ? (
-        <>
-          <button
-            onClick={() => setShowAddCompetence(true)}
-            className="px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            Ajouter une compétence
-          </button>
-          {onOpenChargeModal && (
-            <button
-              onClick={onOpenChargeModal}
-              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              Déclarer charge période
-            </button>
-          )}
-        </>
-      ) : (
-        <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={newCompetence}
-            onChange={(e) => setNewCompetence(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newCompetence) {
-                if (!competences.includes(newCompetence)) {
-                  setCompetences([...competences, newCompetence].sort())
-                }
-                setNewCompetence('')
-                setShowAddCompetence(false)
-              }
-            }}
-          >
-            <option value="">Sélectionner une compétence...</option>
-            {competencesList
-              .filter((comp) => !competences.includes(comp))
-              .map((comp) => (
-                <option key={comp} value={comp}>
-                  {comp}
-                </option>
-              ))}
-          </select>
-          <input
-            type="text"
-            value={newCompetence}
-            onChange={(e) => setNewCompetence(e.target.value)}
-            placeholder="Ou saisir une nouvelle compétence"
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[200px]"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newCompetence.trim()) {
-                const comp = newCompetence.trim()
-                if (!competences.includes(comp)) {
-                  setCompetences([...competences, comp].sort())
-                }
-                setNewCompetence('')
-                setShowAddCompetence(false)
-              }
-            }}
-          />
-          <button
-            onClick={() => {
-              if (newCompetence.trim()) {
-                const comp = newCompetence.trim()
-                if (!competences.includes(comp)) {
-                  setCompetences([...competences, comp].sort())
-                }
-                setNewCompetence('')
-                setShowAddCompetence(false)
-              }
-            }}
-            disabled={!newCompetence.trim()}
-            className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-          >
-            Ajouter
-          </button>
-          <button
-            onClick={() => {
-              setShowAddCompetence(false)
-              setNewCompetence('')
-            }}
-            className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-          >
-            Annuler
-          </button>
-        </div>
+      {onOpenChargeModal && (
+        <button
+          onClick={onOpenChargeModal}
+          className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+        >
+          <Plus className="w-4 h-4" />
+          Déclarer charge période
+        </button>
       )}
     </div>
   )
@@ -739,6 +676,84 @@ export function GrilleCharge({
               </tr>
             )
           })}
+          {/* Ligne vide pour ajouter une nouvelle compétence */}
+          <tr className="bg-gray-100/50">
+            <td className="border-b border-r border-gray-300 px-4 py-3 sticky left-0 z-10 bg-gray-100/50">
+              <select
+                value={newCompetence}
+                onChange={(e) => setNewCompetence(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCompetence.trim()) {
+                    handleAddCompetence(newCompetence)
+                  }
+                }}
+                onBlur={() => {
+                  if (newCompetence.trim()) {
+                    handleAddCompetence(newCompetence)
+                  }
+                }}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Sélectionner une compétence...</option>
+                {competencesList
+                  .filter((comp) => !competences.includes(comp))
+                  .map((comp) => (
+                    <option key={comp} value={comp}>
+                      {comp}
+                    </option>
+                  ))}
+              </select>
+            </td>
+            {colonnes.map((col, idx) => (
+              <td 
+                key={idx} 
+                className={`border-b border-r border-gray-300 px-2 py-2 ${
+                  col.isWeekend ? 'bg-blue-50/50' :
+                  col.isHoliday ? 'bg-rose-50/50' :
+                  ''
+                }`}
+              >
+                <div className="w-full text-center text-xs text-gray-400 py-1">
+                  -
+                </div>
+              </td>
+            ))}
+            <td className="border-b border-gray-300 px-4 py-3 text-center text-sm text-gray-400 bg-gray-100/50">
+              -
+            </td>
+          </tr>
+          {/* Ligne de totaux (charge totale par colonne) */}
+          <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-300">
+            <td className="border-b border-r border-gray-300 px-4 py-3 font-bold text-sm text-blue-800 sticky left-0 z-10 bg-gradient-to-r from-blue-50 to-indigo-50">
+              Charge totale
+            </td>
+            {colonnes.map((col, idx) => {
+              const totalCol = competences.reduce((sum, comp) => {
+                const cellKey = `${comp}|${idx}`
+                return sum + (grille.get(cellKey) || 0)
+              }, 0)
+              return (
+                <td 
+                  key={idx} 
+                  className={`border-b border-r border-gray-300 px-2 py-2 text-center text-sm font-bold text-blue-700 ${
+                    col.isWeekend ? 'bg-blue-100' :
+                    col.isHoliday ? 'bg-rose-100' :
+                    ''
+                  }`}
+                >
+                  {totalCol > 0 ? totalCol.toFixed(0) : '-'}
+                </td>
+              )
+            })}
+            <td className="border-b border-gray-300 px-4 py-3 text-center text-sm font-bold text-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50">
+              {competences.reduce((sum, comp) => {
+                return sum + colonnes.reduce((colSum, col, idx) => {
+                  const cellKey = `${comp}|${idx}`
+                  return colSum + (grille.get(cellKey) || 0)
+                }, 0)
+              }, 0).toFixed(0)}
+            </td>
+          </tr>
         </tbody>
       </table>
       </div>
