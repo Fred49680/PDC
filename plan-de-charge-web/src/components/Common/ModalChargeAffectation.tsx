@@ -411,8 +411,11 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     onPrecisionChange={setPrecision}
                     showButtonsAbove={true}
                     onOpenChargeModal={() => {
+                      console.log('[ModalChargeAffectation] Callback appelé, ref:', openChargeModalRef.current)
                       if (openChargeModalRef.current) {
                         openChargeModalRef.current()
+                      } else {
+                        console.warn('[ModalChargeAffectation] Le ref est null, le modal ne peut pas s\'ouvrir')
                       }
                     }}
                   />

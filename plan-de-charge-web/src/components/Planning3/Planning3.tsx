@@ -183,11 +183,13 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   useEffect(() => {
     if (onRegisterOpenChargeModal) {
       const openModal = () => {
+        console.log('[Planning3] Fonction openModal appelée')
         setShowChargeMasseModal(true)
       }
+      console.log('[Planning3] Enregistrement de la fonction d\'ouverture du modal')
       onRegisterOpenChargeModal(openModal)
     }
-  }, [onRegisterOpenChargeModal, setShowChargeMasseModal])
+  }, [onRegisterOpenChargeModal])
 
   // Note: La consolidation se fait automatiquement via les triggers SQL
   // Plus besoin d'appel manuel qui causait une récursion infinie
