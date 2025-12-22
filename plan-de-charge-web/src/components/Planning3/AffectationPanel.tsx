@@ -166,7 +166,16 @@ export function AffectationPanel({
         })
 
         // Fournir les ressources pour éviter les requêtes supplémentaires lors de la création des transferts
+        // IMPORTANT : Inclure toutes les ressources (y compris externes) pour permettre la création des transferts
         const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
+        
+        // Vérifier que toutes les ressources sélectionnées sont dans la map
+        const ressourcesManquantes = Array.from(selectedIds).filter(
+          (id) => !ressourcesMap.some((r) => r.id === id)
+        )
+        if (ressourcesManquantes.length > 0) {
+          console.warn('[AffectationPanel] Ressources manquantes dans ressourcesMap:', ressourcesManquantes)
+        }
 
         await applyAffectationsBatch(affaireId, besoin.site, affectationsToCreate, ressourcesMap)
       }

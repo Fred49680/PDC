@@ -262,17 +262,41 @@ export async function applyAffectationsBatch(
   const siteUpper = site.toUpperCase()
 
   // Créer les transferts nécessaires AVANT de créer les affectations
+  const transfertsCrees: string[] = []
+  const erreursTransferts: Array<{ ressourceId: string; error: Error }> = []
+  
   for (const aff of affectations) {
     const ressourceSite = ressourcesMap.get(aff.ressourceId)
     if (ressourceSite && ressourceSite !== siteUpper) {
       // La ressource est sur un autre site, créer/étendre le transfert
       try {
         await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
+        transfertsCrees.push(aff.ressourceId)
+        console.log(`[planning.api] Transfert créé/étendu pour ressource ${aff.ressourceId} de ${ressourceSite} vers ${siteUpper}`)
       } catch (error: any) {
         console.error(`[planning.api] Erreur transfert pour ${aff.ressourceId}:`, error)
+        erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
         // Ne pas bloquer l'affectation si le transfert échoue, mais loguer l'erreur
       }
+    } else if (!ressourceSite) {
+      // Ressource non trouvée dans la map, essayer de la récupérer
+      console.warn(`[planning.api] Ressource ${aff.ressourceId} non trouvée dans ressourcesMap, récupération depuis la base...`)
+      try {
+        await ensureTransfert(aff.ressourceId, site, aff.dateDebut, aff.dateFin)
+        transfertsCrees.push(aff.ressourceId)
+      } catch (error: any) {
+        console.error(`[planning.api] Erreur transfert pour ${aff.ressourceId} (récupération depuis base):`, error)
+        erreursTransferts.push({ ressourceId: aff.ressourceId, error: error as Error })
+      }
     }
+  }
+  
+  // Loguer un résumé des transferts
+  if (transfertsCrees.length > 0) {
+    console.log(`[planning.api] ${transfertsCrees.length} transfert(s) créé(s)/étendu(s) avec succès`)
+  }
+  if (erreursTransferts.length > 0) {
+    console.error(`[planning.api] ${erreursTransferts.length} erreur(s) lors de la création des transferts`)
   }
 
   // Préparer les données d'insertion
