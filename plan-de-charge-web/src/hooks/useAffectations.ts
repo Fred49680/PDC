@@ -78,7 +78,9 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
         created_at: a.created_at ? new Date(a.created_at) : new Date(),
         updated_at: a.updated_at ? new Date(a.updated_at) : new Date(),
-      })) as Affectation[]
+        affaire_id_display: a.affaires?.affaire_id || null,
+        compte: a.affaires?.compte || null,
+      })) as any[]
 
       setAffectations(affectationsAvecDates)
     } catch (err) {
