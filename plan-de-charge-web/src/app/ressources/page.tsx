@@ -8,7 +8,7 @@ import { useInterims } from '@/hooks/useInterims'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Users, Plus, Trash2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter, Briefcase, RefreshCw, Calendar, User, Building2, Clock, AlertTriangle } from 'lucide-react'
+import { Users, Plus, Trash2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter, Briefcase, RefreshCw, Calendar, User, Building2, Clock, AlertTriangle, MapPin } from 'lucide-react'
 import type { Interim } from '@/types/interims'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import type { Site } from '@/types/sites'
@@ -1780,121 +1780,148 @@ function InterimsManagement({
 
   return (
     <div className="space-y-6">
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-blue-600 font-medium">Total</p>
-                <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
-              </div>
-              <Briefcase className="w-8 h-8 text-blue-500" />
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-yellow-600 font-medium">À renouveler</p>
-                <p className="text-2xl font-bold text-yellow-800">{stats.aRenouveler}</p>
-              </div>
-              <AlertTriangle className="w-8 h-8 text-yellow-500" />
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-green-600 font-medium">Renouvelés</p>
-                <p className="text-2xl font-bold text-green-800">{stats.renouveles}</p>
-              </div>
-              <CheckCircle2 className="w-8 h-8 text-green-500" />
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-orange-600 font-medium">Expirent bientôt</p>
-                <p className="text-2xl font-bold text-orange-800">{stats.expirentBientot}</p>
-              </div>
-              <Clock className="w-8 h-8 text-orange-500" />
-            </div>
-          </CardHeader>
-        </Card>
+      {/* En-tête moderne */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-xl">
+            <Briefcase className="w-9 h-9 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+              Gestion des Intérims
+            </h1>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
+              {stats.total} intérim(s) au total • {stats.aRenouveler} à renouveler •{' '}
+              {stats.renouveles} renouvelé(s) • {stats.expirentBientot} expirent bientôt
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Actions et filtres */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
-                type="text"
-                placeholder="Rechercher par nom de ressource..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full"
-              />
+      {/* Statistiques - Vignettes sur une ligne */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-blue-600 font-medium leading-tight">Total</p>
+              <p className="text-base font-bold text-blue-800 leading-tight">{stats.total}</p>
             </div>
-            <Select
-              value={filters.site}
-              onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-              className="w-full sm:w-48"
-              options={[
-                { value: '', label: 'Tous les sites' },
-                ...sitesList.map((site) => ({
-                  value: site.site,
-                  label: site.site,
-                })),
-              ]}
+            <Briefcase className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-yellow-600 font-medium leading-tight">À renouveler</p>
+              <p className="text-base font-bold text-yellow-800 leading-tight">{stats.aRenouveler}</p>
+            </div>
+            <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-green-600 font-medium leading-tight">Renouvelés</p>
+              <p className="text-base font-bold text-green-800 leading-tight">{stats.renouveles}</p>
+            </div>
+            <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-orange-600 font-medium leading-tight">Expirent bientôt</p>
+              <p className="text-base font-bold text-orange-800 leading-tight">{stats.expirentBientot}</p>
+            </div>
+            <Clock className="w-4 h-4 text-orange-500 flex-shrink-0" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-red-600 font-medium leading-tight">Non renouvelés</p>
+              <p className="text-base font-bold text-red-800 leading-tight">{stats.nonRenouveles}</p>
+            </div>
+            <X className="w-4 h-4 text-red-500 flex-shrink-0" />
+          </div>
+        </div>
+
+        {/* Toggle pour afficher les intérims archivés */}
+        <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 px-4 py-2.5">
+          <span className="text-sm text-gray-600 whitespace-nowrap">Afficher archivés</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showArchived}
+            onClick={() => setShowArchived(!showArchived)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+              showArchived ? 'bg-purple-600' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showArchived ? 'translate-x-6' : 'translate-x-1'
+              }`}
             />
-            <Select
-              value={filters.aRenouveler}
-              onChange={(e) => setFilters({ ...filters, aRenouveler: e.target.value })}
-              className="w-full sm:w-48"
-              options={[
-                { value: '', label: 'Tous les statuts' },
-                { value: 'A renouveler', label: 'À renouveler' },
-                { value: 'Oui', label: 'Renouvelé' },
-                { value: 'Non', label: 'Non renouvelé' },
-              ]}
+          </button>
+        </div>
+      </div>
+
+      {/* Actions et filtres - Ligne compacte */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              type="text"
+              placeholder="Rechercher..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-9 text-sm"
             />
           </div>
-          <div className="flex gap-2 items-center">
-            <Button
-              onClick={() => setShowArchived(!showArchived)}
-              variant={showArchived ? "primary" : "secondary"}
-              className={showArchived 
-                ? "bg-orange-500 hover:bg-orange-600 text-white border-0" 
-                : ""
-              }
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              {showArchived ? 'Masquer archivés' : 'Afficher archivés'}
-            </Button>
+          <Select
+            value={filters.site}
+            onChange={(e) => setFilters({ ...filters, site: e.target.value })}
+            className="w-auto min-w-[140px]"
+            options={[
+              { value: '', label: 'Tous sites' },
+              ...sitesList.map((site) => ({
+                value: site.site,
+                label: site.site,
+              })),
+            ]}
+          />
+          <Select
+            value={filters.aRenouveler}
+            onChange={(e) => setFilters({ ...filters, aRenouveler: e.target.value })}
+            className="w-auto min-w-[140px]"
+            options={[
+              { value: '', label: 'Tous statuts' },
+              { value: 'A renouveler', label: 'À renouveler' },
+              { value: 'Oui', label: 'Renouvelé' },
+              { value: 'Non', label: 'Non renouvelé' },
+            ]}
+          />
+          <div className="flex gap-2 ml-auto">
             {interims.length === 0 && ressourcesETT.length > 0 && (
               <Button
                 onClick={handleInitialiserInterims}
-                className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white"
+                className="bg-purple-500 hover:bg-purple-600 text-white h-9 px-3 text-sm"
               >
-                <Briefcase className="w-4 h-4 mr-2" />
-                Initialiser les intérims ({ressourcesETT.length})
+                <Briefcase className="w-3.5 h-3.5 mr-1.5" />
+                Initialiser ({ressourcesETT.length})
               </Button>
             )}
             <Button
               onClick={handleVerificationManuelle}
-              className="bg-blue-500 hover:bg-blue-600 text-white"
+              className="bg-blue-500 hover:bg-blue-600 text-white h-9 px-3 text-sm"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Vérifier
             </Button>
             <Button
@@ -1911,10 +1938,10 @@ function InterimsManagement({
                 setIsEditing(false)
                 setShowModal(true)
               }}
-              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white h-9 px-3 text-sm"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Nouvel intérim
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Nouveau
             </Button>
           </div>
         </div>
@@ -1923,7 +1950,7 @@ function InterimsManagement({
       {/* Liste des intérims */}
       <div className="space-y-4">
         {interimsFiltres.length === 0 ? (
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8 text-center">
+          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-xl border border-white/20 p-8 text-center">
             <Briefcase className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600 text-lg">Aucun intérim trouvé</p>
           </div>
@@ -1934,112 +1961,86 @@ function InterimsManagement({
             const expireBientot = joursRestants <= 10 && joursRestants >= 0
 
             return (
-              <Card
+              <div
                 key={interim.id}
-                onClick={() => handleEdit(interim)}
-                className={`cursor-pointer hover:shadow-xl transition-all duration-200 ${
-                  estExpire 
-                    ? 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200' 
-                    : expireBientot 
-                    ? 'bg-gradient-to-br from-yellow-50 to-yellow-100/50 border-yellow-200'
-                    : 'bg-white border-gray-200'
+                onClick={(e) => {
+                  // Ne pas ouvrir le modal si on clique sur le bouton de suppression
+                  if ((e.target as HTMLElement).closest('button[data-action="delete"]')) {
+                    return
+                  }
+                  handleEdit(interim)
+                }}
+                className={`bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 hover:shadow-xl hover:bg-white transition-all duration-200 cursor-pointer ${
+                  expireBientot ? 'border-orange-300 bg-orange-50/50' : ''
                 }`}
               >
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-4">
-                    {/* Colonne 1: Avatar et Nom */}
-                    <div className="flex items-center gap-3 min-w-[200px]">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        {interim.ressource?.nom?.charAt(0) || '?'}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-base font-bold text-gray-900 truncate">
-                          {interim.ressource?.nom || 'Ressource inconnue'}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                          <span className="text-xs text-gray-600 truncate">{interim.site}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Colonne 2: Statut Actif */}
-                    {interim.ressource && (
-                      <div className="flex items-center min-w-[100px]">
-                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          interim.ressource.actif 
-                            ? 'bg-green-100 text-green-700 border border-green-200' 
-                            : 'bg-red-100 text-red-700 border border-red-200'
-                        }`}>
-                          <User className="w-3 h-3" />
-                          <span>{interim.ressource.actif ? 'Actif' : 'Inactif'}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Colonne 3: Période du contrat */}
-                    <div className="flex items-center gap-2 min-w-[220px]">
-                      <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500 font-medium">Période</p>
-                        <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Colonne 4: Jours restants */}
-                    <div className="flex items-center gap-2 min-w-[180px]">
-                      <Clock className={`w-4 h-4 flex-shrink-0 ${
-                        estExpire 
-                          ? 'text-red-600' 
-                          : expireBientot 
-                          ? 'text-yellow-600' 
-                          : 'text-gray-600'
-                      }`} />
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500 font-medium">Jours restants</p>
-                        <p className={`text-sm font-bold whitespace-nowrap ${
-                          estExpire 
-                            ? 'text-red-600' 
-                            : expireBientot 
-                            ? 'text-yellow-600' 
-                            : 'text-gray-900'
-                        }`}>
-                          {estExpire 
-                            ? `Expiré ${Math.abs(joursRestants)}j`
-                            : `${joursRestants} jour(s)`
-                          }
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Colonne 5: Statut de renouvellement */}
-                    <div className="flex items-center gap-2 min-w-[140px]">
-                      <span className="text-xs text-gray-500 font-medium">Statut:</span>
-                      <div className={`px-2.5 py-1 rounded-lg border font-semibold text-xs whitespace-nowrap ${getStatutColor(interim.a_renouveler || '')}`}>
-                        {interim.a_renouveler || 'En cours'}
-                      </div>
-                    </div>
-
-                    {/* Colonne 6: Actions (bouton archiver) */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(interim.id, interim.a_renouveler || '')
-                          }}
-                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200 hover:border-orange-300"
-                          title="Archiver l'intérim"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+                <div className="flex items-center gap-4 text-sm">
+                  {/* Statut */}
+                  <div
+                    className={`px-2 py-1 rounded border shrink-0 ${getStatutColor(interim.a_renouveler || '')}`}
+                  >
+                    <span className="text-xs font-semibold">{interim.a_renouveler || 'En cours'}</span>
                   </div>
 
-                  {/* Commentaire si présent (sous la ligne principale) */}
+                  {/* Nom de la ressource */}
+                  <div className="font-bold text-gray-800 min-w-[150px]">
+                    {interim.ressource?.nom || 'Ressource inconnue'}
+                  </div>
+
+                  {/* Site */}
+                  <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
+                    <MapPin className="w-3 h-3" />
+                    <span className="font-semibold">{interim.site}</span>
+                  </div>
+
+                  {/* Dates */}
+                  <div className="flex items-center gap-1 text-gray-600 min-w-[200px]">
+                    <Calendar className="w-3 h-3" />
+                    <span>
+                      {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
+                    </span>
+                  </div>
+
+                  {/* Jours restants */}
+                  <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
+                    <Clock className={`w-3 h-3 ${
+                      estExpire 
+                        ? 'text-red-600' 
+                        : expireBientot 
+                        ? 'text-orange-600' 
+                        : 'text-gray-600'
+                    }`} />
+                    <span className={estExpire ? 'text-red-600 font-semibold' : expireBientot ? 'text-orange-600 font-semibold' : ''}>
+                      {estExpire 
+                        ? `Expiré ${Math.abs(joursRestants)}j`
+                        : `${joursRestants} j. ouvré(s)`
+                      }
+                    </span>
+                  </div>
+
+                  {/* Espace flex pour pousser le contenu */}
+                  <div className="flex-1"></div>
+
+                  {/* Bouton Supprimer/Archiver */}
+                  {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
+                    <button
+                      data-action="delete"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(interim.id, interim.a_renouveler || '')
+                      }}
+                      className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors shrink-0"
+                      title="Archiver l'intérim"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
                   {interim.commentaire && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <p className="text-sm text-gray-600 italic">
