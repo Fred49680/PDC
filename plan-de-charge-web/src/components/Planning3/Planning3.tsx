@@ -27,9 +27,10 @@ interface Planning3Props {
   precision?: Precision
   onRegisterOpenChargeModal?: (fn: () => void) => void // Callback pour enregistrer la fonction d'ouverture du modal
   refreshGrilleChargeRef?: React.MutableRefObject<(() => Promise<void>) | null> // Ref pour appeler le refresh de la grille
+  onModalClose?: () => void // Callback appelé à la fermeture des modals
 }
 
-export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal, refreshGrilleChargeRef }: Planning3Props) {
+export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal, refreshGrilleChargeRef, onModalClose }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
@@ -435,7 +436,13 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           affectations={affectations}
           absences={absences}
           periodesCharge={periodes}
-          onClose={() => setSelectedBesoin(null)}
+          onClose={() => {
+            setSelectedBesoin(null)
+            // Appeler le callback pour reset les champs de sélection d'affaire
+            if (onModalClose) {
+              onModalClose()
+            }
+          }}
           onSuccess={handleAffectationSuccess}
         />
       )}
@@ -449,7 +456,13 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           competences={allCompetences}
           affectations={affectations}
           absences={absences}
-          onClose={() => setBesoinsMasse([])}
+          onClose={() => {
+            setBesoinsMasse([])
+            // Appeler le callback pour reset les champs de sélection d'affaire
+            if (onModalClose) {
+              onModalClose()
+            }
+          }}
           onSuccess={handleAffectationSuccess}
         />
       )}

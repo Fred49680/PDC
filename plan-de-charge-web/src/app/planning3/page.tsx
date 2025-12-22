@@ -413,7 +413,20 @@ export default function Planning3Page() {
         {/* Composant Planning3 (modèle Charge) */}
         {affaireId && site ? (
           <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
-            <Planning3 affaireId={affaireId} site={site} dateDebut={dateDebut} dateFin={dateFin} precision={precision} />
+            <Planning3 
+              affaireId={affaireId} 
+              site={site} 
+              dateDebut={dateDebut} 
+              dateFin={dateFin} 
+              precision={precision}
+              onModalClose={() => {
+                // Reset des champs de sélection d'affaire à la fermeture du modal
+                setAffaireId('')
+                setSite('')
+                setResponsable('')
+                setNumeroCompte('')
+              }}
+            />
           </div>
         ) : (
           <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
