@@ -27,6 +27,7 @@ export default function GanttPage() {
   const [site, setSite] = useState('')
   const [responsable, setResponsable] = useState('')
   const [numeroCompte, setNumeroCompte] = useState('')
+  const [ressourceFilter, setRessourceFilter] = useState('')
   
   // État pour la période
   const [dateDebut, setDateDebut] = useState(startOfMonth(new Date()))
@@ -117,19 +118,24 @@ export default function GanttPage() {
   const [loadingPeriodesSite, setLoadingPeriodesSite] = useState(false)
 
   useEffect(() => {
-    if (viewMode === 'site' && site) {
+    if (viewMode === 'site') {
       const loadPeriodesSite = async () => {
         try {
           setLoadingPeriodesSite(true)
           const { createClient } = await import('@/lib/supabase/client')
           const supabase = createClient()
-          const siteNormalized = site.toUpperCase().trim()
           
-          const { data, error } = await supabase
+          let query = supabase
             .from('periodes_charge')
             .select('*')
-            .eq('site', siteNormalized)
-            .order('date_debut', { ascending: true })
+          
+          // Si un site est sélectionné, filtrer par site, sinon charger tous les sites
+          if (site) {
+            const siteNormalized = site.toUpperCase().trim()
+            query = query.eq('site', siteNormalized)
+          }
+          
+          const { data, error } = await query.order('date_debut', { ascending: true })
 
           if (error) throw error
 
@@ -173,19 +179,24 @@ export default function GanttPage() {
   const [loadingAffectationsSite, setLoadingAffectationsSite] = useState(false)
 
   useEffect(() => {
-    if (viewMode === 'site' && site) {
+    if (viewMode === 'site') {
       const loadAffectationsSite = async () => {
         try {
           setLoadingAffectationsSite(true)
           const { createClient } = await import('@/lib/supabase/client')
           const supabase = createClient()
-          const siteNormalized = site.toUpperCase().trim()
           
-          const { data, error } = await supabase
+          let query = supabase
             .from('affectations')
             .select('*')
-            .eq('site', siteNormalized)
-            .order('date_debut', { ascending: true })
+          
+          // Si un site est sélectionné, filtrer par site, sinon charger tous les sites
+          if (site) {
+            const siteNormalized = site.toUpperCase().trim()
+            query = query.eq('site', siteNormalized)
+          }
+          
+          const { data, error } = await query.order('date_debut', { ascending: true })
 
           if (error) throw error
 
@@ -215,11 +226,19 @@ export default function GanttPage() {
   const affectations = viewMode === 'affaire' ? affectationsAffaire : affectationsSite
   const loadingAffectations = viewMode === 'affaire' ? loadingAffectationsAffaire : loadingAffectationsSite
 
-  // Charger toutes les ressources du site sélectionné
-  const { ressources, loading: loadingRessources } = useRessources({
+  // Charger toutes les ressources (filtrées par site si sélectionné)
+  const { ressources: toutesRessources, loading: loadingRessources } = useRessources({
     site: site || undefined,
     actif: true,
   })
+
+  // Filtrer les ressources selon le filtre ressource
+  const ressources = useMemo(() => {
+    if (!ressourceFilter) return toutesRessources
+    return toutesRessources.filter((r) =>
+      r.nom.toLowerCase().includes(ressourceFilter.toLowerCase())
+    )
+  }, [toutesRessources, ressourceFilter])
 
   // Charger toutes les absences
   const { absences, loading: loadingAbsences } = useAbsences({})
@@ -399,23 +418,37 @@ export default function GanttPage() {
             )}
 
             {viewMode === 'site' && (
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">
-                  Site <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={site}
-                  onChange={(e) => setSite(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
-                >
-                  <option value="">Sélectionner...</option>
-                  {sitesDisponibles.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    Site
+                  </label>
+                  <select
+                    value={site}
+                    onChange={(e) => setSite(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                  >
+                    <option value="">Tous les sites</option>
+                    {sitesDisponibles.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    Filtrer par ressource
+                  </label>
+                  <input
+                    type="text"
+                    value={ressourceFilter}
+                    onChange={(e) => setRessourceFilter(e.target.value)}
+                    placeholder="Rechercher une ressource..."
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                  />
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -561,7 +594,7 @@ export default function GanttPage() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
           </div>
-        ) : (viewMode === 'affaire' && affaireId && site) || (viewMode === 'site' && site) ? (
+        ) : (viewMode === 'affaire' && affaireId && site) || viewMode === 'site' ? (
           <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
             <GanttChart
               periodes={periodesFiltrees}
@@ -585,7 +618,7 @@ export default function GanttPage() {
               <p className="text-amber-800 font-medium">
                 {viewMode === 'affaire'
                   ? 'Veuillez sélectionner une affaire et un site pour afficher le Gantt.'
-                  : 'Veuillez sélectionner un site pour afficher le Gantt.'}
+                  : 'Aucune donnée à afficher pour cette période.'}
               </p>
             </div>
           </div>

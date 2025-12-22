@@ -178,23 +178,51 @@ export function GanttChart({
     let width = 0
 
     if (precision === 'JOUR') {
-      const startIndex = columns.findIndex((col) => isSameDay(col, visibleStart))
-      const endIndex = columns.findIndex((col) => isSameDay(col, visibleEnd))
+      // Trouver la colonne correspondant à la date de début
+      const startIndex = columns.findIndex((col) => {
+        const colDate = new Date(col)
+        colDate.setHours(0, 0, 0, 0)
+        const visibleStartDate = new Date(visibleStart)
+        visibleStartDate.setHours(0, 0, 0, 0)
+        return colDate.getTime() === visibleStartDate.getTime()
+      })
+      
+      // Trouver la colonne correspondant à la date de fin
+      const endIndex = columns.findIndex((col) => {
+        const colDate = new Date(col)
+        colDate.setHours(0, 0, 0, 0)
+        const visibleEndDate = new Date(visibleEnd)
+        visibleEndDate.setHours(0, 0, 0, 0)
+        return colDate.getTime() === visibleEndDate.getTime()
+      })
       
       if (startIndex >= 0 && endIndex >= 0) {
         left = startIndex * columnWidth
         width = (endIndex - startIndex + 1) * columnWidth
+      } else if (startIndex >= 0) {
+        // Si on trouve seulement le début, utiliser la largeur minimale
+        left = startIndex * columnWidth
+        width = columnWidth
       }
     } else if (precision === 'SEMAINE') {
       const startWeek = startOfWeek(visibleStart, { weekStartsOn: 1 })
       const endWeek = endOfWeek(visibleEnd, { weekStartsOn: 1 })
       
-      const startIndex = columns.findIndex((col) => isSameDay(col, startWeek))
-      const endIndex = columns.findIndex((col) => isSameDay(col, endWeek))
+      const startIndex = columns.findIndex((col) => {
+        const colWeek = startOfWeek(col, { weekStartsOn: 1 })
+        return colWeek.getTime() === startWeek.getTime()
+      })
+      const endIndex = columns.findIndex((col) => {
+        const colWeek = startOfWeek(col, { weekStartsOn: 1 })
+        return colWeek.getTime() === endWeek.getTime()
+      })
       
       if (startIndex >= 0 && endIndex >= 0) {
         left = startIndex * columnWidth
         width = (endIndex - startIndex + 1) * columnWidth
+      } else if (startIndex >= 0) {
+        left = startIndex * columnWidth
+        width = columnWidth
       }
     } else {
       const startMonth = new Date(visibleStart.getFullYear(), visibleStart.getMonth(), 1)
@@ -210,14 +238,33 @@ export function GanttChart({
       if (startIndex >= 0 && endIndex >= 0) {
         left = startIndex * columnWidth
         width = (endIndex - startIndex + 1) * columnWidth
+      } else if (startIndex >= 0) {
+        left = startIndex * columnWidth
+        width = columnWidth
       }
     }
 
     return { left, width: Math.max(width, columnWidth) }
   }
 
-  // Filtrer les ressources à afficher (seulement celles avec des affectations/absences)
+  // Filtrer les ressources à afficher
+  // Si des ressources sont fournies (filtrées), les utiliser, sinon afficher celles avec des affectations/absences
   const ressourcesAffichees = useMemo(() => {
+    // Si des ressources sont déjà filtrées (via le filtre ressource), les utiliser
+    if (ressources.length > 0) {
+      const ressourceIds = new Set<string>()
+      
+      bars.forEach((bar) => {
+        if (bar.ressourceId) {
+          ressourceIds.add(bar.ressourceId)
+        }
+      })
+
+      // Retourner les ressources filtrées qui ont des barres
+      return ressources.filter((r) => ressourceIds.has(r.id))
+    }
+    
+    // Sinon, afficher toutes les ressources avec des affectations/absences
     const ressourceIds = new Set<string>()
     
     bars.forEach((bar) => {
