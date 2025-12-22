@@ -281,7 +281,7 @@ export function GanttChart({
       <div className="min-w-full">
         {/* En-tête avec les dates */}
         <div className="flex border-b-2 border-gray-300 sticky top-0 bg-white z-10">
-          <div className="w-64 p-3 font-semibold text-gray-700 border-r-2 border-gray-300 bg-gray-50">
+          <div className="min-w-[200px] max-w-[400px] p-3 font-semibold text-gray-700 border-r-2 border-gray-300 bg-gray-50">
             {viewMode === 'affaire' ? 'Ressource / Compétence' : 'Affaire / Ressource'}
           </div>
           <div className="flex-1 flex">
@@ -344,9 +344,9 @@ export function GanttChart({
                 <div key={ressource.id} className="border-b border-gray-200">
                   <div className="flex items-center relative h-16">
                     {/* Label ressource */}
-                    <div className="w-64 p-3 font-medium text-gray-800 border-r-2 border-gray-300 bg-gray-50 flex-shrink-0">
-                      <div className="font-semibold">{ressource.nom}</div>
-                      <div className="text-xs text-gray-500">{ressource.site}</div>
+                    <div className="min-w-[200px] max-w-[400px] p-3 font-medium text-gray-800 border-r-2 border-gray-300 bg-gray-50 flex-shrink-0">
+                      <div className="font-semibold whitespace-nowrap">{ressource.nom}</div>
+                      <div className="text-xs text-gray-500 whitespace-nowrap">{ressource.site}</div>
                     </div>
 
                     {/* Zone des barres */}
