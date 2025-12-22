@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Target, CheckSquare, Square } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { Target, CheckSquare, Square, ChevronDown, ChevronUp } from 'lucide-react'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { BesoinCard } from './BesoinCard'
-import { grouperBesoinsParCompetence } from '@/utils/planning/planning.compute'
+import { grouperBesoinsParCompetence, getStatutIndicateur } from '@/utils/planning/planning.compute'
 
 interface BesoinsListProps {
   besoins: BesoinPeriode[]
@@ -20,6 +20,52 @@ export function BesoinsList({
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedBesoins, setSelectedBesoins] = useState<Set<string>>(new Set())
   const besoinsParCompetence = grouperBesoinsParCompetence(besoins)
+  
+  // État pour gérer l'expansion/réduction de chaque compétence (par défaut toutes réduites)
+  const [expandedCompetences, setExpandedCompetences] = useState<Set<string>>(new Set())
+  
+  // Calculer le statut global de chaque compétence
+  const statutParCompetence = useMemo(() => {
+    const statuts = new Map<string, 'ok' | 'sous-affecte' | 'sur-affecte'>()
+    besoinsParCompetence.forEach((periodes, competence) => {
+      // Si toutes les périodes sont OK, le statut global est OK
+      const tousOk = periodes.every((p) => {
+        const statut = getStatutIndicateur(p.couverture)
+        return statut.status === 'ok'
+      })
+      if (tousOk) {
+        statuts.set(competence, 'ok')
+      } else {
+        // Sinon, on vérifie s'il y a au moins un sur-affecté ou sous-affecté
+        const aSurAffecte = periodes.some((p) => {
+          const statut = getStatutIndicateur(p.couverture)
+          return statut.status === 'sur-affecte'
+        })
+        const aSousAffecte = periodes.some((p) => {
+          const statut = getStatutIndicateur(p.couverture)
+          return statut.status === 'sous-affecte'
+        })
+        if (aSurAffecte) {
+          statuts.set(competence, 'sur-affecte')
+        } else if (aSousAffecte) {
+          statuts.set(competence, 'sous-affecte')
+        }
+      }
+    })
+    return statuts
+  }, [besoinsParCompetence])
+  
+  const toggleCompetence = (competence: string) => {
+    setExpandedCompetences((prev) => {
+      const next = new Set(prev)
+      if (next.has(competence)) {
+        next.delete(competence)
+      } else {
+        next.add(competence)
+      }
+      return next
+    })
+  }
 
   const handleToggleSelect = (besoin: BesoinPeriode) => {
     setSelectedBesoins((prev) => {
@@ -125,28 +171,64 @@ export function BesoinsList({
         </div>
       )}
 
-      {Array.from(besoinsParCompetence.entries()).map(([competence, periodes]) => (
-        <div key={competence} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-200/50">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-            <h3 className="text-xl font-bold text-gray-800">{competence}</h3>
-          </div>
+      {Array.from(besoinsParCompetence.entries()).map(([competence, periodes]) => {
+        const isExpanded = expandedCompetences.has(competence)
+        const statutGlobal = statutParCompetence.get(competence)
+        const isOk = statutGlobal === 'ok'
+        
+        return (
+          <div key={competence} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 overflow-hidden">
+            {/* En-tête avec nom, statut et flèche */}
+            <div 
+              className="flex items-center gap-3 p-6 cursor-pointer hover:bg-gray-50/50 transition-colors"
+              onClick={() => toggleCompetence(competence)}
+            >
+              <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full flex-shrink-0"></div>
+              <div className="flex items-center gap-3 flex-1">
+                <h3 className="text-xl font-bold text-gray-800">{competence}</h3>
+                {isOk && (
+                  <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    OK
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleCompetence(competence)
+                }}
+                className="p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                aria-label={isExpanded ? 'Réduire' : 'Développer'}
+              >
+                {isExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-600" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-600" />
+                )}
+              </button>
+            </div>
 
-          {/* Grille de tuiles : 5 par ligne */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {periodes.map((besoin) => (
-              <BesoinCard
-                key={besoin.id}
-                besoin={besoin}
-                onAffecter={onAffecter}
-                isSelectionMode={isSelectionMode}
-                isSelected={selectedBesoins.has(besoin.id)}
-                onToggleSelect={handleToggleSelect}
-              />
-            ))}
+            {/* Contenu (grille de tuiles) - affiché seulement si expandé */}
+            {isExpanded && (
+              <div className="px-6 pb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {periodes.map((besoin) => (
+                    <BesoinCard
+                      key={besoin.id}
+                      besoin={besoin}
+                      onAffecter={onAffecter}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedBesoins.has(besoin.id)}
+                      onToggleSelect={handleToggleSelect}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
