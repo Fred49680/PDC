@@ -151,6 +151,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
 
   // Réinitialiser la position quand le modal s'ouvre
   // Note: Ce useEffect est nécessaire pour synchroniser la position avec l'état d'ouverture
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (isOpen) {
       setPosition({ x: 0, y: 0 })
