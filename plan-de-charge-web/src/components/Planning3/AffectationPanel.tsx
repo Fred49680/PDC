@@ -5,6 +5,7 @@ import { X, Users, CheckCircle2, AlertCircle, XCircle, MapPin, AlertTriangle } f
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { getISOWeek, getISOYear } from '@/utils/calendar'
+import { isWeekend } from 'date-fns'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import type { RessourceCandidat } from '@/utils/planning/planning.compute'
 import { getRessourcesCandidates } from '@/utils/planning/planning.compute'
@@ -239,6 +240,7 @@ export function AffectationPanel({
   }, [ressourcesDejaAffectees])
 
   // Calculer les besoins par compétence pour la période
+  // IMPORTANT : Exclure les week-ends sauf si force_weekend_ferie = true
   const besoinsParCompetence = useMemo(() => {
     if (!besoin || !periodesCharge || periodesCharge.length === 0) return new Map<string, number>()
     
@@ -246,12 +248,21 @@ export function AffectationPanel({
     const besoinDateDebut = normalizeDateToUTC(besoin.dateDebut)
     const besoinDateFin = normalizeDateToUTC(besoin.dateFin)
     
+    // Vérifier si le besoin est sur un week-end (date début ET date fin sont des week-ends)
+    const besoinIsWeekend = isWeekend(besoinDateDebut) && isWeekend(besoinDateFin)
+    
     periodesCharge.forEach((periode: PeriodeCharge) => {
       const periodeDateDebut = normalizeDateToUTC(new Date(periode.date_debut))
       const periodeDateFin = normalizeDateToUTC(new Date(periode.date_fin))
       
       // Vérifier si la période chevauche avec le besoin
       if (periodeDateDebut <= besoinDateFin && periodeDateFin >= besoinDateDebut) {
+        // Si le besoin est sur un week-end, ne compter que si la période a force_weekend_ferie = true
+        if (besoinIsWeekend && !periode.force_weekend_ferie) {
+          // Le besoin est sur un week-end et la période n'est pas forcée, ne pas l'inclure
+          return
+        }
+        
         const competence = periode.competence
         const nbRessources = periode.nb_ressources || 0
         const current = besoins.get(competence) || 0
