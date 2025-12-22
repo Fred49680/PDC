@@ -116,28 +116,6 @@ export function Planning3({ affaireId, site }: Planning3Props) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleModifier = (_besoin: BesoinPeriode) => {
-    // TODO: Implémenter la modification
-    addToast('Fonctionnalité de modification à venir', 'info')
-  }
-
-  const handleSupprimer = (besoin: BesoinPeriode) => {
-    setBesoinToDelete(besoin)
-  }
-
-  const confirmDelete = async () => {
-    if (!besoinToDelete) return
-
-    try {
-      await deletePeriode(besoinToDelete.id)
-      addToast('Besoin supprimé avec succès', 'success')
-      setBesoinToDelete(null)
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression'
-      addToast(errorMessage, 'error')
-    }
-  }
 
   const handleAffectationSuccess = async () => {
     refreshAffectations()
@@ -211,15 +189,6 @@ export function Planning3({ affaireId, site }: Planning3Props) {
         />
       )}
 
-      {besoinToDelete && (
-        <ConfirmDialog
-          isOpen={true}
-          title="Supprimer le besoin"
-          message={`Êtes-vous sûr de vouloir supprimer ce besoin pour la compétence "${besoinToDelete.competence}" ?`}
-          onConfirm={confirmDelete}
-          onCancel={() => setBesoinToDelete(null)}
-        />
-      )}
     </>
   )
 }
