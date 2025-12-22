@@ -538,10 +538,9 @@ export default function GanttPage() {
         {/* Navigation et paramètres de période - Même sélection que BesoinsGrid */}
         <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
           <div className="flex items-center gap-4 flex-wrap">
-            {/* Sélection de précision - Style segmented control */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <label className="text-sm font-semibold text-gray-700">Précision:</label>
-              <div className="inline-flex bg-gray-200 rounded-lg p-1 gap-1">
+              {/* Sélection de précision - Style segmented control */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="inline-flex bg-gray-200 rounded-lg p-1 gap-1">
                 <button
                   onClick={() => {
                     const newPrecision: Precision = 'JOUR'
