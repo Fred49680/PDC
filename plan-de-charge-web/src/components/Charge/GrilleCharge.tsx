@@ -550,8 +550,8 @@ export function GrilleCharge({
       {/* Boutons au-dessus du tableau si showButtonsAbove est true */}
       {showButtonsAbove && (
         <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
-          {precisionButtons}
           {actionButtons}
+          {precisionButtons}
         </div>
       )}
 
