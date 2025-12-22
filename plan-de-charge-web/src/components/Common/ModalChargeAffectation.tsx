@@ -155,7 +155,6 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     if (isOpen) {
       setPosition({ x: 0, y: 0 })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
   if (!isOpen) return null
