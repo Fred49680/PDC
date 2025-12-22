@@ -281,10 +281,10 @@ export function AffectationPanel({
   // - Disponibles du même site (selectable && !necessiteTransfert) - EXCLURE celles déjà affectées
   // - Disponibles nécessitant transfert (selectable && necessiteTransfert) - EXCLURE celles déjà affectées
   // - Indisponibles (absents ou en conflit) - non sélectionnables, mais uniquement celles qui ont la compétence
-  const candidatsDisponiblesMemeSite = candidats.filter(
+  const candidatsDisponiblesMemeSiteRaw = candidats.filter(
     (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
   )
-  const candidatsNecessitantTransfert = candidats.filter(
+  const candidatsNecessitantTransfertRaw = candidats.filter(
     (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
   )
   // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
@@ -294,9 +294,47 @@ export function AffectationPanel({
   )
   
   // Ressources avec conflit partiel (affichées dans une section séparée)
-  const candidatsConflitPartiel = candidats.filter(
+  const candidatsConflitPartielRaw = candidats.filter(
     (c) => c.hasConflitPartiel && c.joursDisponibles.length > 0
   )
+
+  // Trier les listes : ressources sélectionnées en premier, puis par ordre alphabétique
+  const candidatsDisponiblesMemeSite = useMemo(() => {
+    const selected = candidatsDisponiblesMemeSiteRaw.filter((c) => selectedIds.has(c.id))
+    const unselected = candidatsDisponiblesMemeSiteRaw.filter((c) => !selectedIds.has(c.id))
+    return [
+      ...selected.sort((a, b) => a.nom.localeCompare(b.nom)),
+      ...unselected.sort((a, b) => a.nom.localeCompare(b.nom)),
+    ]
+  }, [candidatsDisponiblesMemeSiteRaw, selectedIds])
+
+  const candidatsNecessitantTransfert = useMemo(() => {
+    const selected = candidatsNecessitantTransfertRaw.filter((c) => selectedIds.has(c.id))
+    const unselected = candidatsNecessitantTransfertRaw.filter((c) => !selectedIds.has(c.id))
+    return [
+      ...selected.sort((a, b) => a.nom.localeCompare(b.nom)),
+      ...unselected.sort((a, b) => a.nom.localeCompare(b.nom)),
+    ]
+  }, [candidatsNecessitantTransfertRaw, selectedIds])
+
+  const candidatsConflitPartiel = useMemo(() => {
+    const selected = candidatsConflitPartielRaw.filter((c) => selectedIds.has(c.id))
+    const unselected = candidatsConflitPartielRaw.filter((c) => !selectedIds.has(c.id))
+    return [
+      ...selected.sort((a, b) => a.nom.localeCompare(b.nom)),
+      ...unselected.sort((a, b) => a.nom.localeCompare(b.nom)),
+    ]
+  }, [candidatsConflitPartielRaw, selectedIds])
+
+  // Trier les ressources déjà affectées : celles qui restent affectées en premier, puis par ordre alphabétique
+  const ressourcesDejaAffecteesTriees = useMemo(() => {
+    const keepAffected = ressourcesDejaAffectees.filter((r) => !idsToRemove.has(r.affectationId))
+    const toRemove = ressourcesDejaAffectees.filter((r) => idsToRemove.has(r.affectationId))
+    return [
+      ...keepAffected.sort((a, b) => a.nom.localeCompare(b.nom)),
+      ...toRemove.sort((a, b) => a.nom.localeCompare(b.nom)),
+    ]
+  }, [ressourcesDejaAffectees, idsToRemove])
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -360,17 +398,17 @@ export function AffectationPanel({
           )}
 
           {/* Ressources déjà affectées */}
-          {ressourcesDejaAffectees.length > 0 && (
+          {ressourcesDejaAffecteesTriees.length > 0 && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <Users className="w-5 h-5 text-purple-600" />
-                Ressources déjà affectées ({ressourcesDejaAffectees.length})
+                Ressources déjà affectées ({ressourcesDejaAffecteesTriees.length})
               </h3>
               <p className="text-sm text-gray-600 mb-3">
                 Décochez pour désaffecter ces ressources de l&apos;affaire
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {ressourcesDejaAffectees.map((ressource) => {
+                {ressourcesDejaAffecteesTriees.map((ressource) => {
                   const isToRemove = idsToRemove.has(ressource.affectationId)
                   return (
                     <div
