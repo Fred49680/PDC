@@ -24,7 +24,17 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [wasOpen, setWasOpen] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
+  
+  // Réinitialiser la position quand le modal s'ouvre
+  if (isOpen && !wasOpen) {
+    setPosition({ x: 0, y: 0 })
+    setWasOpen(true)
+  }
+  if (!isOpen && wasOpen) {
+    setWasOpen(false)
+  }
 
   // État partagé pour l'affaire
   const [affaireId, setAffaireId] = useState('')
@@ -149,14 +159,6 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     }
   }, [isDragging, dragStart])
 
-  // Réinitialiser la position quand le modal s'ouvre
-  // Note: Ce useEffect est nécessaire pour synchroniser la position avec l'état d'ouverture
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
-    if (isOpen) {
-      setPosition({ x: 0, y: 0 })
-    }
-  }, [isOpen])
 
   if (!isOpen) return null
 
