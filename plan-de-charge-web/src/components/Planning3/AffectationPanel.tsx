@@ -8,7 +8,7 @@ import { getISOWeek, getISOYear } from '@/utils/calendar'
 import { isWeekend } from 'date-fns'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import type { RessourceCandidat } from '@/utils/planning/planning.compute'
-import { getRessourcesCandidates } from '@/utils/planning/planning.compute'
+import { getRessourcesCandidates, getStatutIndicateur } from '@/utils/planning/planning.compute'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import type { Affectation } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
@@ -16,6 +16,7 @@ import type { PeriodeCharge } from '@/types/charge'
 import { useToast } from '@/components/UI/Toast'
 import { applyAffectationsBatch } from '@/utils/planning/planning.api'
 import { normalizeDateToUTC } from '@/utils/calendar'
+import { addDays, subDays, isBefore, isAfter } from 'date-fns'
 
 interface AffectationPanelProps {
   besoin: BesoinPeriode | null
@@ -46,7 +47,9 @@ export function AffectationPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [idsToRemove, setIdsToRemove] = useState<Set<string>>(new Set()) // IDs des affectations à supprimer
   const [selectedPeriodes, setSelectedPeriodes] = useState<Map<string, { dateDebut: Date; dateFin: Date }>>(new Map()) // Périodes partielles par ressource
+  const [modifiedPeriodes, setModifiedPeriodes] = useState<Map<string, { dateDebut: Date; dateFin: Date }>>(new Map()) // Périodes modifiées pour les affectations existantes (par affectationId)
   const [showPeriodSelector, setShowPeriodSelector] = useState<string | null>(null) // ID de la ressource pour laquelle afficher le sélecteur
+  const [showPeriodModifier, setShowPeriodModifier] = useState<string | null>(null) // ID de l'affectation pour laquelle afficher le modificateur
   const [loading, setLoading] = useState(false)
   const [showConfirmSurplus, setShowConfirmSurplus] = useState(false)
   const { addToast } = useToast()
@@ -107,6 +110,15 @@ export function AffectationPanel({
     setShowPeriodSelector(null)
   }
 
+  const handleModifyPeriodeExistante = (affectationId: string, dateDebut: Date, dateFin: Date) => {
+    setModifiedPeriodes((prev) => {
+      const next = new Map(prev)
+      next.set(affectationId, { dateDebut, dateFin })
+      return next
+    })
+    setShowPeriodModifier(null)
+  }
+
   const handleAffecterJoursDisponibles = (ressourceId: string) => {
     const candidat = candidats.find((c) => c.id === ressourceId)
     if (!candidat || candidat.joursDisponibles.length === 0) return
@@ -124,8 +136,8 @@ export function AffectationPanel({
   }
 
   const handleValider = async (forceConfirm = false) => {
-    if (!besoin || (selectedIds.size === 0 && idsToRemove.size === 0)) {
-      addToast('Veuillez sélectionner au moins une ressource ou en désélectionner une', 'error')
+    if (!besoin || (selectedIds.size === 0 && idsToRemove.size === 0 && modifiedPeriodes.size === 0)) {
+      addToast('Veuillez sélectionner au moins une ressource, en désélectionner une ou modifier une période', 'error')
       return
     }
 
@@ -137,12 +149,95 @@ export function AffectationPanel({
 
     setLoading(true)
     try {
-      // Supprimer les affectations désélectionnées
-      if (idsToRemove.size > 0) {
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        
-        for (const affectationId of idsToRemove) {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      // Traiter les affectations modifiées (périodes cassées)
+      for (const [affectationId, nouvellePeriode] of modifiedPeriodes.entries()) {
+        const affectationOriginale = affectations.find((aff) => aff.id === affectationId)
+        if (!affectationOriginale) continue
+
+        const dateDebutOrig = new Date(affectationOriginale.date_debut)
+        const dateFinOrig = new Date(affectationOriginale.date_fin)
+        const dateDebutNouv = new Date(nouvellePeriode.dateDebut)
+        const dateFinNouv = new Date(nouvellePeriode.dateFin)
+
+        // Supprimer l'affectation originale
+        const { error: deleteError } = await supabase
+          .from('affectations')
+          .delete()
+          .eq('id', affectationId)
+        if (deleteError) {
+          console.error('Erreur suppression affectation:', deleteError)
+          throw new Error(`Erreur lors de la suppression: ${deleteError.message}`)
+        }
+
+        // Créer les nouvelles affectations (casser en deux si nécessaire)
+        const affectationsACreer: Array<{
+          ressourceId: string
+          competence: string
+          dateDebut: Date
+          dateFin: Date
+          charge: number
+        }> = []
+
+        // Période avant (si elle existe et est valide)
+        if (isBefore(dateDebutOrig, dateDebutNouv)) {
+          const dateFinAvant = subDays(dateDebutNouv, 1)
+          if (!isAfter(dateDebutOrig, dateFinAvant)) {
+            affectationsACreer.push({
+              ressourceId: affectationOriginale.ressource_id,
+              competence: affectationOriginale.competence,
+              dateDebut: dateDebutOrig,
+              dateFin: dateFinAvant,
+              charge: affectationOriginale.charge,
+            })
+          }
+        }
+
+        // Période modifiée (si elle est valide)
+        if (!isAfter(dateDebutNouv, dateFinNouv)) {
+          affectationsACreer.push({
+            ressourceId: affectationOriginale.ressource_id,
+            competence: affectationOriginale.competence,
+            dateDebut: dateDebutNouv,
+            dateFin: dateFinNouv,
+            charge: affectationOriginale.charge,
+          })
+        }
+
+        // Période après (si elle existe et est valide)
+        if (isAfter(dateFinOrig, dateFinNouv)) {
+          const dateDebutApres = addDays(dateFinNouv, 1)
+          if (!isAfter(dateDebutApres, dateFinOrig)) {
+            affectationsACreer.push({
+              ressourceId: affectationOriginale.ressource_id,
+              competence: affectationOriginale.competence,
+              dateDebut: dateDebutApres,
+              dateFin: dateFinOrig,
+              charge: affectationOriginale.charge,
+            })
+          }
+        }
+
+        // Créer les nouvelles affectations
+        if (affectationsACreer.length > 0) {
+          const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
+          await applyAffectationsBatch(
+            affaireId,
+            besoin.site,
+            affectationsACreer,
+            ressourcesMap
+          )
+        }
+      }
+
+      // Supprimer les affectations désélectionnées (qui ne sont pas modifiées)
+      const idsToRemoveFinal = Array.from(idsToRemove).filter(
+        (id) => !modifiedPeriodes.has(id)
+      )
+      if (idsToRemoveFinal.length > 0) {
+        for (const affectationId of idsToRemoveFinal) {
           const { error } = await supabase.from('affectations').delete().eq('id', affectationId)
           if (error) {
             console.error('Erreur suppression affectation:', error)
@@ -215,6 +310,10 @@ export function AffectationPanel({
       let message = ''
       if (selectedIds.size > 0) {
         message += `${selectedIds.size} ressource(s) affectée(s)`
+      }
+      if (modifiedPeriodes.size > 0) {
+        if (message) message += ' • '
+        message += `${modifiedPeriodes.size} période(s) modifiée(s)`
       }
       if (idsToRemove.size > 0) {
         if (message) message += ' • '
@@ -460,16 +559,33 @@ export function AffectationPanel({
             <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Besoins en charge pour la période</h3>
               <div className="space-y-1">
-                {Array.from(besoinsParCompetence.entries()).map(([competence, nbRessources]) => (
-                  <div key={competence} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">{competence}:</span>
-                    <span className={`font-medium ${
-                      competence === besoin.competence ? 'text-blue-600' : 'text-gray-800'
-                    }`}>
-                      {nbRessources} ressource{nbRessources > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                ))}
+                {Array.from(besoinsParCompetence.entries()).map(([competence, nbRessources]) => {
+                  // Calculer la couverture pour cette compétence
+                  const affectationsCompetence = affectations.filter(
+                    (aff) => aff.competence === competence &&
+                      aff.date_debut <= besoin.dateFin &&
+                      aff.date_fin >= besoin.dateDebut
+                  )
+                  const affecte = affectationsCompetence.length
+                  const manque = Math.max(0, nbRessources - affecte)
+                  const surplus = Math.max(0, affecte - nbRessources)
+                  const couverture = { affecte, manque, surplus }
+                  const statut = getStatutIndicateur(couverture)
+                  
+                  return (
+                    <div key={competence} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-base ${statut.color}`}>{statut.emoji}</span>
+                        <span className="text-gray-600">{competence}:</span>
+                      </div>
+                      <span className={`font-medium ${
+                        competence === besoin.competence ? 'text-blue-600' : 'text-gray-800'
+                      }`}>
+                        {nbRessources} ressource{nbRessources > 1 ? 's' : ''} ({affecte} affectée{affecte > 1 ? 's' : ''})
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 Période: {format(besoin.dateDebut, 'dd/MM/yyyy', { locale: fr })} → {format(besoin.dateFin, 'dd/MM/yyyy', { locale: fr })}
@@ -544,6 +660,63 @@ export function AffectationPanel({
                               (S{String(getISOWeek(ressource.dateDebut)).padStart(2, '0')}-{getISOYear(ressource.dateDebut)})
                             </span>
                           </p>
+                          {!isToRemove && (
+                            <div className="mt-2 space-y-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setShowPeriodModifier(showPeriodModifier === ressource.affectationId ? null : ressource.affectationId)
+                                }}
+                                className="w-full text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                              >
+                                {modifiedPeriodes.has(ressource.affectationId)
+                                  ? `Période: ${format(modifiedPeriodes.get(ressource.affectationId)!.dateDebut, 'dd/MM', { locale: fr })} → ${format(modifiedPeriodes.get(ressource.affectationId)!.dateFin, 'dd/MM', { locale: fr })}`
+                                  : 'Modifier période'}
+                              </button>
+                              {showPeriodModifier === ressource.affectationId && (
+                                <div className="mt-1 p-2 bg-white rounded border border-gray-300">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Date début:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      modifiedPeriodes.has(ressource.affectationId)
+                                        ? format(modifiedPeriodes.get(ressource.affectationId)!.dateDebut, 'yyyy-MM-dd')
+                                        : format(ressource.dateDebut, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateDebut = new Date(e.target.value)
+                                      const dateFin = modifiedPeriodes.get(ressource.affectationId)?.dateFin || ressource.dateFin
+                                      handleModifyPeriodeExistante(ressource.affectationId, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                  <label className="block text-xs font-medium text-gray-700 mb-1 mt-1">
+                                    Date fin:
+                                  </label>
+                                  <input
+                                    type="date"
+                                    min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                    max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                    defaultValue={
+                                      modifiedPeriodes.has(ressource.affectationId)
+                                        ? format(modifiedPeriodes.get(ressource.affectationId)!.dateFin, 'yyyy-MM-dd')
+                                        : format(ressource.dateFin, 'yyyy-MM-dd')
+                                    }
+                                    onChange={(e) => {
+                                      const dateFin = new Date(e.target.value)
+                                      const dateDebut = modifiedPeriodes.get(ressource.affectationId)?.dateDebut || ressource.dateDebut
+                                      handleModifyPeriodeExistante(ressource.affectationId, dateDebut, dateFin)
+                                    }}
+                                    className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -967,7 +1140,7 @@ export function AffectationPanel({
           </button>
           <button
             onClick={() => handleValider()}
-            disabled={loading || (selectedIds.size === 0 && idsToRemove.size === 0)}
+            disabled={loading || (selectedIds.size === 0 && idsToRemove.size === 0 && modifiedPeriodes.size === 0)}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
@@ -978,7 +1151,7 @@ export function AffectationPanel({
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Valider ({selectedIds.size > 0 ? `+${selectedIds.size}` : ''}{idsToRemove.size > 0 ? ` -${idsToRemove.size}` : ''})
+                Valider ({selectedIds.size > 0 ? `+${selectedIds.size}` : ''}{modifiedPeriodes.size > 0 ? ` ~${modifiedPeriodes.size}` : ''}{idsToRemove.size > 0 ? ` -${idsToRemove.size}` : ''})
               </>
             )}
           </button>
