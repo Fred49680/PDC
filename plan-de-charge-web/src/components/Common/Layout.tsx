@@ -29,7 +29,6 @@ export function Layout({ children }: LayoutProps) {
     { href: '/', label: 'Accueil', icon: Home, color: 'from-blue-500 to-indigo-600' },
     { href: '/affaires', label: 'Affaires', icon: Building2, color: 'from-indigo-500 to-purple-600' },
     { href: '/ressources', label: 'Ressources', icon: Users, color: 'from-green-500 to-emerald-600' },
-    { href: '/charge', label: 'Charge', icon: BarChart3, color: 'from-blue-500 to-indigo-600' },
     { href: '#', label: 'Planning', icon: Target, color: 'from-purple-500 to-pink-600', isModal: true },
     { href: '/gantt', label: 'Gantt', icon: Activity, color: 'from-cyan-500 to-blue-600' },
     { href: '/absences', label: 'Absences', icon: Calendar, color: 'from-purple-500 to-indigo-600' },
