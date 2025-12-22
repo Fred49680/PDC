@@ -22,6 +22,7 @@ interface BesoinsGridProps {
   dateDebut: Date
   dateFin: Date
   precision: Precision
+  showExternesGlobal?: boolean // Toggle global pour toutes les compétences
 }
 
 interface ColonneDate {
