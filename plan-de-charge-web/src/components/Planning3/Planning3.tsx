@@ -179,6 +179,16 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     return affaireUuidFromDb
   }, [periodes, affaireUuidFromDb])
 
+  // Enregistrer la fonction d'ouverture du modal dans le ref parent
+  useEffect(() => {
+    if (onRegisterOpenChargeModal) {
+      const openModal = () => {
+        setShowChargeMasseModal(true)
+      }
+      onRegisterOpenChargeModal(openModal)
+    }
+  }, [onRegisterOpenChargeModal, setShowChargeMasseModal])
+
   // Note: La consolidation se fait automatiquement via les triggers SQL
   // Plus besoin d'appel manuel qui causait une récursion infinie
 

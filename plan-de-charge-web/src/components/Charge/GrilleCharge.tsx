@@ -3,14 +3,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
 import { createClient } from '@/lib/supabase/client'
-import { businessDaysBetween, formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/calendar'
+import { formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
-import { format, startOfWeek, addDays, addWeeks, startOfMonth, addMonths, endOfMonth } from 'date-fns'
-import { fr } from 'date-fns/locale'
-import { Plus, Calendar } from 'lucide-react'
+import { endOfMonth } from 'date-fns'
+import { Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
-import { useToast } from '@/components/UI/Toast'
 
 interface GrilleChargeProps {
   affaireId: string
@@ -90,19 +88,17 @@ export function GrilleCharge({
   dateDebut,
   dateFin,
   precision,
-  onDateDebutChange,
-  onDateFinChange,
+  onDateDebutChange: _onDateDebutChange,
+  onDateFinChange: _onDateFinChange,
   onPrecisionChange,
   showButtonsAbove = false,
   onOpenChargeModal,
 }: GrilleChargeProps) {
-  const { periodes, loading, error, savePeriode, savePeriodesBatch } = useCharge({
+  const { periodes, loading, error, savePeriode } = useCharge({
     affaireId,
     site,
     enableRealtime: true,
   })
-
-  const { addToast } = useToast()
   const [grille, setGrille] = useState<Map<string, number>>(new Map())
   // État local pour les valeurs en cours de saisie (permet les valeurs vides)
   const [editingValues, setEditingValues] = useState<Map<string, string>>(new Map())
@@ -300,7 +296,7 @@ export function GrilleCharge({
       const mergedGrille = new Map(newGrille)
       
       // Préserver les valeurs de la grille précédente qui sont en cours de sauvegarde
-      pendingSavesRef.current.forEach(({ competence, col, value }, cellKey) => {
+      pendingSavesRef.current.forEach(({ competence, col, value }) => {
         const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
         if (colIndex >= 0) {
           const key = `${competence}|${colIndex}`
