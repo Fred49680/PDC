@@ -641,6 +641,61 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
 
   // Fonction pour sauvegarder plusieurs périodes en lot (batch)
   // Cette fonction désactive les triggers, insère toutes les périodes, puis réactive les triggers et consolide
+  // Fonction pour consolider les périodes : regrouper les jours consécutifs avec la même charge
+  const consoliderPeriodes = (periodes: Array<{
+    competence: string
+    date_debut: string
+    date_fin: string
+    nb_ressources: number
+    force_weekend_ferie: boolean
+  }>): typeof periodes => {
+    if (periodes.length === 0) return []
+
+    // Trier par compétence, puis par date de début
+    const sorted = [...periodes].sort((a, b) => {
+      if (a.competence !== b.competence) {
+        return a.competence.localeCompare(b.competence)
+      }
+      return a.date_debut.localeCompare(b.date_debut)
+    })
+
+    const result: typeof periodes = []
+    let current = { ...sorted[0] }
+
+    for (let i = 1; i < sorted.length; i++) {
+      const next = sorted[i]
+      const currentDateFin = new Date(current.date_fin)
+      const nextDateDebut = new Date(next.date_debut)
+      
+      // Vérifier si on peut fusionner : même compétence, même charge, dates consécutives
+      const canMerge = 
+        current.competence === next.competence &&
+        current.nb_ressources === next.nb_ressources &&
+        current.force_weekend_ferie === next.force_weekend_ferie &&
+        (isSameDay(addDays(currentDateFin, 1), nextDateDebut) || 
+         currentDateFin >= nextDateDebut)
+
+      if (canMerge) {
+        // Fusionner : étendre la date de fin
+        if (nextDateDebut > currentDateFin) {
+          current.date_fin = next.date_fin
+        } else {
+          // Les périodes se chevauchent, prendre la date de fin la plus récente
+          current.date_fin = current.date_fin > next.date_fin ? current.date_fin : next.date_fin
+        }
+      } else {
+        // Nouvelle période : sauvegarder l'ancienne et commencer une nouvelle
+        result.push(current)
+        current = { ...next }
+      }
+    }
+
+    // Ajouter la dernière période
+    result.push(current)
+
+    return result
+  }
+
   const savePeriodesBatch = useCallback(async (periodes: Partial<PeriodeCharge>[]) => {
     try {
       debugLog('[useCharge] ========== DEBUT savePeriodesBatch ==========')
@@ -699,13 +754,16 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         force_weekend_ferie: normalizeBoolean(periode.force_weekend_ferie),
       }))
 
-      debugLog('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesData.slice(0, 3), null, 2), '... (affiche les 3 premières)')
+      // Consolider les périodes : regrouper les jours consécutifs avec la même charge
+      const periodesConsolidees = consoliderPeriodes(periodesData)
+      debugLog(`[useCharge] Consolidation: ${periodesData.length} période(s) -> ${periodesConsolidees.length} période(s) consolidée(s)`)
+      debugLog('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesConsolidees.slice(0, 3), null, 2), '... (affiche les 3 premières)')
 
-      // Diviser les insertions en lots de 100 pour éviter les timeouts
-      const BATCH_SIZE = 100
-      const batches: typeof periodesData[] = []
-      for (let i = 0; i < periodesData.length; i += BATCH_SIZE) {
-        batches.push(periodesData.slice(i, i + BATCH_SIZE))
+      // Diviser les insertions en lots de 50 pour éviter les timeouts (réduit car consolidation déjà faite)
+      const BATCH_SIZE = 50
+      const batches: typeof periodesConsolidees[] = []
+      for (let i = 0; i < periodesConsolidees.length; i += BATCH_SIZE) {
+        batches.push(periodesConsolidees.slice(i, i + BATCH_SIZE))
       }
 
       debugLog(`[useCharge] Insertion en ${batches.length} lot(s) de ${BATCH_SIZE} période(s) maximum`)
