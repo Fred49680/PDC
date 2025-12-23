@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { 
   Building2, Plus, Search, AlertCircle, CheckCircle2, 
-  Eye, EyeOff, FileSpreadsheet, Filter 
+  Eye, EyeOff, FileSpreadsheet, Filter, Trash2 
 } from 'lucide-react'
 import { generateAffaireId, SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
 import { ImportExcel } from '@/components/Affaires/ImportExcel'
@@ -21,8 +21,11 @@ export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
   const [showImport, setShowImport] = useState(false)
-  const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires } = useAffaires()
+  const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires, deleteAffaire } = useAffaires()
   const [activeTab, setActiveTab] = useState<'liste' | 'gestion'>('liste')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [affaireToDelete, setAffaireToDelete] = useState<typeof affaires[0] | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
   
   const [responsable, setResponsable] = useState('')
   const [site, setSite] = useState('')
@@ -291,6 +294,31 @@ export default function AffairesPage() {
     setShowModal(true)
   }
 
+  const handleDeleteClick = (affaire: typeof affaires[0]) => {
+    setAffaireToDelete(affaire)
+    setDeleteConfirmText('')
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmText.trim() !== 'Effacer') {
+      alert('Veuillez taper "Effacer" pour confirmer la suppression')
+      return
+    }
+
+    if (!affaireToDelete) return
+
+    try {
+      await deleteAffaire(affaireToDelete.id)
+      setShowDeleteModal(false)
+      setAffaireToDelete(null)
+      setDeleteConfirmText('')
+    } catch (err: any) {
+      console.error('[AffairesPage] Erreur suppression:', err)
+      alert('Erreur lors de la suppression :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+    }
+  }
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -458,12 +486,13 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Compte</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Budget</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {affaires.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Building2 className="w-12 h-12 text-gray-300" />
                           <p className="text-gray-500 font-medium">Aucune affaire trouvée</p>
@@ -664,6 +693,21 @@ export default function AffairesPage() {
                           ) : (
                             <span>{affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}</span>
                           )}
+                        </td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon={<Trash2 className="w-4 h-4 text-red-600" />}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteClick(affaire)
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Supprimer l'affaire"
+                          >
+                            <span className="hidden sm:inline">Supprimer</span>
+                          </Button>
                         </td>
                       </tr>
                     ))
@@ -934,6 +978,76 @@ export default function AffairesPage() {
                   </Button>
                 </div>
               </form>
+            </Card>
+          </div>
+        )}
+
+        {/* Modal de confirmation de suppression */}
+        {showDeleteModal && affaireToDelete && (
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+            onClick={() => {
+              setShowDeleteModal(false)
+              setAffaireToDelete(null)
+              setDeleteConfirmText('')
+            }}
+          >
+            <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
+              <CardHeader gradient="red" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
+                <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
+              </CardHeader>
+              
+              <div className="p-6 space-y-4">
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                  <p className="text-red-800 font-semibold mb-2">⚠️ Attention : Cette action est irréversible</p>
+                  <p className="text-gray-700 text-sm">
+                    Vous êtes sur le point de supprimer l'affaire :
+                  </p>
+                  <p className="text-gray-900 font-bold mt-2">
+                    {affaireToDelete.affaire_id || affaireToDelete.libelle} - {affaireToDelete.site}
+                  </p>
+                  {affaireToDelete.affaire_id && (
+                    <p className="text-gray-600 text-xs mt-1">
+                      ID: {affaireToDelete.affaire_id}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pour confirmer, tapez <span className="font-bold text-red-600">"Effacer"</span> :
+                  </label>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Effacer"
+                    className="border-2 border-red-300 focus:border-red-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setShowDeleteModal(false)
+                      setAffaireToDelete(null)
+                      setDeleteConfirmText('')
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={<Trash2 className="w-5 h-5" />}
+                    onClick={handleDeleteConfirm}
+                    disabled={deleteConfirmText.trim() !== 'Effacer'}
+                    className="bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Supprimer
+                  </Button>
+                </div>
+              </div>
             </Card>
           </div>
         )}
