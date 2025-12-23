@@ -147,6 +147,64 @@ export function GrilleCharge({
     return result
   }, [affaireUuid, affectations, dateDebut, dateFin])
 
+  // Calculer les affectations par compétence et par colonne (date)
+  const affectationsParCompetenceEtColonne = useMemo(() => {
+    if (!affaireUuid || !affectations) return new Map<string, Map<number, number>>()
+    
+    // Structure: Map<competence, Map<colIndex, Set<ressource_id>>>
+    const tempResult = new Map<string, Map<number, Set<string>>>()
+    
+    affectations.forEach((aff) => {
+      if (!tempResult.has(aff.competence)) {
+        tempResult.set(aff.competence, new Map<number, Set<string>>())
+      }
+      
+      const affDateDebut = normalizeDateToUTC(new Date(aff.date_debut))
+      const affDateFin = normalizeDateToUTC(new Date(aff.date_fin))
+      
+      colonnes.forEach((col, colIndex) => {
+        const colDate = normalizeDateToUTC(col.date)
+        let correspond = false
+        
+        if (precision === 'JOUR') {
+          correspond = affDateDebut <= colDate && affDateFin >= colDate
+        } else if (precision === 'SEMAINE') {
+          if (col.weekStart && col.weekEnd) {
+            const weekStartUTC = normalizeDateToUTC(col.weekStart)
+            const weekEndUTC = normalizeDateToUTC(col.weekEnd)
+            correspond = affDateDebut <= weekEndUTC && affDateFin >= weekStartUTC
+          }
+        } else if (precision === 'MOIS') {
+          if (col.weekStart && col.weekEnd) {
+            const monthStartUTC = normalizeDateToUTC(col.weekStart)
+            const monthEndUTC = normalizeDateToUTC(col.weekEnd)
+            correspond = affDateDebut <= monthEndUTC && affDateFin >= monthStartUTC
+          }
+        }
+        
+        if (correspond) {
+          const competenceMap = tempResult.get(aff.competence)!
+          if (!competenceMap.has(colIndex)) {
+            competenceMap.set(colIndex, new Set<string>())
+          }
+          competenceMap.get(colIndex)!.add(aff.ressource_id)
+        }
+      })
+    })
+    
+    // Convertir les Sets en nombres
+    const result = new Map<string, Map<number, number>>()
+    tempResult.forEach((competenceMap, competence) => {
+      const countMap = new Map<number, number>()
+      competenceMap.forEach((ressourcesSet, colIndex) => {
+        countMap.set(colIndex, ressourcesSet.size)
+      })
+      result.set(competence, countMap)
+    })
+    
+    return result
+  }, [affaireUuid, affectations, colonnes, precision])
+
   // Enregistrer la fonction de refresh dans le parent
   useEffect(() => {
     if (onRegisterRefresh) {
@@ -1095,6 +1153,24 @@ export function GrilleCharge({
                   : (grille.get(cellKey) || 0)
                 return sum + value
               }, 0)
+              
+              // Calculer le total des affectations pour cette colonne
+              let totalAffectees = 0
+              const detailsParCompetence: string[] = []
+              competences.forEach((comp) => {
+                const affectees = affectationsParCompetenceEtColonne.get(comp)?.get(idx) || 0
+                if (affectees > 0) {
+                  totalAffectees += affectees
+                  const charge = grille.get(`${comp}|${idx}`) || 0
+                  detailsParCompetence.push(`${comp}: ${affectees}/${charge > 0 ? charge.toFixed(0) : '0'}`)
+                }
+              })
+              
+              // Créer le tooltip avec les détails par compétence
+              const tooltipText = detailsParCompetence.length > 0
+                ? `Affectées: ${totalAffectees}\n${detailsParCompetence.join('\n')}`
+                : `Affectées: ${totalAffectees}`
+              
               return (
                 <td 
                   key={idx} 
@@ -1103,18 +1179,35 @@ export function GrilleCharge({
                     col.isHoliday ? 'bg-rose-100' :
                     ''
                   }`}
+                  title={tooltipText}
                 >
-                  {totalCol > 0 ? totalCol.toFixed(0) : '-'}
+                  <div className="flex flex-col items-center justify-center gap-0.5">
+                    <div className="text-xs font-normal text-blue-600">
+                      {totalAffectees > 0 ? `${totalAffectees}` : '-'}
+                    </div>
+                    <div className="text-sm font-semibold">
+                      {totalCol > 0 ? totalCol.toFixed(0) : '-'}
+                    </div>
+                  </div>
                 </td>
               )
             })}
             <td className="border-b border-gray-300 px-4 py-3 text-center text-sm font-bold text-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50">
-              {competences.reduce((sum, comp) => {
-                return sum + colonnes.reduce((colSum, col, idx) => {
-                  const cellKey = `${comp}|${idx}`
-                  return colSum + (grille.get(cellKey) || 0)
-                }, 0)
-              }, 0).toFixed(0)}
+              <div className="flex flex-col items-center justify-center gap-0.5">
+                <div className="text-xs font-normal text-blue-600">
+                  {competences.reduce((sum, comp) => {
+                    return sum + (affectationsParCompetence.get(comp) || 0)
+                  }, 0)}
+                </div>
+                <div className="text-sm font-semibold">
+                  {competences.reduce((sum, comp) => {
+                    return sum + colonnes.reduce((colSum, col, idx) => {
+                      const cellKey = `${comp}|${idx}`
+                      return colSum + (grille.get(cellKey) || 0)
+                    }, 0)
+                  }, 0).toFixed(0)}
+                </div>
+              </div>
             </td>
           </tr>
         </tbody>
