@@ -471,8 +471,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           .from('periodes_charge')
           .update(updateDataOnly)
           .eq('id', existingData.id)
-          .select()
-          .single()
+          .select('*')
+          .maybeSingle()
         
         if (updateError) {
           console.error('[useCharge] Étape 9 - ERREUR update:', updateError)
@@ -487,7 +487,18 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         }
         
         debugLog('[useCharge] Étape 9 - UPDATE réussi, données retournées:', JSON.stringify(updateData, null, 2))
-        data = updateData
+        // Si updateData est null, recharger depuis la base
+        if (!updateData) {
+          const { data: reloadedData, error: reloadError } = await supabase
+            .from('periodes_charge')
+            .select('*')
+            .eq('id', existingData.id)
+            .maybeSingle()
+          if (reloadError) throw reloadError
+          data = reloadedData || existingData as PeriodeChargeRaw
+        } else {
+          data = updateData
+        }
       } else {
         // Nouvel enregistrement : INSERT
         // Le site est déjà normalisé dans periodeDataClean.site

@@ -898,8 +898,12 @@ export function GrilleCharge({
                         }}
                         onWheel={(e) => {
                           // Empêcher le comportement par défaut de la molette
-                          e.preventDefault()
-                          e.currentTarget.blur()
+                          // Note: preventDefault peut causer une erreur avec les listeners passifs
+                          // On utilise une approche alternative avec stopPropagation
+                          if (e.currentTarget === document.activeElement) {
+                            e.stopPropagation()
+                            e.currentTarget.blur()
+                          }
                           
                           // Calculer la nouvelle valeur en fonction du delta de la molette
                           const delta = e.deltaY > 0 ? -1 : 1
