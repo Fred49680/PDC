@@ -106,12 +106,36 @@ export function GrilleCharge({
   })
 
   // Obtenir l'UUID de l'affaire pour charger les affectations
-  const affaireUuid = useMemo<string | undefined>(() => {
-    if (periodes.length > 0 && periodes[0].affaire_id) {
-      return periodes[0].affaire_id
+  const [affaireUuid, setAffaireUuid] = useState<string | undefined>(undefined)
+  
+  useEffect(() => {
+    const loadAffaireUuid = async () => {
+      // Si on a déjà l'UUID depuis les périodes, l'utiliser
+      if (periodes.length > 0 && periodes[0].affaire_id) {
+        setAffaireUuid(periodes[0].affaire_id)
+        return
+      }
+      
+      // Sinon, récupérer l'UUID depuis la base de données
+      try {
+        const supabase = createClient()
+        const { data: affaireData } = await supabase
+          .from('affaires')
+          .select('id')
+          .eq('affaire_id', affaireId)
+          .eq('site', site)
+          .maybeSingle()
+        
+        if (affaireData) {
+          setAffaireUuid(affaireData.id)
+        }
+      } catch (err) {
+        console.error('[GrilleCharge] Erreur chargement UUID affaire:', err)
+      }
     }
-    return undefined
-  }, [periodes])
+    
+    loadAffaireUuid()
+  }, [affaireId, site, periodes])
 
   // Charger les affectations pour cette affaire
   const affectationsOptions: UseAffectationsOptions = {
@@ -290,12 +314,16 @@ export function GrilleCharge({
 
   // Calculer les affectations par compétence et par colonne (date)
   const affectationsParCompetenceEtColonne = useMemo(() => {
-    if (!affaireUuid || !affectations) return new Map<string, Map<number, number>>()
+    if (!affaireUuid || !affectations || affectations.length === 0) {
+      return new Map<string, Map<number, number>>()
+    }
     
     // Structure: Map<competence, Map<colIndex, Set<ressource_id>>>
     const tempResult = new Map<string, Map<number, Set<string>>>()
     
     affectations.forEach((aff) => {
+      if (!aff.competence) return // Ignorer les affectations sans compétence
+      
       if (!tempResult.has(aff.competence)) {
         tempResult.set(aff.competence, new Map<number, Set<string>>())
       }
@@ -1154,12 +1182,16 @@ export function GrilleCharge({
               }, 0)
               
               // Calculer le total des affectations pour cette colonne
+              // Parcourir toutes les compétences dans affectationsParCompetenceEtColonne, pas seulement celles de la grille
               let totalAffectees = 0
               const detailsParCompetence: string[] = []
-              competences.forEach((comp) => {
-                const affectees = affectationsParCompetenceEtColonne.get(comp)?.get(idx) || 0
+              
+              // Parcourir toutes les compétences qui ont des affectations
+              affectationsParCompetenceEtColonne.forEach((competenceMap, comp) => {
+                const affectees = competenceMap.get(idx) || 0
                 if (affectees > 0) {
                   totalAffectees += affectees
+                  // Vérifier si cette compétence est dans la grille
                   const charge = grille.get(`${comp}|${idx}`) || 0
                   detailsParCompetence.push(`${comp}: ${affectees}/${charge > 0 ? charge.toFixed(0) : '0'}`)
                 }
