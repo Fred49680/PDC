@@ -4,23 +4,51 @@ import React, { useState, useMemo } from 'react'
 import { Target, CheckSquare, Square, ChevronDown, ChevronUp } from 'lucide-react'
 import type { BesoinPeriode } from '@/utils/planning/planning.compute'
 import { BesoinCard } from './BesoinCard'
-import { grouperBesoinsParCompetence, getStatutIndicateur } from '@/utils/planning/planning.compute'
+import { grouperBesoinsParCompetence, grouperBesoinsParPeriode, getStatutIndicateur } from '@/utils/planning/planning.compute'
+import type { Precision } from '@/types/charge'
 
 interface BesoinsListProps {
   besoins: BesoinPeriode[]
   onAffecter: (besoin: BesoinPeriode) => void
   onAffecterMasse?: (besoins: BesoinPeriode[]) => void
   showExternesGlobal?: boolean // Toggle pour ressources externes
+  precision?: Precision // Précision pour le groupement
+  dateDebut?: Date // Date de début pour le filtrage
+  dateFin?: Date // Date de fin pour le filtrage
 }
 
 export function BesoinsList({ 
   besoins, 
   onAffecter, 
   onAffecterMasse,
-  showExternesGlobal = false
+  showExternesGlobal = false,
+  precision = 'JOUR',
+  dateDebut,
+  dateFin
 }: BesoinsListProps) {
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedBesoins, setSelectedBesoins] = useState<Set<string>>(new Set())
+  
+  // Grouper par période si precision, dateDebut et dateFin sont fournis
+  const besoinsParCompetenceEtPeriode = useMemo(() => {
+    if (precision && dateDebut && dateFin) {
+      return grouperBesoinsParPeriode(besoins, precision, dateDebut, dateFin)
+    }
+    // Sinon, grouper uniquement par compétence
+    const besoinsParCompetence = grouperBesoinsParCompetence(besoins)
+    const result = new Map<string, Array<{ cle: string; label: string; dateDebut: Date; dateFin: Date; besoins: BesoinPeriode[] }>>()
+    besoinsParCompetence.forEach((periodes, competence) => {
+      result.set(competence, [{
+        cle: 'all',
+        label: 'Toutes les périodes',
+        dateDebut: new Date(Math.min(...periodes.map(p => p.dateDebut.getTime()))),
+        dateFin: new Date(Math.max(...periodes.map(p => p.dateFin.getTime()))),
+        besoins: periodes
+      }])
+    })
+    return result
+  }, [besoins, precision, dateDebut, dateFin])
+  
   const besoinsParCompetence = grouperBesoinsParCompetence(besoins)
   
   // État pour gérer l'expansion/réduction de chaque compétence (par défaut toutes réduites)
@@ -173,7 +201,7 @@ export function BesoinsList({
         </div>
       )}
 
-      {Array.from(besoinsParCompetence.entries()).map(([competence, periodes]) => {
+      {Array.from(besoinsParCompetenceEtPeriode.entries()).map(([competence, groupes]) => {
         const isExpanded = expandedCompetences.has(competence)
         const statutGlobal = statutParCompetence.get(competence)
         const isOk = statutGlobal === 'ok'
@@ -211,21 +239,33 @@ export function BesoinsList({
               </button>
             </div>
 
-            {/* Contenu (grille de tuiles) - affiché seulement si expandé */}
+            {/* Contenu (groupes de périodes) - affiché seulement si expandé */}
             {isExpanded && (
-              <div className="px-6 pb-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
-                  {periodes.map((besoin) => (
-                    <BesoinCard
-                      key={besoin.id}
-                      besoin={besoin}
-                      onAffecter={onAffecter}
-                      isSelectionMode={isSelectionMode}
-                      isSelected={selectedBesoins.has(besoin.id)}
-                      onToggleSelect={handleToggleSelect}
-                    />
-                  ))}
-                </div>
+              <div className="px-6 pb-6 space-y-6">
+                {groupes.map((groupe) => (
+                  <div key={`${competence}-${groupe.cle}`} className="space-y-3">
+                    {/* En-tête du groupe de période */}
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                      <h4 className="text-sm font-semibold text-gray-700">{groupe.label}</h4>
+                      <span className="text-xs text-gray-500">
+                        ({groupe.besoins.length} période{groupe.besoins.length > 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    {/* Grille de tuiles pour ce groupe */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+                      {groupe.besoins.map((besoin) => (
+                        <BesoinCard
+                          key={besoin.id}
+                          besoin={besoin}
+                          onAffecter={onAffecter}
+                          isSelectionMode={isSelectionMode}
+                          isSelected={selectedBesoins.has(besoin.id)}
+                          onToggleSelect={handleToggleSelect}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

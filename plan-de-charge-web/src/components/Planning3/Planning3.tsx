@@ -347,7 +347,11 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
         })
       }
       
-      return periodesFiltrees.map((periode) => periodeToBesoin(periode, affectations))
+      // Calculer les besoins avec filtrage par période si dateDebut et dateFin sont fournis
+      return periodesFiltrees.map((periode) => {
+        const periodeFiltre = dateDebut && dateFin ? { dateDebut, dateFin } : undefined
+        return periodeToBesoin(periode, affectations, periodeFiltre)
+      })
     }
     return []
   }, [periodes, affectations, dateDebut, dateFin, recalcKey])
@@ -457,6 +461,9 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           onAffecter={handleAffecter}
           onAffecterMasse={handleAffecterMasse}
           showExternesGlobal={showExternesGlobal}
+          precision={precision}
+          dateDebut={dateDebut}
+          dateFin={dateFin}
         />
       ) : (
         <BesoinsGrid

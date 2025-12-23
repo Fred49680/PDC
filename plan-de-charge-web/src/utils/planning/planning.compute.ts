@@ -7,8 +7,10 @@ import type { PeriodeCharge } from '@/types/charge'
 import type { Affectation } from '@/types/affectations'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import { isDisponible, hasConflitAffaire, isAbsente, getJoursConflits, getJoursAbsences, getJoursDisponibles } from './planning.rules'
-import { businessDaysBetween } from '@/utils/calendar'
+import { businessDaysBetween, getISOWeek, getISOYear } from '@/utils/calendar'
 import type { Absence } from '@/types/absences'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
+import { fr } from 'date-fns/locale'
 
 /**
  * Type pour une période de besoin avec couverture
@@ -48,19 +50,31 @@ export interface RessourceCandidat {
 
 /**
  * Calculer la couverture d'une période de besoin
+ * @param periodeFiltre Optionnel : période de filtrage pour ne compter que les affectations dans cette période
  */
 export function calculerCouverture(
   besoin: PeriodeCharge,
-  affectations: Affectation[]
+  affectations: Affectation[],
+  periodeFiltre?: { dateDebut: Date; dateFin: Date }
 ): BesoinPeriode['couverture'] {
   // Filtrer les affectations qui chevauchent avec la période de besoin
-  const affectationsPeriode = affectations.filter((aff) => {
+  let affectationsPeriode = affectations.filter((aff) => {
     return (
       aff.competence === besoin.competence &&
       aff.date_debut <= besoin.date_fin &&
       aff.date_fin >= besoin.date_debut
     )
   })
+
+  // Si une période de filtrage est fournie, ne compter que les affectations qui chevauchent avec cette période
+  if (periodeFiltre) {
+    affectationsPeriode = affectationsPeriode.filter((aff) => {
+      return (
+        aff.date_debut <= periodeFiltre.dateFin &&
+        aff.date_fin >= periodeFiltre.dateDebut
+      )
+    })
+  }
 
   // Compter le nombre de ressources UNIQUES affectées (pas le nombre d'affectations)
   // Car une même ressource peut avoir plusieurs affectations sur la période
@@ -79,12 +93,14 @@ export function calculerCouverture(
 
 /**
  * Convertir une PeriodeCharge en BesoinPeriode avec couverture
+ * @param periodeFiltre Optionnel : période de filtrage pour ne compter que les affectations dans cette période
  */
 export function periodeToBesoin(
   periode: PeriodeCharge,
-  affectations: Affectation[]
+  affectations: Affectation[],
+  periodeFiltre?: { dateDebut: Date; dateFin: Date }
 ): BesoinPeriode {
-  const couverture = calculerCouverture(periode, affectations)
+  const couverture = calculerCouverture(periode, affectations, periodeFiltre)
 
   return {
     id: periode.id,
@@ -215,5 +231,93 @@ export function getStatutIndicateur(couverture: BesoinPeriode['couverture']): {
     return { status: 'sous-affecte', emoji: '🟠', color: 'text-orange-600' }
   }
   return { status: 'ok', emoji: '🟢', color: 'text-green-600' }
+}
+
+/**
+ * Type pour un groupe de besoins par période
+ */
+export interface GroupeBesoinsPeriode {
+  cle: string // Clé du groupe (ex: "S02-2026", "2026-01")
+  label: string // Label affiché (ex: "Semaine 02 (2026)", "Janvier 2026")
+  dateDebut: Date // Date de début du groupe
+  dateFin: Date // Date de fin du groupe
+  besoins: BesoinPeriode[]
+}
+
+/**
+ * Grouper les besoins par période selon la précision
+ */
+export function grouperBesoinsParPeriode(
+  besoins: BesoinPeriode[],
+  precision: 'JOUR' | 'SEMAINE' | 'MOIS',
+  dateDebut?: Date,
+  dateFin?: Date
+): Map<string, GroupeBesoinsPeriode[]> {
+  
+  // Créer un Map pour grouper par compétence puis par période
+  const groupesParCompetence = new Map<string, Map<string, GroupeBesoinsPeriode>>()
+  
+  besoins.forEach((besoin) => {
+    // Filtrer par date si fourni
+    if (dateDebut && dateFin) {
+      if (besoin.dateFin < dateDebut || besoin.dateDebut > dateFin) {
+        return // Ignorer ce besoin s'il est en dehors de la période
+      }
+    }
+    
+    // Déterminer la clé et le label selon la précision
+    let cle: string
+    let label: string
+    let periodeDebut: Date
+    let periodeFin: Date
+    
+    if (precision === 'MOIS') {
+      // Grouper par mois
+      periodeDebut = startOfMonth(besoin.dateDebut)
+      periodeFin = endOfMonth(besoin.dateDebut)
+      const moisAnnee = format(periodeDebut, 'yyyy-MM', { locale: fr })
+      cle = moisAnnee
+      label = format(periodeDebut, 'MMMM yyyy', { locale: fr })
+    } else {
+      // Grouper par semaine (pour JOUR et SEMAINE)
+      periodeDebut = startOfWeek(besoin.dateDebut, { weekStartsOn: 1 })
+      periodeFin = endOfWeek(besoin.dateDebut, { weekStartsOn: 1 })
+      const semaine = getISOWeek(besoin.dateDebut)
+      const annee = getISOYear(besoin.dateDebut)
+      cle = `S${String(semaine).padStart(2, '0')}-${annee}`
+      label = `Semaine ${String(semaine).padStart(2, '0')} (${annee})`
+    }
+    
+    // Initialiser la structure si nécessaire
+    if (!groupesParCompetence.has(besoin.competence)) {
+      groupesParCompetence.set(besoin.competence, new Map())
+    }
+    
+    const groupesCompetence = groupesParCompetence.get(besoin.competence)!
+    
+    if (!groupesCompetence.has(cle)) {
+      groupesCompetence.set(cle, {
+        cle,
+        label,
+        dateDebut: periodeDebut,
+        dateFin: periodeFin,
+        besoins: [],
+      })
+    }
+    
+    groupesCompetence.get(cle)!.besoins.push(besoin)
+  })
+  
+  // Convertir en Map<string, GroupeBesoinsPeriode[]> (par compétence)
+  const result = new Map<string, GroupeBesoinsPeriode[]>()
+  groupesParCompetence.forEach((groupes, competence) => {
+    // Trier les groupes par date
+    const groupesTries = Array.from(groupes.values()).sort((a, b) => 
+      a.dateDebut.getTime() - b.dateDebut.getTime()
+    )
+    result.set(competence, groupesTries)
+  })
+  
+  return result
 }
 
