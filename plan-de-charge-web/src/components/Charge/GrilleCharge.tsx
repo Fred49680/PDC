@@ -106,19 +106,17 @@ export function GrilleCharge({
   })
 
   // Obtenir l'UUID de l'affaire pour charger les affectations
-  const affaireUuid = useMemo(() => {
+  const affaireUuid = useMemo<string | undefined>(() => {
     if (periodes.length > 0 && periodes[0].affaire_id) {
       return periodes[0].affaire_id
     }
-    return null
+    return undefined
   }, [periodes])
 
   // Charger les affectations pour cette affaire
   const { affectations } = useAffectations({
-    affaireId: affaireUuid || undefined,
+    affaireId: affaireUuid,
     site,
-    dateDebut,
-    dateFin,
     enableRealtime: true,
   })
 
