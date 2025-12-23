@@ -252,11 +252,11 @@ export function BesoinsList({
                       </span>
                     </div>
                     {/* Grille de tuiles pour ce groupe */}
-                    {/* Pour jour/semaine : 5 colonnes max, pour mois : 4 colonnes max */}
+                    {/* Pour jour/semaine : 5 colonnes par ligne (5 semaines), pour mois : 4 colonnes max */}
                     <div className={`grid gap-3 ${
                       precision === 'MOIS' 
                         ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-                        : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                        : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-5'
                     }`}>
                       {groupe.besoins.map((besoin) => (
                         <BesoinCard
