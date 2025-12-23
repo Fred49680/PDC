@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { AlertCircle, Loader2, Grid3x3, LayoutGrid, X, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCharge } from '@/hooks/useCharge'
@@ -61,6 +61,25 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       autoRefresh: true,
       enableRealtime: true,
     })
+
+  // Rafraîchir les affectations quand les périodes changent (pour mettre à jour BesoinsGrid)
+  // Cela permet de synchroniser BesoinsGrid quand GrilleCharge se rafraîchit après l'ajout d'une nouvelle compétence
+  const prevPeriodesLengthRef = useRef(periodes.length)
+  useEffect(() => {
+    // Détecter quand une nouvelle période est ajoutée (nouvelle compétence)
+    if (periodes.length > prevPeriodesLengthRef.current) {
+      // Rafraîchir les affectations pour mettre à jour BesoinsGrid
+      // On utilise un petit délai pour laisser le temps à Realtime de se synchroniser
+      const timeoutId = setTimeout(() => {
+        refreshAffectations()
+        refreshPeriodes() // Forcer aussi le rafraîchissement des périodes pour être sûr
+      }, 300)
+      prevPeriodesLengthRef.current = periodes.length
+      return () => clearTimeout(timeoutId)
+    } else {
+      prevPeriodesLengthRef.current = periodes.length
+    }
+  }, [periodes.length, refreshAffectations, refreshPeriodes])
 
   // Charger TOUTES les ressources actives (pas seulement du site) pour permettre les transferts
   // Le modal AffectationPanel doit pouvoir afficher les ressources d'autres sites

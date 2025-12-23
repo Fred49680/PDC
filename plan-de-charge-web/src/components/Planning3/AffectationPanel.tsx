@@ -521,8 +521,8 @@ export function AffectationPanel({
   if (!besoin) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-0">
-      <div className="bg-white w-full h-full flex flex-col">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-0" style={{ pointerEvents: 'auto' }}>
+      <div className="bg-white w-full h-full flex flex-col" style={{ pointerEvents: 'auto' }}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
           <div>
