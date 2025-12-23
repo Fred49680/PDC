@@ -497,7 +497,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           if (reloadError) throw reloadError
           data = reloadedData || existingData as PeriodeChargeRaw
         } else {
-          data = updateData
+        data = updateData
         }
       } else {
         // Nouvel enregistrement : INSERT
@@ -787,8 +787,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         debugLog(`[useCharge] Traitement du lot ${i + 1}/${batches.length} (${batch.length} période(s))`)
         
         try {
-          // Appeler la fonction RPC batch_insert_periodes_charge
-          // Le site sera normalisé en majuscules dans la fonction RPC
+      // Appeler la fonction RPC batch_insert_periodes_charge
+      // Le site sera normalisé en majuscules dans la fonction RPC
           // La fonction SQL attend p_affaire_id comme texte (numéro de compte) et récupère elle-même l'UUID
           // Filtrer les périodes avec nb_ressources <= 0 car la contrainte CHECK (nb_ressources > 0) les rejette
           const batchFiltre = batch.filter(p => (p.nb_ressources || 0) > 0)
@@ -798,16 +798,16 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
             continue
           }
           
-          const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
+      const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
             p_periodes: batchFiltre,
             p_affaire_id: affaireId, // Numéro de compte (la fonction SQL récupère l'UUID)
-            p_site: siteNormalized,
-          })
+        p_site: siteNormalized,
+      })
 
-          if (rpcError) {
+      if (rpcError) {
             console.error(`[useCharge] Erreur batch_insert_periodes_charge (lot ${i + 1}/${batches.length}):`, rpcError)
-            throw rpcError
-          }
+        throw rpcError
+      }
 
           if (data) {
             allResults.push(data)

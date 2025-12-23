@@ -563,7 +563,7 @@ export function AffectationMassePanel({
                   <CheckCircle2 className="w-4 h-4 text-green-600" />
                   Ressources disponibles ({candidatsDisponibles.length})
                 </h4>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                   {candidatsDisponibles.map((candidat) => {
                     const isSelected = selectedRessourceIds.has(candidat.id)
                     return (
@@ -571,26 +571,28 @@ export function AffectationMassePanel({
                         key={candidat.id}
                         onClick={() => handleToggleRessource(candidat.id)}
                         className={`
-                          p-3 rounded-lg border-2 cursor-pointer transition-all
+                          p-4 rounded-xl border-2 cursor-pointer transition-all shadow-sm hover:shadow-md
                           ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                              ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 shadow-md'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50 bg-white'
                           }
                         `}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start gap-3">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleRessource(candidat.id)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            className="w-5 h-5 mt-0.5 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
                           />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-800">{candidat.nom}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold ${isSelected ? 'text-blue-900' : 'text-gray-800'} truncate`}>
+                              {candidat.nom}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <span className="flex items-center gap-1 text-xs text-gray-600">
                                 <MapPin className="w-3 h-3" />
                                 {candidat.site}
                               </span>
@@ -619,137 +621,164 @@ export function AffectationMassePanel({
                 <p className="text-xs text-gray-600 mb-2">
                   Ces ressources ont des conflits sur certains jours mais sont disponibles sur d&apos;autres. Vous pouvez les affecter sur les jours disponibles uniquement.
                 </p>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                   {candidatsConflitPartiel.map((candidat) => {
                     const isSelected = selectedRessourceIds.has(candidat.id)
                     return (
                       <div
                         key={candidat.id}
-                        className="p-3 rounded-lg border-2 border-orange-200 bg-orange-50"
+                        className={`
+                          p-4 rounded-xl border-2 transition-all shadow-sm hover:shadow-md
+                          ${
+                            isSelected
+                              ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 shadow-md'
+                              : 'border-orange-200 hover:border-orange-400 hover:bg-orange-50 bg-white'
+                          }
+                        `}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start gap-3 mb-3">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleRessource(candidat.id)}
-                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 mt-0.5 text-orange-600 rounded focus:ring-orange-500 flex-shrink-0"
                           />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-800">{candidat.nom}</p>
-                            <div className="mt-1 space-y-1">
-                              {besoins.map((besoin) => {
-                                const joursDisponibles = candidat.joursDisponiblesParBesoin?.get(besoin.id) || []
-                                const joursDisponiblesStr = joursDisponibles
-                                  .map((d) => format(d, 'dd/MM', { locale: fr }))
-                                  .join(', ')
-                                const periodePartielle = selectedPeriodes.get(candidat.id)?.get(besoin.id)
-                                return (
-                                  <div key={besoin.id} className="text-xs">
-                                    <p className="text-gray-600">
-                                      {format(besoin.dateDebut, 'dd/MM', { locale: fr })} → {format(besoin.dateFin, 'dd/MM', { locale: fr })}: {joursDisponiblesStr || 'Aucun jour disponible'}
-                                    </p>
-                                    {isSelected && joursDisponibles.length > 0 && (
-                                      <div className="mt-1 space-y-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            const joursDisponibles = candidat.joursDisponiblesParBesoin?.get(besoin.id) || []
-                                            if (joursDisponibles.length > 0) {
-                                              const sorted = joursDisponibles.sort((a, b) => a.getTime() - b.getTime())
-                                              const dateDebut = sorted[0]
-                                              const dateFin = sorted[sorted.length - 1]
-                                              setSelectedPeriodes((prev) => {
-                                                const next = new Map(prev)
-                                                if (!next.has(candidat.id)) {
-                                                  next.set(candidat.id, new Map())
-                                                }
-                                                next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
-                                                return next
-                                              })
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold ${isSelected ? 'text-orange-900' : 'text-gray-800'} truncate`}>
+                              {candidat.nom}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <span className="flex items-center gap-1 text-xs text-gray-600">
+                                <MapPin className="w-3 h-3" />
+                                {candidat.site}
+                              </span>
+                              {candidat.isPrincipale && (
+                                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                  ⭐ Principale
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 space-y-2 border-t border-orange-200 pt-2">
+                          {besoins.map((besoin) => {
+                            const joursDisponibles = candidat.joursDisponiblesParBesoin?.get(besoin.id) || []
+                            const joursDisponiblesStr = joursDisponibles
+                              .map((d) => format(d, 'dd/MM', { locale: fr }))
+                              .join(', ')
+                            const periodePartielle = selectedPeriodes.get(candidat.id)?.get(besoin.id)
+                            return (
+                              <div key={besoin.id} className="text-xs">
+                                <p className="text-gray-600 mb-1">
+                                  <span className="font-medium">
+                                    {format(besoin.dateDebut, 'dd/MM', { locale: fr })} → {format(besoin.dateFin, 'dd/MM', { locale: fr })}
+                                  </span>
+                                  <br />
+                                  <span className="text-orange-700">
+                                    {joursDisponiblesStr || 'Aucun jour disponible'}
+                                  </span>
+                                </p>
+                                {isSelected && joursDisponibles.length > 0 && (
+                                  <div className="mt-1 space-y-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const joursDisponibles = candidat.joursDisponiblesParBesoin?.get(besoin.id) || []
+                                        if (joursDisponibles.length > 0) {
+                                          const sorted = joursDisponibles.sort((a, b) => a.getTime() - b.getTime())
+                                          const dateDebut = sorted[0]
+                                          const dateFin = sorted[sorted.length - 1]
+                                          setSelectedPeriodes((prev) => {
+                                            const next = new Map(prev)
+                                            if (!next.has(candidat.id)) {
+                                              next.set(candidat.id, new Map())
                                             }
-                                          }}
-                                          className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                                        >
-                                          Affecter jours disponibles
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            setShowPeriodSelector(
-                                              showPeriodSelector?.ressourceId === candidat.id && showPeriodSelector?.besoinId === besoin.id
-                                                ? null
-                                                : { ressourceId: candidat.id, besoinId: besoin.id }
-                                            )
-                                          }}
-                                          className="text-xs px-2 py-0.5 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors ml-1"
-                                        >
-                                          {periodePartielle
-                                            ? `Période: ${format(periodePartielle.dateDebut, 'dd/MM', { locale: fr })} → ${format(periodePartielle.dateFin, 'dd/MM', { locale: fr })}`
-                                            : 'Choisir période'}
-                                        </button>
-                                        {showPeriodSelector?.ressourceId === candidat.id && showPeriodSelector?.besoinId === besoin.id && (
-                                          <div className="mt-1 p-2 bg-white rounded border border-gray-300">
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                              Date début:
-                                            </label>
-                                            <input
-                                              type="date"
-                                              min={format(besoin.dateDebut, 'yyyy-MM-dd')}
-                                              max={format(besoin.dateFin, 'yyyy-MM-dd')}
-                                              defaultValue={
-                                                periodePartielle
-                                                  ? format(periodePartielle.dateDebut, 'yyyy-MM-dd')
-                                                  : format(besoin.dateDebut, 'yyyy-MM-dd')
+                                            next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
+                                            return next
+                                          })
+                                        }
+                                      }}
+                                      className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors w-full"
+                                    >
+                                      Affecter jours disponibles
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setShowPeriodSelector(
+                                          showPeriodSelector?.ressourceId === candidat.id && showPeriodSelector?.besoinId === besoin.id
+                                            ? null
+                                            : { ressourceId: candidat.id, besoinId: besoin.id }
+                                        )
+                                      }}
+                                      className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors w-full"
+                                    >
+                                      {periodePartielle
+                                        ? `Période: ${format(periodePartielle.dateDebut, 'dd/MM', { locale: fr })} → ${format(periodePartielle.dateFin, 'dd/MM', { locale: fr })}`
+                                        : 'Choisir période'}
+                                    </button>
+                                    {showPeriodSelector?.ressourceId === candidat.id && showPeriodSelector?.besoinId === besoin.id && (
+                                      <div className="mt-1 p-2 bg-white rounded border border-gray-300">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                                          Date début:
+                                        </label>
+                                        <input
+                                          type="date"
+                                          min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                          max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                          defaultValue={
+                                            periodePartielle
+                                              ? format(periodePartielle.dateDebut, 'yyyy-MM-dd')
+                                              : format(besoin.dateDebut, 'yyyy-MM-dd')
+                                          }
+                                          onChange={(e) => {
+                                            const dateDebut = new Date(e.target.value)
+                                            const dateFin = periodePartielle?.dateFin || besoin.dateFin
+                                            setSelectedPeriodes((prev) => {
+                                              const next = new Map(prev)
+                                              if (!next.has(candidat.id)) {
+                                                next.set(candidat.id, new Map())
                                               }
-                                              onChange={(e) => {
-                                                const dateDebut = new Date(e.target.value)
-                                                const dateFin = periodePartielle?.dateFin || besoin.dateFin
-                                                setSelectedPeriodes((prev) => {
-                                                  const next = new Map(prev)
-                                                  if (!next.has(candidat.id)) {
-                                                    next.set(candidat.id, new Map())
-                                                  }
-                                                  next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
-                                                  return next
-                                                })
-                                              }}
-                                              className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
-                                            />
-                                            <label className="block text-xs font-medium text-gray-700 mb-1 mt-1">
-                                              Date fin:
-                                            </label>
-                                            <input
-                                              type="date"
-                                              min={format(besoin.dateDebut, 'yyyy-MM-dd')}
-                                              max={format(besoin.dateFin, 'yyyy-MM-dd')}
-                                              defaultValue={
-                                                periodePartielle
-                                                  ? format(periodePartielle.dateFin, 'yyyy-MM-dd')
-                                                  : format(besoin.dateFin, 'yyyy-MM-dd')
+                                              next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
+                                              return next
+                                            })
+                                          }}
+                                          className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                        />
+                                        <label className="block text-xs font-medium text-gray-700 mb-1 mt-1">
+                                          Date fin:
+                                        </label>
+                                        <input
+                                          type="date"
+                                          min={format(besoin.dateDebut, 'yyyy-MM-dd')}
+                                          max={format(besoin.dateFin, 'yyyy-MM-dd')}
+                                          defaultValue={
+                                            periodePartielle
+                                              ? format(periodePartielle.dateFin, 'yyyy-MM-dd')
+                                              : format(besoin.dateFin, 'yyyy-MM-dd')
+                                          }
+                                          onChange={(e) => {
+                                            const dateFin = new Date(e.target.value)
+                                            const dateDebut = periodePartielle?.dateDebut || besoin.dateDebut
+                                            setSelectedPeriodes((prev) => {
+                                              const next = new Map(prev)
+                                              if (!next.has(candidat.id)) {
+                                                next.set(candidat.id, new Map())
                                               }
-                                              onChange={(e) => {
-                                                const dateFin = new Date(e.target.value)
-                                                const dateDebut = periodePartielle?.dateDebut || besoin.dateDebut
-                                                setSelectedPeriodes((prev) => {
-                                                  const next = new Map(prev)
-                                                  if (!next.has(candidat.id)) {
-                                                    next.set(candidat.id, new Map())
-                                                  }
-                                                  next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
-                                                  return next
-                                                })
-                                              }}
-                                              className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
-                                            />
-                                          </div>
-                                        )}
+                                              next.get(candidat.id)!.set(besoin.id, { dateDebut, dateFin })
+                                              return next
+                                            })
+                                          }}
+                                          className="w-full text-xs px-2 py-1 border border-gray-300 rounded"
+                                        />
                                       </div>
                                     )}
                                   </div>
-                                )
-                              })}
-                            </div>
-                          </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )
@@ -768,7 +797,7 @@ export function AffectationMassePanel({
                 <p className="text-xs text-gray-600 mb-2">
                   Ces ressources ont la compétence mais sont sur un autre site. Un transfert sera créé automatiquement.
                 </p>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                   {candidatsNecessitantTransfert.map((candidat) => {
                     const isSelected = selectedRessourceIds.has(candidat.id)
                     return (
@@ -776,26 +805,28 @@ export function AffectationMassePanel({
                         key={candidat.id}
                         onClick={() => handleToggleRessource(candidat.id)}
                         className={`
-                          p-3 rounded-lg border-2 cursor-pointer transition-all
+                          p-4 rounded-xl border-2 cursor-pointer transition-all shadow-sm hover:shadow-md
                           ${
                             isSelected
-                              ? 'border-amber-500 bg-amber-50'
-                              : 'border-amber-200 hover:border-amber-400 hover:bg-amber-50'
+                              ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-amber-100 shadow-md'
+                              : 'border-amber-200 hover:border-amber-400 hover:bg-amber-50 bg-white'
                           }
                         `}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start gap-3">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleRessource(candidat.id)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                            className="w-5 h-5 mt-0.5 text-amber-600 rounded focus:ring-amber-500 flex-shrink-0"
                           />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-800">{candidat.nom}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold ${isSelected ? 'text-amber-900' : 'text-gray-800'} truncate`}>
+                              {candidat.nom}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <span className="flex items-center gap-1 text-xs text-gray-600">
                                 <MapPin className="w-3 h-3" />
                                 {candidat.site} → {sitesUniques[0]}
                               </span>
