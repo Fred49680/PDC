@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
-import { X, Target } from 'lucide-react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { X, Target, Search } from 'lucide-react'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { Planning3 } from '@/components/Planning3'
 import { useAffaires } from '@/hooks/useAffaires'
@@ -41,6 +41,10 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   const [site, setSite] = useState('')
   const [responsable, setResponsable] = useState('')
   const [numeroCompte, setNumeroCompte] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchResultsRef = useRef<HTMLDivElement>(null)
 
   // État pour la page Charge uniquement
   const [dateDebut, setDateDebut] = useState(startOfMonth(new Date()))
@@ -85,6 +89,32 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       )
     : affairesFiltreesParResponsableEtSite
 
+  // Recherche intelligente dans les affaires (numéro de compte, libellé, responsable, site)
+  const affairesRecherchees = useMemo(() => {
+    if (!searchQuery || searchQuery.trim() === '') {
+      return []
+    }
+    
+    const query = searchQuery.toLowerCase().trim()
+    const allAffaires = responsable
+      ? site
+        ? affairesFiltreesParResponsableEtSite
+        : affairesFiltreesParResponsable
+      : affairesActives
+    
+    return allAffaires
+      .filter((a) => {
+        const matchId = a.affaire_id?.toLowerCase().includes(query) || false
+        const matchLibelle = a.libelle?.toLowerCase().includes(query) || false
+        const matchResponsable = a.responsable?.toLowerCase().includes(query) || false
+        const matchSite = a.site?.toLowerCase().includes(query) || false
+        const matchCompte = a.compte?.toLowerCase().includes(query) || false
+        
+        return matchId || matchLibelle || matchResponsable || matchSite || matchCompte
+      })
+      .slice(0, 10) // Limiter à 10 résultats pour la performance
+  }, [searchQuery, responsable, site, affairesActives, affairesFiltreesParResponsable, affairesFiltreesParResponsableEtSite])
+
   // Handlers pour gérer les changements de filtres
   const handleResponsableChange = (newResponsable: string) => {
     setResponsable(newResponsable)
@@ -128,6 +158,41 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       }
     }
   }
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setShowSearchResults(value.trim().length > 0)
+  }
+
+  const handleSelectAffaireFromSearch = (affaire: typeof affairesActives[0]) => {
+    if (affaire.affaire_id) {
+      setAffaireId(affaire.affaire_id)
+      setSite(affaire.site)
+      setResponsable(affaire.responsable || '')
+      setSearchQuery('')
+      setShowSearchResults(false)
+      setNumeroCompte('')
+    }
+  }
+
+  // Fermer les résultats de recherche quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchResultsRef.current &&
+        !searchResultsRef.current.contains(event.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSearchResults(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   // Handlers pour le drag & drop
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -203,18 +268,65 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
               <Target className="w-4 h-4 text-indigo-600" />
               <h3 className="text-base font-semibold text-gray-800">Sélection affaire</h3>
             </div>
-            {/* Numéro de compte */}
-            <div className="flex-1 min-w-[150px]">
+            {/* Recherche intelligente */}
+            <div className="flex-1 min-w-[200px] relative">
               <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Numéro de compte
+                Recherche affaire
               </label>
-              <input
-                type="text"
-                value={numeroCompte}
-                onChange={(e) => handleNumeroCompteChange(e.target.value)}
-                placeholder="Rechercher..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="w-4 h-4 text-gray-400" />
+                </div>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => {
+                    if (searchQuery.trim().length > 0) {
+                      setShowSearchResults(true)
+                    }
+                  }}
+                  placeholder="Rechercher par ID, libellé, responsable..."
+                  className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+                />
+                {/* Résultats de recherche */}
+                {showSearchResults && affairesRecherchees.length > 0 && (
+                  <div
+                    ref={searchResultsRef}
+                    className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                  >
+                    {affairesRecherchees.map((affaire) => (
+                      <button
+                        key={affaire.id}
+                        type="button"
+                        onClick={() => handleSelectAffaireFromSearch(affaire)}
+                        className="w-full px-4 py-2 text-left hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm text-gray-900 truncate">
+                              {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {affaire.site && <span className="mr-2">📍 {affaire.site}</span>}
+                              {affaire.responsable && <span>👤 {affaire.responsable}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showSearchResults && searchQuery.trim().length > 0 && affairesRecherchees.length === 0 && (
+                  <div
+                    ref={searchResultsRef}
+                    className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4"
+                  >
+                    <p className="text-sm text-gray-500 text-center">Aucune affaire trouvée</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Responsable */}
