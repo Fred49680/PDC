@@ -734,7 +734,10 @@ export function BesoinsGrid({
       })
       
       addToast('Affectation ajoutée', 'success')
-      await refreshAffectations()
+      // Ne pas appeler refreshAffectations() si Realtime est activé, car la mise à jour optimiste
+      // et le Realtime gèrent déjà la mise à jour automatique
+      // Attendre un peu pour laisser le temps au Realtime de se synchroniser
+      await new Promise(resolve => setTimeout(resolve, 100))
     } catch (err) {
       console.error('[BesoinsGrid] Erreur ajout affectation:', err)
       addToast('Erreur lors de l\'ajout', 'error')

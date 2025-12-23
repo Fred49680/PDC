@@ -6,7 +6,40 @@ import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
 import { addDays, isSameDay } from 'date-fns'
 import type { Affectation, Ressource } from '@/types/affectations'
 import type { Absence } from '@/types/absences'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+
+// Type pour les données brutes retournées par Supabase
+interface AffectationRaw {
+  id: string
+  affaire_id: string
+  site: string
+  ressource_id: string
+  competence: string
+  date_debut: string
+  date_fin: string
+  charge: number
+  force_weekend_ferie?: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string
+  updated_by?: string
+  affaires?: {
+    affaire_id?: string
+    compte?: string
+  }
+}
+
+interface AbsenceRaw {
+  id: string
+  ressource_id: string
+  date_debut: string
+  date_fin: string
+  type?: string
+  statut?: string
+  commentaire?: string
+  created_at: string
+  updated_at: string
+}
 
 interface UseAffectationsOptions {
   affaireId: string
@@ -78,7 +111,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       if (queryError) throw queryError
 
       // Convertir les dates de string ISO en Date
-      const affectationsAvecDates = (data || []).map((a: any) => ({
+      const affectationsAvecDates = (data || []).map((a: AffectationRaw) => ({
         ...a,
         date_debut: a.date_debut ? new Date(a.date_debut) : new Date(),
         date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
@@ -86,7 +119,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         updated_at: a.updated_at ? new Date(a.updated_at) : new Date(),
         affaire_id_display: a.affaires?.affaire_id || null,
         compte: a.affaires?.compte || null,
-      })) as any[]
+      })) as Affectation[]
 
       setAffectations(affectationsAvecDates)
     } catch (err) {
@@ -95,7 +128,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
     } finally {
       setLoading(false)
     }
-  }, [affaireId, site, competence])
+  }, [affaireId, site, competence, getSupabaseClient])
 
   const loadRessources = useCallback(async () => {
     try {
@@ -114,7 +147,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
     } catch (err) {
       console.error('[useAffectations] Erreur loadRessources:', err)
     }
-  }, [site])
+  }, [site, getSupabaseClient])
 
   // Abonnement Realtime pour les affectations
   useEffect(() => {
@@ -152,12 +185,12 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
               table: 'affectations',
               filter: filter,
             },
-            (payload) => {
+            (payload: RealtimePostgresChangesPayload<AffectationRaw>) => {
               console.log('[useAffectations] Changement Realtime:', payload.eventType)
               
               // Mise à jour optimiste
               if (payload.eventType === 'INSERT' && payload.new) {
-                const newAffectation = payload.new as any
+                const newAffectation = payload.new
                 setAffectations((prev) => {
                   const exists = prev.some((a) => a.id === newAffectation.id)
                   if (exists) return prev
@@ -173,27 +206,35 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
                   )
                 })
               } else if (payload.eventType === 'UPDATE' && payload.new) {
-                const updatedAffectation = payload.new as any
+                const updatedAffectation = payload.new
                 setAffectations((prev) =>
                   prev.map((a) =>
                     a.id === updatedAffectation.id
                       ? {
-                          ...a,
-                          ...updatedAffectation,
+                          id: updatedAffectation.id,
+                          affaire_id: updatedAffectation.affaire_id,
+                          site: updatedAffectation.site,
+                          ressource_id: updatedAffectation.ressource_id,
+                          competence: updatedAffectation.competence,
                           date_debut: new Date(updatedAffectation.date_debut),
                           date_fin: new Date(updatedAffectation.date_fin),
+                          charge: updatedAffectation.charge,
+                          force_weekend_ferie: updatedAffectation.force_weekend_ferie,
+                          created_at: a.created_at, // Garder la date de création originale
                           updated_at: new Date(updatedAffectation.updated_at),
+                          created_by: updatedAffectation.created_by,
+                          updated_by: updatedAffectation.updated_by,
                         }
                       : a
                   )
                 )
               } else if (payload.eventType === 'DELETE' && payload.old) {
-                const deletedId = (payload.old as any).id
-                setAffectations((prev) => prev.filter((a) => a.id !== deletedId))
+                const deletedAffectation = payload.old
+                setAffectations((prev) => prev.filter((a) => a.id !== deletedAffectation.id))
               }
             }
           )
-          .subscribe((status) => {
+          .subscribe((status: string) => {
             if (status === 'SUBSCRIBED') {
               console.log('[useAffectations] Abonnement Realtime activé')
             }
@@ -248,7 +289,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
 
       // Retourner la première absence trouvée (s'il y en a plusieurs, on prend la première)
       if (data && data.length > 0) {
-        const absence = data[0] as any
+        const absence = data[0] as AbsenceRaw
         return {
           ...absence,
           date_debut: absence.date_debut ? new Date(absence.date_debut) : new Date(),
@@ -263,7 +304,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur checkAbsence:', err)
       return null
     }
-  }, [])
+  }, [getSupabaseClient])
 
   // Retirer automatiquement les affectations en conflit avec une absence
   const removeConflictingAffectations = useCallback(async (ressourceId: string, dateDebut: Date, dateFin: Date): Promise<void> => {
@@ -304,8 +345,8 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       }
       
       // Filtrer en JavaScript pour exclure les affectations avec force_weekend_ferie=true
-      const affectationsConflit = (affectationsConflitRaw || []).filter((a: any) => 
-        !a.force_weekend_ferie || a.force_weekend_ferie === false
+      const affectationsConflit = (affectationsConflitRaw || []).filter((a: AffectationRaw) => 
+        !a.force_weekend_ferie
       )
 
       if (queryError) {
@@ -318,7 +359,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       }
 
       // Supprimer toutes les affectations en conflit
-      const affectationIds = affectationsConflit.map((a: any) => a.id)
+      const affectationIds = affectationsConflit.map((a: AffectationRaw) => a.id)
 
       const { error: deleteError } = await supabase
         .from('affectations')
@@ -466,8 +507,9 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         return newAffectations
       })
 
-      // Recharger les affectations seulement si autoRefresh est activé
-      if (autoRefresh) {
+      // Recharger les affectations seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
         await loadAffectations()
       }
 
@@ -477,7 +519,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur saveAffectation:', err)
       throw err
     }
-  }, [affaireId, site, loadAffectations, autoRefresh, enableRealtime])
+  }, [affaireId, site, loadAffectations, autoRefresh, enableRealtime, checkAbsence, getSupabaseClient])
 
   const deleteAffectation = useCallback(async (affectationId: string) => {
     try {
@@ -505,7 +547,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur deleteAffectation:', err)
       throw err
     }
-  }, [loadAffectations, autoRefresh, enableRealtime])
+  }, [loadAffectations, autoRefresh, enableRealtime, getSupabaseClient])
 
   // Fonction de consolidation des affectations (similaire à celle des périodes de charge)
   const consolidate = useCallback(async (competence?: string) => {
@@ -554,8 +596,8 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       }
 
       // Grouper par ressource et compétence
-      const affectationsParRessourceComp = new Map<string, typeof allAffectations>()
-      allAffectations.forEach((a: any) => {
+      const affectationsParRessourceComp = new Map<string, AffectationRaw[]>()
+      allAffectations.forEach((a: AffectationRaw) => {
         const key = `${a.ressource_id}|${a.competence}`
         if (!affectationsParRessourceComp.has(key)) {
           affectationsParRessourceComp.set(key, [])
@@ -566,10 +608,10 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       // Pour chaque ressource/compétence, consolider les affectations
       for (const [key, affectationsResComp] of affectationsParRessourceComp.entries()) {
         // *** NOUVEAU : Séparer les affectations avec force_weekend_ferie=true (ne pas les consolider) ***
-        const affectationsForcees: typeof allAffectations = []
-        const affectationsNormales: typeof allAffectations = []
+        const affectationsForcees: AffectationRaw[] = []
+        const affectationsNormales: AffectationRaw[] = []
 
-        affectationsResComp.forEach((a: any) => {
+        affectationsResComp.forEach((a: AffectationRaw) => {
           if (a.force_weekend_ferie === true) {
             // Affectation forcée : la garder telle quelle (ligne séparée)
             affectationsForcees.push(a)
@@ -582,7 +624,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
         // *** NOUVEAU : Déplier jour par jour (jours ouvrés uniquement) SEULEMENT pour les affectations normales ***
         const joursParAffectation = new Map<string, number>() // Clé: date ISO (YYYY-MM-DD), Valeur: charge
 
-        affectationsNormales.forEach((a: any) => {
+        affectationsNormales.forEach((a: AffectationRaw) => {
           const dateDebut = new Date(a.date_debut)
           const dateFin = new Date(a.date_fin)
           const charge = a.charge || 0
@@ -715,6 +757,7 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
       console.error('[useAffectations] Erreur consolidate:', err)
       throw err
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [affaireId, site, loadAffectations])
 
   return {
