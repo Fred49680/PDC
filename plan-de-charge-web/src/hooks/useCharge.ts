@@ -701,20 +701,52 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
 
       debugLog('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesData.slice(0, 3), null, 2), '... (affiche les 3 premières)')
 
-      // Appeler la fonction RPC batch_insert_periodes_charge
-      // Le site sera normalisé en majuscules dans la fonction RPC
-      const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
-        p_periodes: periodesData,
-        p_affaire_id: affaireId,
-        p_site: siteNormalized,
-      })
-
-      if (rpcError) {
-        console.error('[useCharge] Erreur batch_insert_periodes_charge:', rpcError)
-        throw rpcError
+      // Diviser les insertions en lots de 100 pour éviter les timeouts
+      const BATCH_SIZE = 100
+      const batches: typeof periodesData[] = []
+      for (let i = 0; i < periodesData.length; i += BATCH_SIZE) {
+        batches.push(periodesData.slice(i, i + BATCH_SIZE))
       }
 
-      debugLog('[useCharge] Batch insert réussi')
+      debugLog(`[useCharge] Insertion en ${batches.length} lot(s) de ${BATCH_SIZE} période(s) maximum`)
+
+      // Traiter chaque lot séquentiellement pour éviter la surcharge
+      const allResults = []
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i]
+        debugLog(`[useCharge] Traitement du lot ${i + 1}/${batches.length} (${batch.length} période(s))`)
+        
+        try {
+          // Appeler la fonction RPC batch_insert_periodes_charge
+          // Le site sera normalisé en majuscules dans la fonction RPC
+          const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
+            p_periodes: batch,
+            p_affaire_id: affaireId,
+            p_site: siteNormalized,
+          })
+
+          if (rpcError) {
+            console.error(`[useCharge] Erreur batch_insert_periodes_charge (lot ${i + 1}/${batches.length}):`, rpcError)
+            throw rpcError
+          }
+
+          if (data) {
+            allResults.push(data)
+          }
+          
+          debugLog(`[useCharge] Lot ${i + 1}/${batches.length} inséré avec succès`)
+          
+          // Petit délai entre les lots pour éviter la surcharge
+          if (i < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        } catch (err) {
+          console.error(`[useCharge] Erreur lors du traitement du lot ${i + 1}/${batches.length}:`, err)
+          throw err
+        }
+      }
+
+      debugLog('[useCharge] Tous les lots insérés avec succès')
 
       // Recharger les périodes pour mettre à jour l'état local
       if (autoRefresh) {
@@ -725,7 +757,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       }
 
       debugLog('[useCharge] ========== FIN savePeriodesBatch - SUCCÈS ==========')
-      return data
+      return allResults
     } catch (err) {
       console.error('[useCharge] ========== FIN savePeriodesBatch - ERREUR ==========') // Toujours afficher les erreurs
       console.error('[useCharge] Erreur complète:', err)
