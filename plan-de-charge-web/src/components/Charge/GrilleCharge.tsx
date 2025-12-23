@@ -98,7 +98,7 @@ export function GrilleCharge({
   onOpenChargeModal,
   onRegisterRefresh,
 }: GrilleChargeProps) {
-  const { periodes, loading, error, savePeriode, updateCompetence, deleteCompetence, refresh: refreshGrilleCharge } = useCharge({
+  const { periodes, loading, error, savePeriode, deletePeriode, updateCompetence, deleteCompetence, refresh: refreshGrilleCharge } = useCharge({
     affaireId,
     site,
     enableRealtime: true,
@@ -439,6 +439,53 @@ export function GrilleCharge({
         
         await Promise.all(
           savesToProcess.map(async ({ competence, col, value }) => {
+            // Si la valeur est 0, supprimer la période au lieu de la sauvegarder
+            if (value === 0) {
+              // Trouver la période existante pour cette compétence et cette date
+              let dateDebutPeriode: Date
+              let dateFinPeriode: Date
+              
+              if (precision === 'JOUR') {
+                dateDebutPeriode = normalizeDateToUTC(col.date)
+                dateFinPeriode = normalizeDateToUTC(col.date)
+              } else if (precision === 'SEMAINE') {
+                const dayOfWeek = col.date.getDay()
+                const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+                dateDebutPeriode = new Date(col.date)
+                dateDebutPeriode.setDate(dateDebutPeriode.getDate() - daysToMonday)
+                dateFinPeriode = new Date(dateDebutPeriode)
+                dateFinPeriode.setDate(dateFinPeriode.getDate() + 6)
+                dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+                dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+              } else if (precision === 'MOIS') {
+                dateDebutPeriode = new Date(col.date.getFullYear(), col.date.getMonth(), 1)
+                dateFinPeriode = new Date(col.date.getFullYear(), col.date.getMonth() + 1, 0)
+                if (dateFinPeriode > dateFin) dateFinPeriode = new Date(dateFin)
+                dateDebutPeriode = normalizeDateToUTC(dateDebutPeriode)
+                dateFinPeriode = normalizeDateToUTC(dateFinPeriode)
+              } else {
+                dateDebutPeriode = normalizeDateToUTC(col.date)
+                dateFinPeriode = normalizeDateToUTC(col.date)
+              }
+              
+              // Trouver la période correspondante
+              const periodeToDelete = periodes.find(p => 
+                p.competence === competence &&
+                p.date_debut.getTime() === dateDebutPeriode.getTime() &&
+                p.date_fin.getTime() === dateFinPeriode.getTime()
+              )
+              
+              if (periodeToDelete) {
+                try {
+                  await deletePeriode(periodeToDelete.id)
+                } catch (err) {
+                  // Ignorer silencieusement les erreurs de suppression
+                  console.warn('[GrilleCharge] Erreur suppression période:', err)
+                }
+              }
+              return
+            }
+            
             let dateDebutPeriode: Date
             let dateFinPeriode: Date
             let forceWeekendFerie = false
@@ -479,14 +526,26 @@ export function GrilleCharge({
               dateFinPeriode = normalizeDateToUTC(col.date)
             }
 
-            const result = await savePeriode({
-              competence,
-              date_debut: dateDebutPeriode,
-              date_fin: dateFinPeriode,
-              nb_ressources: value,
-              force_weekend_ferie: forceWeekendFerie,
-            })
-            return result
+            try {
+              const result = await savePeriode({
+                competence,
+                date_debut: dateDebutPeriode,
+                date_fin: dateFinPeriode,
+                nb_ressources: value,
+                force_weekend_ferie: forceWeekendFerie,
+              })
+              return result
+            } catch (err) {
+              // Ignorer silencieusement les erreurs de contrainte CHECK
+              const error = err as { message?: string; code?: string }
+              if (error.message?.includes('check') || error.code === '23514') {
+                console.warn('[GrilleCharge] Contrainte CHECK violée, valeur ignorée:', value)
+                // Remettre la valeur à 0 dans la grille locale
+                updateGrilleLocal(competence, col, 0)
+                return
+              }
+              throw err
+            }
           })
         )
         
@@ -521,7 +580,7 @@ export function GrilleCharge({
         })
       }
     }, 500)
-  }, [savePeriode, updateGrilleLocal, precision, dateFin, colonnes, confirmAsync, competencesManuelles, refreshGrilleCharge])
+  }, [savePeriode, deletePeriode, updateGrilleLocal, precision, dateFin, colonnes, confirmAsync, competencesManuelles, refreshGrilleCharge, periodes])
 
   // Nettoyage du timeout au démontage
   useEffect(() => {
@@ -836,6 +895,30 @@ export function GrilleCharge({
                           if (!isNaN(numValue) && numValue >= 0) {
                             handleCellChange(comp, idx, numValue)
                           }
+                        }}
+                        onWheel={(e) => {
+                          // Empêcher le comportement par défaut de la molette
+                          e.preventDefault()
+                          e.currentTarget.blur()
+                          
+                          // Calculer la nouvelle valeur en fonction du delta de la molette
+                          const delta = e.deltaY > 0 ? -1 : 1
+                          const currentValue = parseFloat(e.currentTarget.value) || 0
+                          const newValue = Math.max(0, currentValue + delta)
+                          
+                          // Mettre à jour la valeur
+                          setEditingValues(prev => {
+                            const next = new Map(prev)
+                            if (newValue === 0) {
+                              next.delete(cellKey)
+                            } else {
+                              next.set(cellKey, newValue.toString())
+                            }
+                            return next
+                          })
+                          
+                          // Appeler handleCellChange avec la nouvelle valeur
+                          handleCellChange(comp, idx, newValue)
                         }}
                         onBlur={(e) => {
                           // À la perte de focus, nettoyer l'état d'édition et valider la valeur
