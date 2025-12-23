@@ -437,39 +437,20 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Cela évite que le trigger de consolidation reçoive une chaîne vide
         // Le trigger utilisera la valeur existante dans la base de données
         
-        // Créer un objet avec seulement nb_ressources pour éviter les problèmes avec le trigger
-        // IMPORTANT : Ne pas inclure force_weekend_ferie dans l'UPDATE car il est calculé automatiquement par le trigger
-        // Utiliser Object.assign pour créer un objet propre sans propriétés undefined
-        const updateDataOnly: Record<string, unknown> = {}
-        updateDataOnly.nb_ressources = periodeDataClean.nb_ressources
-        // S'assurer explicitement que force_weekend_ferie n'est PAS dans l'objet
-        if ('force_weekend_ferie' in updateDataOnly) {
-          delete updateDataOnly.force_weekend_ferie
+        // Utiliser la fonction RPC update_periode_charge pour éviter les problèmes avec force_weekend_ferie
+        // Cette fonction gère automatiquement le calcul de force_weekend_ferie via le trigger
+        const rpcUpdateParams = {
+          p_id: existingData.id,
+          p_nb_ressources: periodeDataClean.nb_ressources,
         }
         
-        console.log('[useCharge] Étape 9 - UPDATE - Paramètres finaux:', {
-          nb_ressources: updateDataOnly.nb_ressources,
-          id: existingData.id,
-          note: 'force_weekend_ferie non inclus pour éviter problème avec trigger de consolidation',
-          'updateDataOnly keys': Object.keys(updateDataOnly),
-          'has force_weekend_ferie': 'force_weekend_ferie' in updateDataOnly
-        })
+        console.log('[useCharge] Étape 9 - UPDATE via RPC - Paramètres:', JSON.stringify(rpcUpdateParams, null, 2))
+        debugLog('[useCharge] Étape 9 - UPDATE via RPC - Données à envoyer:', JSON.stringify(rpcUpdateParams, null, 2))
         
-        debugLog('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
-        debugLog('[useCharge] Étape 9 - UPDATE - Types:', {
-          nb_ressources: typeof updateDataOnly.nb_ressources,
-        })
-        debugLog('[useCharge] Étape 9 - UPDATE - ID cible:', existingData.id)
-        
-        const { data: updateData, error: updateError } = await supabase
-          .from('periodes_charge')
-          .update(updateDataOnly)
-          .eq('id', existingData.id)
-          .select('*')
-          .maybeSingle()
+        const { data: updateDataResult, error: updateError } = await supabase.rpc('update_periode_charge', rpcUpdateParams)
         
         if (updateError) {
-          console.error('[useCharge] Étape 9 - ERREUR update:', updateError)
+          console.error('[useCharge] Étape 9 - ERREUR update RPC:', JSON.stringify(updateError, null, 2))
           console.error('[useCharge] Étape 9 - Détails erreur:', {
             code: updateError.code,
             message: updateError.message,
@@ -480,9 +461,13 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           throw updateError
         }
         
-        debugLog('[useCharge] Étape 9 - UPDATE réussi, données retournées:', JSON.stringify(updateData, null, 2))
-        // Si updateData est null, recharger depuis la base
-        if (!updateData) {
+        debugLog('[useCharge] Étape 9 - UPDATE RPC réussi, données retournées:', JSON.stringify(updateDataResult, null, 2))
+        
+        // La fonction RPC retourne un tableau, prendre le premier élément
+        if (updateDataResult && Array.isArray(updateDataResult) && updateDataResult.length > 0) {
+          data = updateDataResult[0] as PeriodeChargeRaw
+        } else {
+          // Si aucune donnée n'est retournée, recharger depuis la base
           const { data: reloadedData, error: reloadError } = await supabase
             .from('periodes_charge')
             .select('*')
@@ -490,8 +475,6 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
             .maybeSingle()
           if (reloadError) throw reloadError
           data = reloadedData || existingData as PeriodeChargeRaw
-        } else {
-        data = updateData
         }
       } else {
         // Nouvel enregistrement : INSERT
@@ -515,7 +498,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', rpcParams)
         
         if (insertError) {
-          console.error('[useCharge] Étape 10 - ERREUR insert:', insertError)
+          console.error('[useCharge] Étape 10 - ERREUR insert:', JSON.stringify(insertError, null, 2))
           console.error('[useCharge] Étape 10 - Détails erreur:', {
             code: insertError.code,
             message: insertError.message,

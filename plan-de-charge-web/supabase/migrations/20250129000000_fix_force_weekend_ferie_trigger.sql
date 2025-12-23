@@ -90,6 +90,7 @@ TOUJOURS définit force_weekend_ferie explicitement, même lors d''un UPDATE, po
 
 -- Modifier la fonction RPC insert_periode_charge pour ignorer complètement p_force_weekend_ferie
 -- Le paramètre est conservé pour compatibilité mais ignoré (le trigger calcule automatiquement)
+-- IMPORTANT : Le type est TEXT pour accepter n'importe quelle valeur (chaîne vide, NULL, etc.) sans erreur
 CREATE OR REPLACE FUNCTION public.insert_periode_charge(
   p_affaire_id uuid,
   p_site text,
@@ -97,7 +98,7 @@ CREATE OR REPLACE FUNCTION public.insert_periode_charge(
   p_date_debut date,
   p_date_fin date,
   p_nb_ressources integer,
-  p_force_weekend_ferie text DEFAULT NULL -- Conservé pour compatibilité mais IGNORÉ
+  p_force_weekend_ferie text DEFAULT NULL -- Conservé pour compatibilité mais IGNORÉ (peut être NULL, chaîne vide, etc.)
 )
 RETURNS TABLE(id uuid, affaire_id uuid, site text, competence text, date_debut date, date_fin date, nb_ressources integer, force_weekend_ferie boolean, jours_ouvres integer, created_at timestamp without time zone, updated_at timestamp without time zone, created_by uuid, updated_by uuid)
 LANGUAGE plpgsql
@@ -109,6 +110,12 @@ DECLARE
 BEGIN
   -- Normaliser le site en majuscules
   p_site := UPPER(TRIM(p_site));
+  
+  -- Convertir p_force_weekend_ferie en NULL si c'est une chaîne vide ou NULL
+  -- Cela évite les erreurs de type boolean lors de la validation des paramètres
+  IF p_force_weekend_ferie IS NULL OR TRIM(p_force_weekend_ferie) = '' THEN
+    p_force_weekend_ferie := NULL;
+  END IF;
 
   -- Chercher si une période existe déjà avec ces clés
   SELECT periodes_charge.id INTO v_existing_id
