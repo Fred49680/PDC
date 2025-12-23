@@ -62,9 +62,10 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       enableRealtime: true,
     })
 
-  // Rafraîchir les affectations quand les périodes changent (pour mettre à jour BesoinsGrid)
-  // Cela permet de synchroniser BesoinsGrid quand GrilleCharge se rafraîchit après l'ajout/modification de charge
+  // Rafraîchir les affectations quand les périodes changent (pour mettre à jour BesoinsGrid et BesoinsList)
+  // Cela permet de synchroniser BesoinsGrid et BesoinsList quand GrilleCharge se rafraîchit après l'ajout/modification de charge
   const prevPeriodesRef = useRef<string>('')
+  const prevCompetencesRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     // Créer une signature des périodes pour détecter tout changement (pas seulement le nombre)
     const periodesSignature = JSON.stringify(
@@ -77,20 +78,30 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       }))
     )
     
+    // Extraire les compétences uniques des périodes
+    const competencesActuelles = new Set(periodes.map(p => p.competence))
+    
     // Détecter tout changement dans les périodes (ajout, modification, suppression)
-    if (periodesSignature !== prevPeriodesRef.current && prevPeriodesRef.current !== '') {
-      // Forcer immédiatement le recalcul des besoins en changeant la clé
-      setRecalcKey(prev => prev + 1)
+    // OU détecter l'ajout d'une nouvelle compétence
+    const hasNewCompetence = Array.from(competencesActuelles).some(comp => !prevCompetencesRef.current.has(comp))
+    const hasChanged = periodesSignature !== prevPeriodesRef.current && prevPeriodesRef.current !== ''
+    
+    if (hasChanged || hasNewCompetence) {
+      // Rafraîchir d'abord les périodes pour avoir les données à jour
+      refreshPeriodes()
       
-      // Rafraîchir aussi les affectations pour être sûr que tout est à jour
-      // On utilise un petit délai pour laisser le temps à Realtime de se synchroniser
+      // Forcer le recalcul des besoins en changeant la clé après un court délai
+      // pour laisser le temps à Realtime de se synchroniser
       const timeoutId = setTimeout(() => {
+        setRecalcKey(prev => prev + 1)
         refreshAffectations()
-      }, 200)
+      }, 300)
       prevPeriodesRef.current = periodesSignature
+      prevCompetencesRef.current = competencesActuelles
       return () => clearTimeout(timeoutId)
     } else {
       prevPeriodesRef.current = periodesSignature
+      prevCompetencesRef.current = competencesActuelles
     }
   }, [periodes, refreshAffectations])
 
