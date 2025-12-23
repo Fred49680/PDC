@@ -162,6 +162,16 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
     setShowSearchResults(value.trim().length > 0)
+    
+    // Réinitialiser les champs associés quand on commence à taper dans la recherche
+    // Cela permet de faire une nouvelle recherche propre
+    if (value.trim().length > 0) {
+      setAffaireId('')
+      setSite('')
+      // Ne pas réinitialiser le responsable car il peut être utilisé comme filtre
+      // setResponsable('')
+      setNumeroCompte('')
+    }
   }
 
   const handleSelectAffaireFromSearch = (affaire: typeof affairesActives[0]) => {
