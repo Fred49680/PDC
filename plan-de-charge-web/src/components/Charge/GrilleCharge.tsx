@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
+import { useAffectations } from '@/hooks/useAffectations'
 import { createClient } from '@/lib/supabase/client'
 import { formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
@@ -103,6 +104,49 @@ export function GrilleCharge({
     site,
     enableRealtime: true,
   })
+
+  // Obtenir l'UUID de l'affaire pour charger les affectations
+  const affaireUuid = useMemo(() => {
+    if (periodes.length > 0 && periodes[0].affaire_id) {
+      return periodes[0].affaire_id
+    }
+    return null
+  }, [periodes])
+
+  // Charger les affectations pour cette affaire
+  const { affectations } = useAffectations({
+    affaireId: affaireUuid || undefined,
+    site,
+    dateDebut,
+    dateFin,
+    enableRealtime: true,
+  })
+
+  // Calculer le nombre d'affectations uniques par compétence
+  const affectationsParCompetence = useMemo(() => {
+    if (!affaireUuid || !affectations) return new Map<string, number>()
+    
+    const map = new Map<string, Set<string>>()
+    
+    affectations.forEach((aff) => {
+      if (!map.has(aff.competence)) {
+        map.set(aff.competence, new Set())
+      }
+      // Vérifier que l'affectation chevauche avec la période affichée
+      const affDateDebut = normalizeDateToUTC(new Date(aff.date_debut))
+      const affDateFin = normalizeDateToUTC(new Date(aff.date_fin))
+      if (affDateDebut <= normalizeDateToUTC(dateFin) && affDateFin >= normalizeDateToUTC(dateDebut)) {
+        map.get(aff.competence)!.add(aff.ressource_id)
+      }
+    })
+    
+    const result = new Map<string, number>()
+    map.forEach((ressources, competence) => {
+      result.set(competence, ressources.size)
+    })
+    
+    return result
+  }, [affaireUuid, affectations, dateDebut, dateFin])
 
   // Enregistrer la fonction de refresh dans le parent
   useEffect(() => {
@@ -808,6 +852,27 @@ export function GrilleCharge({
               const cellKey = `${comp}|${idx}`
               return sum + (grille.get(cellKey) || 0)
             }, 0)
+            
+            // Récupérer le nombre d'affectations uniques pour cette compétence
+            const nbAffectees = affectationsParCompetence.get(comp) || 0
+            const nbBesoin = total
+            
+            // Déterminer la couleur selon le statut
+            let statusColor = 'text-gray-500'
+            let statusBg = ''
+            if (nbBesoin > 0) {
+              if (nbAffectees === nbBesoin) {
+                statusColor = 'text-green-700'
+                statusBg = 'bg-green-50'
+              } else if (nbAffectees < nbBesoin) {
+                statusColor = 'text-blue-700'
+                statusBg = 'bg-blue-50'
+              } else {
+                statusColor = 'text-red-700'
+                statusBg = 'bg-red-50'
+              }
+            }
+            
             const isEven = compIdx % 2 === 0
 
             const isEditing = editingCompetence === comp
@@ -956,10 +1021,15 @@ export function GrilleCharge({
                     </td>
                   )
                 })}
-                <td className={`border-b border-gray-300 px-4 py-3 text-center text-sm font-bold ${
-                  total > 0 ? 'text-blue-700' : 'text-gray-500'
-                } ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}>
-                  {total.toFixed(0)}
+                <td className={`border-b border-gray-300 px-4 py-3 text-center text-sm font-bold ${statusColor} ${statusBg || (isEven ? 'bg-white' : 'bg-gray-50/50')}`}>
+                  <div className="flex flex-col items-center justify-center gap-0.5">
+                    <div className="text-xs font-normal text-gray-600">
+                      {nbAffectees}/{nbBesoin > 0 ? nbBesoin.toFixed(0) : '0'}
+                    </div>
+                    <div className="text-xs font-semibold">
+                      {total.toFixed(0)}
+                    </div>
+                  </div>
                 </td>
               </tr>
             )

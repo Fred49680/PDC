@@ -487,6 +487,32 @@ export function AffectationMassePanel({
               )}
             </div>
 
+            {/* Affichage des ressources sélectionnées sous forme de tuiles */}
+            {selectedRessourceIds.size > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Ressources sélectionnées :</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                  {Array.from(selectedRessourceIds).map((ressourceId) => {
+                    const ressource = ressourcesCandidates.find((r) => r.id === ressourceId)
+                    if (!ressource) return null
+                    return (
+                      <div
+                        key={ressourceId}
+                        className="px-3 py-2 bg-white rounded-lg border-2 border-blue-300 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <p className="text-xs font-medium text-gray-800 truncate" title={ressource.nom}>
+                          {ressource.nom}
+                        </p>
+                        {ressource.necessiteTransfert && (
+                          <p className="text-[10px] text-amber-600 mt-0.5">🔄 Transfert</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Ressources disponibles du même site */}
             {candidatsDisponibles.length > 0 && (
               <div className="mb-4">
