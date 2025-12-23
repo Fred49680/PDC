@@ -542,12 +542,29 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Cette fonction accepte TEXT pour force_weekend_ferie pour éviter les problèmes de sérialisation
         // Convertir le booléen en chaîne pour éviter les problèmes de sérialisation JSON
         // SÉCURITÉ : insertData.force_weekend_ferie est garanti d'être un boolean strict (true ou false)
-        const forceWeekendFerieText = insertData.force_weekend_ferie === true ? 'true' : 'false'
+        // SÉCURITÉ RENFORCÉE : Double validation pour éviter toute chaîne vide
+        const forceWeekendFerieValue = typeof insertData.force_weekend_ferie === 'boolean' 
+          ? insertData.force_weekend_ferie 
+          : (insertData.force_weekend_ferie === true || insertData.force_weekend_ferie === 'true' || insertData.force_weekend_ferie === 1)
+        const forceWeekendFerieText = forceWeekendFerieValue === true ? 'true' : 'false'
+        
+        // Validation finale : s'assurer que la chaîne n'est jamais vide
+        if (!forceWeekendFerieText || forceWeekendFerieText.trim() === '') {
+          console.error('[useCharge] ERREUR CRITIQUE: forceWeekendFerieText est vide!', {
+            original: insertData.force_weekend_ferie,
+            normalized: forceWeekendFerieValue,
+            text: forceWeekendFerieText
+          })
+          throw new Error('force_weekend_ferie ne peut pas être vide')
+        }
+        
         debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify({ ...insertData, force_weekend_ferie: forceWeekendFerieText }, null, 2))
         debugLog('[useCharge] Étape 10 - Validation force_weekend_ferie:', {
           value: insertData.force_weekend_ferie,
           type: typeof insertData.force_weekend_ferie,
-          text: forceWeekendFerieText
+          normalized: forceWeekendFerieValue,
+          text: forceWeekendFerieText,
+          textLength: forceWeekendFerieText.length
         })
         
         const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', {
@@ -557,7 +574,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           p_date_debut: insertData.date_debut,
           p_date_fin: insertData.date_fin,
           p_nb_ressources: insertData.nb_ressources,
-          p_force_weekend_ferie: forceWeekendFerieText, // Envoyer comme chaîne 'true' ou 'false'
+          p_force_weekend_ferie: forceWeekendFerieText, // Envoyer comme chaîne 'true' ou 'false' (jamais vide)
         })
         
         if (insertError) {
