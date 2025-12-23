@@ -71,29 +71,28 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       periodes.map(p => ({
         id: p.id,
         competence: p.competence,
-        date_debut: p.date_debut,
-        date_fin: p.date_fin,
+        date_debut: p.date_debut?.toISOString?.() || p.date_debut,
+        date_fin: p.date_fin?.toISOString?.() || p.date_fin,
         nb_ressources: p.nb_ressources
       }))
     )
     
     // Détecter tout changement dans les périodes (ajout, modification, suppression)
     if (periodesSignature !== prevPeriodesRef.current && prevPeriodesRef.current !== '') {
-      // Rafraîchir immédiatement les périodes pour avoir les données à jour
-      refreshPeriodes()
+      // Forcer immédiatement le recalcul des besoins en changeant la clé
+      setRecalcKey(prev => prev + 1)
       
-      // Forcer le recalcul des besoins en changeant la clé après un court délai
-      // pour laisser le temps à Realtime de se synchroniser
+      // Rafraîchir aussi les affectations pour être sûr que tout est à jour
+      // On utilise un petit délai pour laisser le temps à Realtime de se synchroniser
       const timeoutId = setTimeout(() => {
-        setRecalcKey(prev => prev + 1)
         refreshAffectations()
-      }, 500) // Augmenter le délai pour laisser plus de temps à Realtime
+      }, 200)
       prevPeriodesRef.current = periodesSignature
       return () => clearTimeout(timeoutId)
     } else {
       prevPeriodesRef.current = periodesSignature
     }
-  }, [periodes, refreshAffectations, refreshPeriodes])
+  }, [periodes, refreshAffectations])
 
   // Charger TOUTES les ressources actives (pas seulement du site) pour permettre les transferts
   // Le modal AffectationPanel doit pouvoir afficher les ressources d'autres sites
