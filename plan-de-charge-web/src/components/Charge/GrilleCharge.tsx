@@ -115,7 +115,7 @@ export function GrilleCharge({
 
   // Charger les affectations pour cette affaire
   const { affectations } = useAffectations({
-    affaireId: affaireUuid,
+    ...(affaireUuid && { affaireId: affaireUuid }),
     site,
     enableRealtime: true,
   })
