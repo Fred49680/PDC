@@ -568,6 +568,15 @@ export function GrilleCharge({
         // Après la sauvegarde, attendre que le Realtime se synchronise
         // Les valeurs restent dans pendingSavesRef jusqu'à ce qu'elles apparaissent dans periodes
         // Le useEffect les préservera automatiquement
+
+        // Nettoyer les entrées traitées pour éviter de retraiter les mêmes sauvegardes
+        savesToProcess.forEach(({ competence, col }) => {
+          const colIndex = colonnes.findIndex(c => c.date.getTime() === col.date.getTime())
+          if (colIndex >= 0) {
+            const cellKey = `${competence}|${colIndex}`
+            pendingSavesRef.current.delete(cellKey)
+          }
+        })
       } catch (err) {
         console.error('[GrilleCharge] Erreur batch save:', err)
         // En cas d'erreur, retirer les sauvegardes pour éviter de bloquer
