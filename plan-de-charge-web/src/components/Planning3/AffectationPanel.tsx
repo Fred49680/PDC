@@ -27,6 +27,8 @@ interface AffectationPanelProps {
   affectations: Affectation[]
   absences: Absence[]
   periodesCharge?: PeriodeCharge[] // Périodes de charge pour afficher les besoins
+  showExternesGlobal?: boolean // Toggle pour ressources externes
+  onToggleExternes?: () => void // Callback pour toggle ressources externes
   onClose: () => void
   onSuccess: () => void
 }
@@ -40,6 +42,8 @@ export function AffectationPanel({
   affectations,
   absences,
   periodesCharge = [],
+  showExternesGlobal = false,
+  onToggleExternes,
   onClose,
   onSuccess,
 }: AffectationPanelProps) {
@@ -561,16 +565,28 @@ export function AffectationPanel({
   const candidatsDisponiblesMemeSiteRaw = useMemo(() => {
     if (!besoin) return []
     return candidats.filter(
-    (c) => c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+    (c) => {
+      const ressource = ressources.find((r) => r.id === c.id)
+      const isExterne = ressource && ressource.site.toUpperCase() !== besoin.site.toUpperCase()
+      // Si showExternesGlobal est false, exclure les ressources externes
+      if (!showExternesGlobal && isExterne) return false
+      return c.selectable && !c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+    }
   )
-  }, [besoin, candidats, ressourcesDejaAffecteesIds])
+  }, [besoin, candidats, ressourcesDejaAffecteesIds, ressources, showExternesGlobal])
 
   const candidatsNecessitantTransfertRaw = useMemo(() => {
     if (!besoin) return []
     return candidats.filter(
-    (c) => c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+    (c) => {
+      const ressource = ressources.find((r) => r.id === c.id)
+      const isExterne = ressource && ressource.site.toUpperCase() !== besoin.site.toUpperCase()
+      // Si showExternesGlobal est false, exclure les ressources externes
+      if (!showExternesGlobal && isExterne) return false
+      return c.selectable && c.necessiteTransfert && !ressourcesDejaAffecteesIds.has(c.id)
+    }
   )
-  }, [besoin, candidats, ressourcesDejaAffecteesIds])
+  }, [besoin, candidats, ressourcesDejaAffecteesIds, ressources, showExternesGlobal])
 
   // Filtrer les indisponibles : celles qui ont la compétence mais sont complètement indisponibles
   // OU celles avec conflit partiel (seront affichées mais avec option d'affectation partielle)
@@ -645,12 +661,38 @@ export function AffectationPanel({
               {besoin.competence} • {besoin.nbRessources} ressource(s) requise(s)
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-4">
+            {/* Toggle ressources externes */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onToggleExternes) {
+                    onToggleExternes()
+                  }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showExternesGlobal ? 'bg-indigo-600' : 'bg-gray-300'
+                }`}
+                role="switch"
+                aria-checked={showExternesGlobal}
+                aria-label={`${showExternesGlobal ? 'Désactiver' : 'Activer'} ressources externes`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showExternesGlobal ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-xs text-gray-500">Ressources externes</span>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Contenu */}
@@ -680,12 +722,15 @@ export function AffectationPanel({
               <div className="space-y-1">
                 {Array.from(besoinsParCompetence.entries()).map(([competence, nbRessources]) => {
                   // Calculer la couverture pour cette compétence
+                  // IMPORTANT : Compter les ressources UNIQUES, pas toutes les affectations
                   const affectationsCompetence = affectations.filter(
                     (aff) => aff.competence === competence &&
                       aff.date_debut <= besoin.dateFin &&
                       aff.date_fin >= besoin.dateDebut
                   )
-                  const affecte = affectationsCompetence.length
+                  // Utiliser un Set pour compter les ressources uniques
+                  const ressourcesUniques = new Set(affectationsCompetence.map(aff => aff.ressource_id))
+                  const affecte = ressourcesUniques.size
                   const manque = Math.max(0, nbRessources - affecte)
                   const surplus = Math.max(0, affecte - nbRessources)
                   const couverture = { affecte, manque, surplus }
@@ -806,7 +851,10 @@ export function AffectationPanel({
                                         ? format(modifiedPeriodes.get(ressource.affectationId)!.dateDebut, 'yyyy-MM-dd')
                                         : format(ressource.dateDebut, 'yyyy-MM-dd')
                                     }
+                                    onClick={(e) => e.stopPropagation()}
+                                    onFocus={(e) => e.stopPropagation()}
                                     onChange={(e) => {
+                                      e.stopPropagation()
                                       const dateDebut = new Date(e.target.value)
                                       const dateFin = modifiedPeriodes.get(ressource.affectationId)?.dateFin || ressource.dateFin
                                       handleModifyPeriodeExistante(ressource.affectationId, dateDebut, dateFin)
@@ -825,7 +873,10 @@ export function AffectationPanel({
                                         ? format(modifiedPeriodes.get(ressource.affectationId)!.dateFin, 'yyyy-MM-dd')
                                         : format(ressource.dateFin, 'yyyy-MM-dd')
                                     }
+                                    onClick={(e) => e.stopPropagation()}
+                                    onFocus={(e) => e.stopPropagation()}
                                     onChange={(e) => {
+                                      e.stopPropagation()
                                       const dateFin = new Date(e.target.value)
                                       const dateDebut = modifiedPeriodes.get(ressource.affectationId)?.dateDebut || ressource.dateDebut
                                       handleModifyPeriodeExistante(ressource.affectationId, dateDebut, dateFin)
@@ -877,7 +928,7 @@ export function AffectationPanel({
                           className="w-5 h-5 mt-0.5 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className={`font-semibold ${isSelected ? 'text-blue-900' : 'text-gray-800'} truncate`}>
+                          <p className={`font-semibold ${isSelected ? 'text-blue-900' : 'text-gray-800'} break-words line-clamp-2`}>
                             {candidat.nom}
                           </p>
                           <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -1110,7 +1161,7 @@ export function AffectationPanel({
                           className="w-5 h-5 mt-0.5 text-orange-600 rounded focus:ring-orange-500 flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-800 truncate">{candidat.nom}</p>
+                          <p className="font-semibold text-gray-800 break-words line-clamp-2">{candidat.nom}</p>
                           <div className="flex flex-wrap items-center gap-2 mt-2">
                             <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-medium">
                               ⚠️ Conflit partiel

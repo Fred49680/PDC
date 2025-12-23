@@ -482,6 +482,8 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           affectations={affectations}
           absences={absences}
           periodesCharge={periodes}
+          showExternesGlobal={showExternesGlobal}
+          onToggleExternes={() => setShowExternesGlobal(!showExternesGlobal)}
           onClose={() => {
             setSelectedBesoin(null)
             // Appeler le callback pour reset les champs de sélection d'affaire
