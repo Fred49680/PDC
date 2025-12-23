@@ -8,7 +8,7 @@ import { formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/c
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { endOfMonth } from 'date-fns'
-import { Plus } from 'lucide-react'
+import { Plus, Users } from 'lucide-react'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import { calculerCouverture } from '@/utils/planning/planning.compute'
 
@@ -23,6 +23,7 @@ interface GrilleChargeProps {
   onPrecisionChange?: (precision: Precision) => void
   showButtonsAbove?: boolean
   onOpenChargeModal?: () => void // Callback pour ouvrir le modal de charge depuis Planning3
+  onOpenAffectationMasseModal?: () => void // Callback pour ouvrir le modal d'affectation de masse depuis Planning3
   onRegisterRefresh?: (fn: () => Promise<void>) => void // Callback pour enregistrer la fonction de refresh
 }
 
@@ -98,6 +99,7 @@ export function GrilleCharge({
   onPrecisionChange,
   showButtonsAbove = false,
   onOpenChargeModal,
+  onOpenAffectationMasseModal,
   onRegisterRefresh,
 }: GrilleChargeProps) {
   const { periodes, loading, error, savePeriode, deletePeriode, updateCompetence, deleteCompetence, refresh: refreshGrilleCharge } = useCharge({
@@ -900,6 +902,15 @@ export function GrilleCharge({
         >
           <Plus className="w-4 h-4" />
           Déclarer charge période
+        </button>
+      )}
+      {onOpenAffectationMasseModal && (
+        <button
+          onClick={onOpenAffectationMasseModal}
+          className="px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:from-purple-600 hover:to-pink-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+        >
+          <Users className="w-4 h-4" />
+          Affecter en masse
         </button>
       )}
     </div>

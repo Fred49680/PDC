@@ -58,6 +58,8 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
 
   // Ref pour stocker la fonction d'ouverture du modal de charge depuis Planning3
   const openChargeModalRef = useRef<(() => void) | null>(null)
+  // Ref pour stocker la fonction d'ouverture du modal d'affectation de masse depuis Planning3
+  const openAffectationMasseModalRef = useRef<(() => void) | null>(null)
   // Ref pour stocker la fonction de refresh de la grille de charge
   const refreshGrilleChargeRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -736,6 +738,14 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                         console.warn('[ModalChargeAffectation] Le ref est null, le modal ne peut pas s\'ouvrir')
                       }
                     }}
+                    onOpenAffectationMasseModal={() => {
+                      console.log('[ModalChargeAffectation] Callback affectation masse appelé, ref:', openAffectationMasseModalRef.current)
+                      if (openAffectationMasseModalRef.current) {
+                        openAffectationMasseModalRef.current()
+                      } else {
+                        console.warn('[ModalChargeAffectation] Le ref affectation masse est null, le modal ne peut pas s\'ouvrir')
+                      }
+                    }}
                     onRegisterRefresh={(fn) => {
                       refreshGrilleChargeRef.current = fn
                     }}
@@ -752,6 +762,9 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                     precision={precision}
                     onRegisterOpenChargeModal={(fn) => {
                       openChargeModalRef.current = fn
+                    }}
+                    onRegisterOpenAffectationMasseModal={(fn) => {
+                      openAffectationMasseModalRef.current = fn
                     }}
                     refreshGrilleChargeRef={refreshGrilleChargeRef}
                   />

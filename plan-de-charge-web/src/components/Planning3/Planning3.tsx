@@ -44,11 +44,12 @@ interface Planning3Props {
   dateFin?: Date
   precision?: Precision
   onRegisterOpenChargeModal?: (fn: () => void) => void // Callback pour enregistrer la fonction d'ouverture du modal
+  onRegisterOpenAffectationMasseModal?: (fn: () => void) => void // Callback pour enregistrer la fonction d'ouverture du modal d'affectation de masse
   refreshGrilleChargeRef?: React.MutableRefObject<(() => Promise<void>) | null> // Ref pour appeler le refresh de la grille
   onModalClose?: () => void // Callback appelé à la fermeture des modals
 }
 
-export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal, refreshGrilleChargeRef, onModalClose }: Planning3Props) {
+export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JOUR', onRegisterOpenChargeModal, onRegisterOpenAffectationMasseModal, refreshGrilleChargeRef, onModalClose }: Planning3Props) {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinPeriode | null>(null)
   const [besoinsMasse, setBesoinsMasse] = useState<BesoinPeriode[]>([])
   const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
@@ -380,6 +381,23 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     // recalcKey est intentionnellement inclus pour forcer le recalcul quand nécessaire
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodes, affectations, dateDebut, dateFin, recalcKey])
+
+  // Enregistrer la fonction d'ouverture du modal d'affectation de masse
+  useEffect(() => {
+    if (onRegisterOpenAffectationMasseModal) {
+      const openAffectationMasseModal = () => {
+        console.log('[Planning3] Fonction openAffectationMasseModal appelée, ouverture du modal d\'affectation de masse')
+        // Ouvrir le modal avec tous les besoins actuels
+        setBesoinsMasse(besoins)
+      }
+      console.log('[Planning3] Enregistrement de la fonction d\'ouverture du modal d\'affectation de masse')
+      onRegisterOpenAffectationMasseModal(openAffectationMasseModal)
+      return () => {
+        // Nettoyer le ref quand le composant se démonte
+        onRegisterOpenAffectationMasseModal(() => {})
+      }
+    }
+  }, [onRegisterOpenAffectationMasseModal, besoins])
 
   const handleAffecter = (besoin: BesoinPeriode) => {
     setSelectedBesoin(besoin)
