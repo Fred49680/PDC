@@ -8,7 +8,7 @@ import { formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/c
 import { isFrenchHoliday } from '@/utils/holidays'
 import type { Precision } from '@/types/charge'
 import { endOfMonth } from 'date-fns'
-import { Plus, Users } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
 import { calculerCouverture } from '@/utils/planning/planning.compute'
 
@@ -902,15 +902,6 @@ export function GrilleCharge({
         >
           <Plus className="w-4 h-4" />
           Déclarer charge période
-        </button>
-      )}
-      {onOpenAffectationMasseModal && (
-        <button
-          onClick={onOpenAffectationMasseModal}
-          className="px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:from-purple-600 hover:to-pink-700 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
-        >
-          <Users className="w-4 h-4" />
-          Affecter en masse
         </button>
       )}
     </div>
