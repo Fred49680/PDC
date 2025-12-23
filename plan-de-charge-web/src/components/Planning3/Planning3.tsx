@@ -54,6 +54,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   const [vue, setVue] = useState<'tuile' | 'grille'>('tuile')
   const [showExternesGlobal, setShowExternesGlobal] = useState(false) // Toggle global pour toutes les compétences
   const [showChargeMasseModal, setShowChargeMasseModal] = useState(false)
+  const [showExternesChargeMasse, setShowExternesChargeMasse] = useState(false) // Toggle pour ressources externes dans le modal
   const [chargeMasseForm, setChargeMasseForm] = useState({
     competence: '',
     dateDebut: dateDebut || new Date(),
@@ -302,12 +303,16 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
 
   // Filtrer les ressources selon la compétence sélectionnée pour le modal
   // et vérifier les conflits/absences
+  // Utiliser toutes les ressources si le toggle est activé, sinon seulement celles du site
+  const ressourcesPourModal = showExternesChargeMasse ? allRessources : ressourcesSite
+  const competencesPourModal = showExternesChargeMasse ? allCompetences : competencesSite
+  
   const ressourcesFiltrees = useMemo(() => {
     if (!chargeMasseForm.competence || !chargeMasseForm.dateDebut || !chargeMasseForm.dateFin) return []
     
-    return ressourcesSite
+    return ressourcesPourModal
       .filter((ressource) => {
-        const ressourceCompetences = competencesSite.get(ressource.id) || []
+        const ressourceCompetences = competencesPourModal.get(ressource.id) || []
         return ressourceCompetences.some((comp) => comp.competence === chargeMasseForm.competence)
       })
       .map((ressource) => {
@@ -326,7 +331,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
         if (!a.disabled && b.disabled) return -1
         return a.nom.localeCompare(b.nom)
       })
-  }, [ressourcesSite, competencesSite, chargeMasseForm.competence, chargeMasseForm.dateDebut, chargeMasseForm.dateFin, hasConflitOuAbsence])
+  }, [ressourcesPourModal, competencesPourModal, chargeMasseForm.competence, chargeMasseForm.dateDebut, chargeMasseForm.dateFin, hasConflitOuAbsence])
 
   // Enregistrer la fonction d'ouverture du modal dans le ref parent
   useEffect(() => {
@@ -613,6 +618,28 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              {/* Toggle ressources externes */}
+              <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <button
+                  onClick={() => setShowExternesChargeMasse(!showExternesChargeMasse)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer ${
+                    showExternesChargeMasse ? 'bg-indigo-600' : 'bg-gray-300'
+                  }`}
+                  role="switch"
+                  aria-checked={showExternesChargeMasse}
+                  aria-label={`${showExternesChargeMasse ? 'Désactiver' : 'Activer'} ressources externes`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                      showExternesChargeMasse ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-sm text-gray-700 font-medium min-w-[30px]">
+                  {showExternesChargeMasse ? 'ON' : 'OFF'}
+                </span>
+                <span className="text-xs text-gray-600">Ressources externes</span>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Ressources (facultatif) - Sélectionnez jusqu&apos;à {chargeMasseForm.nbRessources} ressource{chargeMasseForm.nbRessources > 1 ? 's' : ''}
@@ -663,7 +690,10 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                             />
                             <span className="flex-1">
-                              {ressource.nom} ({ressource.site})
+                              {ressource.nom}
+                              <span className={`text-xs ml-1 ${ressource.site !== site ? 'text-orange-600 font-semibold' : 'text-gray-500'}`}>
+                                ({ressource.site}{ressource.site !== site ? ' - Transfert' : ''})
+                              </span>
                             </span>
                             {ressource.disabled && (
                               <span className="text-xs text-red-600 font-medium">
