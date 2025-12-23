@@ -139,7 +139,7 @@ export function BesoinsGrid({
   const competencesNecessaires = useMemo(() => {
     return Array.from(new Set(besoins.map(b => b.competence)))
   }, [besoins])
-
+  
   const { ressources: ressourcesSite, competences: competencesSite, loading: loadingRessourcesSite } = useRessources({
     site,
     actif: true,
@@ -560,9 +560,9 @@ export function BesoinsGrid({
         const affectationComplete = affectations.find(aff => aff.id === cellInfo.affectationId)
         if (!affectationComplete) {
           // Si on ne trouve pas l'affectation, supprimer simplement
-          await deleteAffectation(cellInfo.affectationId)
-          addToast('Affectation supprimée', 'success')
-          await refreshAffectations()
+        await deleteAffectation(cellInfo.affectationId)
+        addToast('Affectation supprimée', 'success')
+        await refreshAffectations()
           return
         }
 
@@ -677,7 +677,7 @@ export function BesoinsGrid({
               await saveAffectation(aff)
               nbCreees++
             }
-          } catch (err) {
+      } catch (err) {
             console.error('[BesoinsGrid] Erreur création affectation:', err)
             nbBloquees++
           }
@@ -834,9 +834,9 @@ export function BesoinsGrid({
                         ))}
                       </tr>
                       {/* Ligne de rappel de charge - UNIQUEMENT pour cette compétence */}
-                      <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
-                        <th className="border-b border-r border-gray-300 px-4 py-2 text-left text-xs font-bold text-indigo-800 sticky left-0 z-10 bg-gradient-to-r from-indigo-50 to-purple-50">
-                          Charge ({competence})
+                      <tr className="bg-gradient-to-r from-indigo-100 to-purple-100 border-b-2 border-indigo-300">
+                        <th className="border-b border-r border-gray-300 px-4 py-2.5 text-left text-sm font-bold text-indigo-900 sticky left-0 z-10 bg-gradient-to-r from-indigo-100 to-purple-100 whitespace-nowrap">
+                          Charge
                         </th>
                         {colonnes.map((col, idx) => {
                           // Calculer la charge UNIQUEMENT pour cette compétence
@@ -873,7 +873,11 @@ export function BesoinsGrid({
                           return (
                             <th
                               key={idx}
-                              className={`border-b border-r border-gray-300 px-2 py-2 text-center text-xs font-bold text-indigo-700 ${
+                              className={`border-b border-r border-gray-300 px-2 py-2.5 text-center text-sm font-bold ${
+                                charge > 0 
+                                  ? 'text-indigo-900 bg-indigo-50' 
+                                  : 'text-gray-400'
+                              } ${
                                 col.isWeekend ? 'bg-blue-100' :
                                 col.isHoliday ? 'bg-rose-100' :
                                 ''
