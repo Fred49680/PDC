@@ -548,8 +548,10 @@ export function GrilleCharge({
     const col = colonnes[colIndex]
     if (!col) return
 
+    // Validation de sécurité : s'assurer que value est un nombre valide
+    const numValue = typeof value === 'number' && !isNaN(value) ? value : 0
     const cellKey = `${competence}|${colIndex}`
-    const nbRessources = Math.max(0, Math.floor(value))
+    const nbRessources = Math.max(0, Math.floor(numValue))
     
     // Stocker la sauvegarde en attente AVANT la mise à jour locale
     // Cela garantit que la valeur sera préservée lors de la reconstruction de la grille
@@ -1064,8 +1066,36 @@ export function GrilleCharge({
                           })
                           // Convertir et mettre à jour la grille seulement si la valeur est valide
                           const numValue = parseFloat(inputValue)
-                          if (!isNaN(numValue) && numValue >= 0) {
+                          if (!isNaN(numValue) && numValue >= 0 && typeof numValue === 'number') {
                             handleCellChange(comp, idx, numValue)
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          // Gérer les flèches haut/bas pour éviter les erreurs de type
+                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            const currentValue = parseFloat(e.currentTarget.value) || 0
+                            const step = e.key === 'ArrowUp' ? 1 : -1
+                            const newValue = Math.max(0, currentValue + step)
+                            
+                            // Mettre à jour la valeur de l'input
+                            e.currentTarget.value = newValue.toString()
+                            
+                            // Mettre à jour l'état d'édition
+                            setEditingValues(prev => {
+                              const next = new Map(prev)
+                              if (newValue === 0) {
+                                next.delete(cellKey)
+                              } else {
+                                next.set(cellKey, newValue.toString())
+                              }
+                              return next
+                            })
+                            
+                            // Appeler handleCellChange avec une valeur validée
+                            if (typeof newValue === 'number' && !isNaN(newValue) && newValue >= 0) {
+                              handleCellChange(comp, idx, newValue)
+                            }
                           }
                         }}
                         onWheel={(e) => {
@@ -1088,8 +1118,8 @@ export function GrilleCharge({
                             next.delete(cellKey)
                             return next
                           })
-                          // S'assurer que la valeur finale est bien enregistrée
-                          if (numValue !== value) {
+                          // S'assurer que la valeur finale est bien enregistrée avec validation de type
+                          if (typeof numValue === 'number' && !isNaN(numValue) && numValue !== value) {
                             handleCellChange(comp, idx, numValue)
                           }
                         }}
