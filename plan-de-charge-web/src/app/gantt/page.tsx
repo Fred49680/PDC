@@ -15,6 +15,7 @@ import { startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, addWe
 import { formatPlageSemainesISO } from '@/utils/calendar'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Precision } from '@/types/charge'
+import { DateRangePickerModal } from '@/components/Common/DateRangePickerModal'
 
 // Forcer le rendu dynamique
 export const dynamic = 'force-dynamic'
@@ -38,6 +39,7 @@ export default function GanttPage() {
   const [dateDebut, setDateDebut] = useState(baseDate)
   const [dateFin, setDateFin] = useState(endOfMonthFn(baseDate)) // 31/01/2026
   const [precision, setPrecision] = useState<Precision>('JOUR')
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
   const affairesActives = affaires.filter(
@@ -638,57 +640,18 @@ export default function GanttPage() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="px-4 py-2 text-center flex-1 relative group">
-                <div className="font-semibold text-gray-800 pointer-events-none">
+              <div 
+                className="px-4 py-2 text-center flex-1 cursor-pointer hover:bg-blue-100 rounded-lg transition-colors relative"
+                onClick={() => setIsDatePickerOpen(true)}
+                title="Cliquer pour sélectionner une période personnalisée"
+              >
+                <div className="font-semibold text-gray-800">
                   {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
                 </div>
-                <div className="text-xs text-gray-600 flex items-center justify-center gap-1 pointer-events-none mt-0.5">
+                <div className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-0.5">
                   <Calendar className="w-3.5 h-3.5" />
                   {formatPlageSemainesISO(dateDebut, dateFin)}
                 </div>
-                  <input
-                  type="date"
-                  value={dateDebut.toISOString().split('T')[0]}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const dateStr = e.target.value
-                      const newDateDebut = new Date(dateStr + 'T12:00:00')
-                      if (isNaN(newDateDebut.getTime())) return
-                      
-                      let finalDateDebut: Date
-                      let newDateFin: Date
-                      
-                      if (precision === 'JOUR') {
-                        // En mode JOUR : toujours commencer le 01 du mois sélectionné
-                        const monthStart = startOfMonthFn(newDateDebut)
-                        finalDateDebut = monthStart
-                        newDateFin = endOfMonthFn(monthStart)
-                      } else if (precision === 'SEMAINE') {
-                        const monthStart = startOfMonthFn(newDateDebut)
-                        const weekStart = new Date(monthStart)
-                        const dayOfWeek = weekStart.getDay() || 7
-                        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-                        weekStart.setDate(weekStart.getDate() - daysToMonday)
-                        finalDateDebut = weekStart
-                        newDateFin = endOfMonthFn(monthStart)
-                      } else if (precision === 'MOIS') {
-                        const monthStart = startOfMonthFn(newDateDebut)
-                        finalDateDebut = monthStart
-                        newDateFin = endOfMonthFn(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1))
-                      } else {
-                        const diffDays = Math.ceil((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24))
-                        finalDateDebut = newDateDebut
-                        newDateFin = new Date(newDateDebut.getTime() + diffDays * 24 * 60 * 60 * 1000)
-                      }
-                      
-                      setDateDebut(finalDateDebut)
-                      setDateFin(newDateFin)
-                    }
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  style={{ fontSize: '16px' }}
-                  title="Cliquez pour modifier la date de début"
-                />
               </div>
               <button
                 onClick={() => {
@@ -769,6 +732,19 @@ export default function GanttPage() {
             </div>
           </div>
         )}
+
+        {/* Modal de sélection de dates personnalisées */}
+        <DateRangePickerModal
+          isOpen={isDatePickerOpen}
+          dateDebut={dateDebut}
+          dateFin={dateFin}
+          onConfirm={(newDateDebut, newDateFin) => {
+            setDateDebut(newDateDebut)
+            setDateFin(newDateFin)
+            setIsDatePickerOpen(false)
+          }}
+          onCancel={() => setIsDatePickerOpen(false)}
+        />
       </div>
     </Layout>
   )
