@@ -440,37 +440,48 @@ export function AffectationPanel({
   }
 
   // Identifier les ressources déjà affectées à cette affaire pour cette période
+  // IMPORTANT : Ne compter que les ressources affectées sur la période EXACTE du besoin
   const ressourcesDejaAffectees = useMemo(() => {
     if (!besoin) return []
     
-    return affectations
-      .filter((aff) => {
-        // Vérifier que l'affectation correspond à la période et la compétence
-        const chevauche =
-          aff.date_debut <= besoin.dateFin && aff.date_fin >= besoin.dateDebut
-        return chevauche && aff.competence === besoin.competence
-      })
-      .map((aff) => {
-        const ressource = ressources.find((r) => r.id === aff.ressource_id)
-        const ressourceCompetences = competences.get(aff.ressource_id) || []
-        const isPrincipale = ressourceCompetences.some(
-          (comp) => comp.competence === besoin.competence && comp.type_comp === 'P'
-        )
-        const necessiteTransfert = ressource
-          ? ressource.site.toUpperCase() !== besoin.site.toUpperCase()
-          : false
+    // Filtrer les affectations qui chevauchent avec la période du besoin
+    const affectationsPeriode = affectations.filter((aff) => {
+      // Vérifier que l'affectation correspond à la période et la compétence
+      const chevauche =
+        aff.date_debut <= besoin.dateFin && aff.date_fin >= besoin.dateDebut
+      return chevauche && aff.competence === besoin.competence
+    })
 
-        return {
-          affectationId: aff.id,
-          ressourceId: aff.ressource_id,
-          nom: ressource?.nom || 'Ressource inconnue',
-          site: ressource?.site || '',
-          isPrincipale,
-          necessiteTransfert,
-          dateDebut: aff.date_debut,
-          dateFin: aff.date_fin,
-        }
-      })
+    // Utiliser un Map pour ne garder qu'une affectation par ressource (la première trouvée)
+    // Cela évite de compter plusieurs fois la même ressource si elle a plusieurs affectations
+    const ressourcesUniques = new Map<string, typeof affectations[0]>()
+    affectationsPeriode.forEach((aff) => {
+      if (!ressourcesUniques.has(aff.ressource_id)) {
+        ressourcesUniques.set(aff.ressource_id, aff)
+      }
+    })
+    
+    return Array.from(ressourcesUniques.values()).map((aff) => {
+      const ressource = ressources.find((r) => r.id === aff.ressource_id)
+      const ressourceCompetences = competences.get(aff.ressource_id) || []
+      const isPrincipale = ressourceCompetences.some(
+        (comp) => comp.competence === besoin.competence && comp.type_comp === 'P'
+      )
+      const necessiteTransfert = ressource
+        ? ressource.site.toUpperCase() !== besoin.site.toUpperCase()
+        : false
+
+      return {
+        affectationId: aff.id,
+        ressourceId: aff.ressource_id,
+        nom: ressource?.nom || 'Ressource inconnue',
+        site: ressource?.site || '',
+        isPrincipale,
+        necessiteTransfert,
+        dateDebut: aff.date_debut,
+        dateFin: aff.date_fin,
+      }
+    })
   }, [besoin, affectations, ressources, competences])
 
   // Identifier les IDs des ressources déjà affectées pour les exclure des listes disponibles
@@ -711,7 +722,7 @@ export function AffectationPanel({
               <p className="text-sm text-gray-600 mb-3">
                 Décochez pour désaffecter ces ressources de l&apos;affaire
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {ressourcesDejaAffecteesTriees.map((ressource) => {
                   const isToRemove = idsToRemove.has(ressource.affectationId)
                   return (
@@ -841,7 +852,7 @@ export function AffectationPanel({
                 <CheckCircle2 className="w-5 h-5 text-green-600" />
                 Ressources disponibles ({candidatsDisponiblesMemeSite.length})
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {candidatsDisponiblesMemeSite.map((candidat) => {
                   const isSelected = selectedIds.has(candidat.id)
                   return (
@@ -961,7 +972,7 @@ export function AffectationPanel({
               <p className="text-sm text-gray-600 mb-3">
                 Ces ressources ont la compétence mais sont sur un autre site. Un transfert sera créé automatiquement.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {candidatsNecessitantTransfert.map((candidat) => {
                   const isSelected = selectedIds.has(candidat.id)
                   return (
@@ -1079,7 +1090,7 @@ export function AffectationPanel({
               <p className="text-sm text-gray-600 mb-3">
                 Ces ressources ont des conflits sur certains jours mais sont disponibles sur d&apos;autres. Vous pouvez les affecter sur les jours disponibles uniquement.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {candidatsConflitPartiel.map((candidat) => {
                   const isSelected = selectedIds.has(candidat.id)
                   const periodePartielle = selectedPeriodes.get(candidat.id)
@@ -1195,7 +1206,7 @@ export function AffectationPanel({
                 <XCircle className="w-5 h-5 text-red-600" />
                 Ressources indisponibles ({candidatsIndisponibles.length})
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {candidatsIndisponibles.map((candidat) => (
                   <div
                     key={candidat.id}

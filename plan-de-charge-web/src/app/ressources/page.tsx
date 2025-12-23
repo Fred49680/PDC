@@ -56,7 +56,7 @@ export default function RessourcesPage() {
   
   // Charger toutes les ressources pour le comptage (sans filtre type_contrat)
   const { ressources: allRessources } = useRessources({ 
-    actif: filters.actif,
+    actif: filters.actif, 
     enableRealtime: false // Pas besoin de Realtime pour le comptage
   })
   
@@ -1801,44 +1801,44 @@ function InterimsManagement({
       {/* Statistiques - Vignettes sur une ligne */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
-          <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center justify-between">
+              <div>
               <p className="text-xs text-blue-600 font-medium leading-tight">Total</p>
               <p className="text-base font-bold text-blue-800 leading-tight">{stats.total}</p>
-            </div>
+              </div>
             <Briefcase className="w-4 h-4 text-blue-500 flex-shrink-0" />
-          </div>
+            </div>
         </div>
 
         <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
-          <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center justify-between">
+              <div>
               <p className="text-xs text-yellow-600 font-medium leading-tight">À renouveler</p>
               <p className="text-base font-bold text-yellow-800 leading-tight">{stats.aRenouveler}</p>
-            </div>
+              </div>
             <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />
-          </div>
+            </div>
         </div>
 
         <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
-          <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center justify-between">
+              <div>
               <p className="text-xs text-green-600 font-medium leading-tight">Renouvelés</p>
               <p className="text-base font-bold text-green-800 leading-tight">{stats.renouveles}</p>
-            </div>
+              </div>
             <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-          </div>
+            </div>
         </div>
 
         <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
-          <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center justify-between">
+              <div>
               <p className="text-xs text-orange-600 font-medium leading-tight">Expirent bientôt</p>
               <p className="text-base font-bold text-orange-800 leading-tight">{stats.expirentBientot}</p>
-            </div>
+              </div>
             <Clock className="w-4 h-4 text-orange-500 flex-shrink-0" />
-          </div>
-        </div>
+            </div>
+      </div>
 
         <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
           <div className="flex items-center justify-between">
@@ -1876,37 +1876,37 @@ function InterimsManagement({
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              type="text"
+              <Input
+                type="text"
               placeholder="Rechercher..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9 text-sm"
-            />
-          </div>
-          <Select
-            value={filters.site}
-            onChange={(e) => setFilters({ ...filters, site: e.target.value })}
+              />
+            </div>
+            <Select
+              value={filters.site}
+              onChange={(e) => setFilters({ ...filters, site: e.target.value })}
             className="w-auto min-w-[140px]"
-            options={[
+              options={[
               { value: '', label: 'Tous sites' },
-              ...sitesList.map((site) => ({
-                value: site.site,
-                label: site.site,
-              })),
-            ]}
-          />
-          <Select
-            value={filters.aRenouveler}
-            onChange={(e) => setFilters({ ...filters, aRenouveler: e.target.value })}
+                ...sitesList.map((site) => ({
+                  value: site.site,
+                  label: site.site,
+                })),
+              ]}
+            />
+            <Select
+              value={filters.aRenouveler}
+              onChange={(e) => setFilters({ ...filters, aRenouveler: e.target.value })}
             className="w-auto min-w-[140px]"
-            options={[
+              options={[
               { value: '', label: 'Tous statuts' },
-              { value: 'A renouveler', label: 'À renouveler' },
-              { value: 'Oui', label: 'Renouvelé' },
-              { value: 'Non', label: 'Non renouvelé' },
-            ]}
-          />
+                { value: 'A renouveler', label: 'À renouveler' },
+                { value: 'Oui', label: 'Renouvelé' },
+                { value: 'Non', label: 'Non renouvelé' },
+              ]}
+            />
           <div className="flex gap-2 ml-auto">
             {interims.length === 0 && ressourcesETT.length > 0 && (
               <Button
@@ -1980,70 +1980,70 @@ function InterimsManagement({
                     className={`px-2 py-1 rounded border shrink-0 ${getStatutColor(interim.a_renouveler || '')}`}
                   >
                     <span className="text-xs font-semibold">{interim.a_renouveler || 'En cours'}</span>
-                  </div>
+                      </div>
 
                   {/* Nom de la ressource */}
                   <div className="font-bold text-gray-800 min-w-[150px]">
-                    {interim.ressource?.nom || 'Ressource inconnue'}
-                  </div>
+                          {interim.ressource?.nom || 'Ressource inconnue'}
+                    </div>
 
                   {/* Site */}
                   <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
                     <MapPin className="w-3 h-3" />
                     <span className="font-semibold">{interim.site}</span>
-                  </div>
+                        </div>
 
                   {/* Dates */}
                   <div className="flex items-center gap-1 text-gray-600 min-w-[200px]">
                     <Calendar className="w-3 h-3" />
                     <span>
-                      {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
+                          {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
                     </span>
-                  </div>
+                    </div>
 
                   {/* Jours restants */}
                   <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
                     <Clock className={`w-3 h-3 ${
-                      estExpire 
-                        ? 'text-red-600' 
-                        : expireBientot 
+                        estExpire 
+                          ? 'text-red-600' 
+                          : expireBientot 
                         ? 'text-orange-600' 
-                        : 'text-gray-600'
-                    }`} />
+                          : 'text-gray-600'
+                      }`} />
                     <span className={estExpire ? 'text-red-600 font-semibold' : expireBientot ? 'text-orange-600 font-semibold' : ''}>
-                      {estExpire 
-                        ? `Expiré ${Math.abs(joursRestants)}j`
+                          {estExpire 
+                            ? `Expiré ${Math.abs(joursRestants)}j`
                         : `${joursRestants} j. ouvré(s)`
-                      }
+                          }
                     </span>
-                  </div>
+                    </div>
 
                   {/* Espace flex pour pousser le contenu */}
                   <div className="flex-1"></div>
 
                   {/* Bouton Supprimer/Archiver */}
-                  {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
-                    <button
+                      {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
+                        <button
                       data-action="delete"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDelete(interim.id, interim.a_renouveler || '')
-                      }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(interim.id, interim.a_renouveler || '')
+                          }}
                       className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors shrink-0"
-                      title="Archiver l'intérim"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                          title="Archiver l'intérim"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                 {/* Commentaire si présent */}
-                {interim.commentaire && (
+                  {interim.commentaire && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-sm text-gray-600 italic">
-                      {interim.commentaire}
-                    </p>
-                  </div>
-                )}
+                      <p className="text-sm text-gray-600 italic">
+                        {interim.commentaire}
+                      </p>
+                    </div>
+                  )}
               </div>
             )
           })

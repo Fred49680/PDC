@@ -1276,7 +1276,7 @@ export default function GrilleChargeAffectation({
   // La clé de la grille inclut la compétence, donc le calcul est isolé par compétence
   const getTotalAffecte = useCallback((competence: string, col: ColonneDate): number => {
     // La clé inclut la compétence, donc on ne compte que les affectations de cette compétence
-    const cellKey = `${competence}|${col.date.getTime()}`
+      const cellKey = `${competence}|${col.date.getTime()}`
     const affectees = grilleAffectations.get(cellKey) || new Set<string>()
     // Retourner uniquement le nombre de ressources affectées pour cette compétence
     return affectees.size
