@@ -63,23 +63,37 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
     })
 
   // Rafraîchir les affectations quand les périodes changent (pour mettre à jour BesoinsGrid)
-  // Cela permet de synchroniser BesoinsGrid quand GrilleCharge se rafraîchit après l'ajout d'une nouvelle compétence
-  const prevPeriodesLengthRef = useRef(periodes.length)
+  // Cela permet de synchroniser BesoinsGrid quand GrilleCharge se rafraîchit après l'ajout/modification de charge
+  const prevPeriodesRef = useRef<string>('')
   useEffect(() => {
-    // Détecter quand une nouvelle période est ajoutée (nouvelle compétence)
-    if (periodes.length > prevPeriodesLengthRef.current) {
-      // Rafraîchir les affectations pour mettre à jour BesoinsGrid
-      // On utilise un petit délai pour laisser le temps à Realtime de se synchroniser
+    // Créer une signature des périodes pour détecter tout changement (pas seulement le nombre)
+    const periodesSignature = JSON.stringify(
+      periodes.map(p => ({
+        id: p.id,
+        competence: p.competence,
+        date_debut: p.date_debut,
+        date_fin: p.date_fin,
+        nb_ressources: p.nb_ressources
+      }))
+    )
+    
+    // Détecter tout changement dans les périodes (ajout, modification, suppression)
+    if (periodesSignature !== prevPeriodesRef.current && prevPeriodesRef.current !== '') {
+      // Rafraîchir immédiatement les périodes pour avoir les données à jour
+      refreshPeriodes()
+      
+      // Forcer le recalcul des besoins en changeant la clé après un court délai
+      // pour laisser le temps à Realtime de se synchroniser
       const timeoutId = setTimeout(() => {
+        setRecalcKey(prev => prev + 1)
         refreshAffectations()
-        refreshPeriodes() // Forcer aussi le rafraîchissement des périodes pour être sûr
-      }, 300)
-      prevPeriodesLengthRef.current = periodes.length
+      }, 500) // Augmenter le délai pour laisser plus de temps à Realtime
+      prevPeriodesRef.current = periodesSignature
       return () => clearTimeout(timeoutId)
     } else {
-      prevPeriodesLengthRef.current = periodes.length
+      prevPeriodesRef.current = periodesSignature
     }
-  }, [periodes.length, refreshAffectations, refreshPeriodes])
+  }, [periodes, refreshAffectations, refreshPeriodes])
 
   // Charger TOUTES les ressources actives (pas seulement du site) pour permettre les transferts
   // Le modal AffectationPanel doit pouvoir afficher les ressources d'autres sites
@@ -307,6 +321,8 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
 
   // Calculer les besoins avec couverture (useMemo au lieu de useState + useEffect)
   // Filtrer par date si dateDebut et dateFin sont fournis
+  // Utiliser une clé de recalcul basée sur les périodes pour forcer le recalcul
+  const [recalcKey, setRecalcKey] = useState(0)
   const besoins = useMemo(() => {
     if (periodes.length > 0 && affectations.length >= 0) {
       let periodesFiltrees = periodes
@@ -324,7 +340,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       return periodesFiltrees.map((periode) => periodeToBesoin(periode, affectations))
     }
     return []
-  }, [periodes, affectations, dateDebut, dateFin])
+  }, [periodes, affectations, dateDebut, dateFin, recalcKey])
 
   const handleAffecter = (besoin: BesoinPeriode) => {
     setSelectedBesoin(besoin)
