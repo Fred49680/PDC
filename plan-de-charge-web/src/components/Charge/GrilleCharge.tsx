@@ -1069,32 +1069,15 @@ export function GrilleCharge({
                           }
                         }}
                         onWheel={(e) => {
-                          // Empêcher le comportement par défaut de la molette
-                          // Note: preventDefault peut causer une erreur avec les listeners passifs
-                          // On utilise une approche alternative avec stopPropagation
+                          // Désactiver le changement de valeur avec la molette
+                          // Si l'input est focus, on blur l'input pour permettre le scroll normal
                           if (e.currentTarget === document.activeElement) {
-                            e.stopPropagation()
+                            // Empêcher le changement de valeur par défaut des inputs number
+                            e.preventDefault()
+                            // Retirer le focus pour permettre le scroll normal
                             e.currentTarget.blur()
+                            // Ne pas bloquer la propagation pour permettre le scroll du conteneur
                           }
-                          
-                          // Calculer la nouvelle valeur en fonction du delta de la molette
-                          const delta = e.deltaY > 0 ? -1 : 1
-                          const currentValue = parseFloat(e.currentTarget.value) || 0
-                          const newValue = Math.max(0, currentValue + delta)
-                          
-                          // Mettre à jour la valeur
-                          setEditingValues(prev => {
-                            const next = new Map(prev)
-                            if (newValue === 0) {
-                              next.delete(cellKey)
-                            } else {
-                              next.set(cellKey, newValue.toString())
-                            }
-                            return next
-                          })
-                          
-                          // Appeler handleCellChange avec la nouvelle valeur
-                          handleCellChange(comp, idx, newValue)
                         }}
                         onBlur={(e) => {
                           // À la perte de focus, nettoyer l'état d'édition et valider la valeur
