@@ -51,8 +51,9 @@ export function DateRangePickerModal({
     return `${year}-${month}-${day}`
   }
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  // Contenu du modal
+  const modalContent = (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       {/* Overlay avec backdrop blur */}
       <div 
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
@@ -163,7 +164,7 @@ export function DateRangePickerModal({
   )
 
   // Utiliser createPortal pour rendre le modal en dehors de la hiérarchie DOM
-  // Cela garantit qu'il sera toujours au-dessus des autres modals
+  // Cela garantit qu'il sera toujours au-dessus des autres modals (z-index 10000)
   if (typeof window !== 'undefined') {
     return createPortal(modalContent, document.body)
   }
