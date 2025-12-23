@@ -770,8 +770,9 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       debugLog(`[useCharge] Consolidation: ${periodesData.length} période(s) -> ${periodesConsolidees.length} période(s) consolidée(s)`)
       debugLog('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesConsolidees.slice(0, 3), null, 2), '... (affiche les 3 premières)')
 
-      // Diviser les insertions en lots de 50 pour éviter les timeouts (réduit car consolidation déjà faite)
-      const BATCH_SIZE = 50
+      // Diviser les insertions en lots plus petits pour éviter les timeouts
+      // Réduit à 20 car même avec les triggers désactivés, de très grandes périodes peuvent causer des timeouts
+      const BATCH_SIZE = 20
       const batches: typeof periodesConsolidees[] = []
       for (let i = 0; i < periodesConsolidees.length; i += BATCH_SIZE) {
         batches.push(periodesConsolidees.slice(i, i + BATCH_SIZE))
@@ -814,9 +815,9 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           
           debugLog(`[useCharge] Lot ${i + 1}/${batches.length} inséré avec succès`)
           
-          // Petit délai entre les lots pour éviter la surcharge
+          // Délai plus long entre les lots pour éviter la surcharge et permettre aux triggers de se déclencher
           if (i < batches.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100))
+            await new Promise(resolve => setTimeout(resolve, 200))
           }
         } catch (err) {
           console.error(`[useCharge] Erreur lors du traitement du lot ${i + 1}/${batches.length}:`, err)
