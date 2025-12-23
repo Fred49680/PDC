@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertCircle, Loader2, Grid3x3, LayoutGrid, X, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCharge } from '@/hooks/useCharge'
@@ -522,9 +523,10 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
         />
       )}
 
-      {/* Modal charge de masse */}
-      {showChargeMasseModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      {/* Modal charge de masse - Utilise un portal pour être au-dessus du modal parent */}
+      {showChargeMasseModal && (() => {
+        const modalContent = (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">Déclarer charge période</h3>
