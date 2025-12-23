@@ -788,9 +788,18 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         try {
           // Appeler la fonction RPC batch_insert_periodes_charge
           // Le site sera normalisé en majuscules dans la fonction RPC
+          // La fonction SQL attend p_affaire_id comme texte (numéro de compte) et récupère elle-même l'UUID
+          // Filtrer les périodes avec nb_ressources <= 0 car la contrainte CHECK (nb_ressources > 0) les rejette
+          const batchFiltre = batch.filter(p => (p.nb_ressources || 0) > 0)
+          
+          if (batchFiltre.length === 0) {
+            debugLog(`[useCharge] Lot ${i + 1}/${batches.length} ignoré (toutes les périodes ont nb_ressources <= 0)`)
+            continue
+          }
+          
           const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
-            p_periodes: batch,
-            p_affaire_id: affaireId,
+            p_periodes: batchFiltre,
+            p_affaire_id: affaireId, // Numéro de compte (la fonction SQL récupère l'UUID)
             p_site: siteNormalized,
           })
 
