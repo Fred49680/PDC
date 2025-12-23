@@ -135,17 +135,19 @@ export function AdresseForm({
     }
   }
 
-  // Adresse formatée depuis la validation
+  // Adresse formatée depuis la validation - utiliser l'adresse vérifiée
   useEffect(() => {
     if (formattedAddress && autoValidate && isValid) {
       // Si la validation retourne une adresse formatée différente, l'utiliser
       const currentFormatted = formatAdresse()
       if (formattedAddress !== currentFormatted) {
-        // Optionnel: mettre à jour avec l'adresse formatée par Google
-        // parseAdresseExistante(formattedAddress)
+        // Mettre à jour avec l'adresse formatée par l'API de vérification
+        parseAdresseExistante(formattedAddress)
+        // Appeler onChange avec l'adresse formatée vérifiée
+        onChange(formattedAddress)
       }
     }
-  }, [formattedAddress, isValid, autoValidate, formatAdresse])
+  }, [formattedAddress, isValid, autoValidate, formatAdresse, onChange, parseAdresseExistante])
 
   return (
     <div className="space-y-4">
