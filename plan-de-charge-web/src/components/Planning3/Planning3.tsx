@@ -456,6 +456,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           besoins={besoins}
           onAffecter={handleAffecter}
           onAffecterMasse={handleAffecterMasse}
+          showExternesGlobal={showExternesGlobal}
         />
       ) : (
         <BesoinsGrid

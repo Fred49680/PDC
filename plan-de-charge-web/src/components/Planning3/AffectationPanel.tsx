@@ -48,6 +48,7 @@ export function AffectationPanel({
   const [idsToRemove, setIdsToRemove] = useState<Set<string>>(new Set()) // IDs des affectations à supprimer
   const [selectedPeriodes, setSelectedPeriodes] = useState<Map<string, { dateDebut: Date; dateFin: Date }>>(new Map()) // Périodes partielles par ressource
   const [modifiedPeriodes, setModifiedPeriodes] = useState<Map<string, { dateDebut: Date; dateFin: Date }>>(new Map()) // Périodes modifiées pour les affectations existantes (par affectationId)
+  const [periodesDejaModifiees, setPeriodesDejaModifiees] = useState<Set<string>>(new Set()) // IDs des affectations déjà modifiées automatiquement
   const [showPeriodSelector, setShowPeriodSelector] = useState<string | null>(null) // ID de la ressource pour laquelle afficher le sélecteur
   const [showPeriodModifier, setShowPeriodModifier] = useState<string | null>(null) // ID de l'affectation pour laquelle afficher le modificateur
   const [loading, setLoading] = useState(false)
@@ -110,13 +111,111 @@ export function AffectationPanel({
     setShowPeriodSelector(null)
   }
 
-  const handleModifyPeriodeExistante = (affectationId: string, dateDebut: Date, dateFin: Date) => {
+  const handleModifyPeriodeExistante = async (affectationId: string, dateDebut: Date, dateFin: Date) => {
+    // Mettre à jour l'état local immédiatement
     setModifiedPeriodes((prev) => {
       const next = new Map(prev)
       next.set(affectationId, { dateDebut, dateFin })
       return next
     })
     setShowPeriodModifier(null)
+
+    // Déclencher la mise à jour automatiquement
+    if (!besoin) return
+
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      
+      const affectationOriginale = affectations.find((aff) => aff.id === affectationId)
+      if (!affectationOriginale) return
+
+      const dateDebutOrig = new Date(affectationOriginale.date_debut)
+      const dateFinOrig = new Date(affectationOriginale.date_fin)
+      const dateDebutNouv = new Date(dateDebut)
+      const dateFinNouv = new Date(dateFin)
+
+      // Supprimer l'affectation originale
+      const { error: deleteError } = await supabase
+        .from('affectations')
+        .delete()
+        .eq('id', affectationId)
+      if (deleteError) {
+        console.error('Erreur suppression affectation:', deleteError)
+        return
+      }
+
+      // Créer les nouvelles affectations (casser en deux si nécessaire)
+      const affectationsACreer: Array<{
+        ressourceId: string
+        competence: string
+        dateDebut: Date
+        dateFin: Date
+        charge: number
+      }> = []
+
+      // Période avant (si elle existe et est valide)
+      if (isBefore(dateDebutOrig, dateDebutNouv)) {
+        const dateFinAvant = subDays(dateDebutNouv, 1)
+        if (!isAfter(dateDebutOrig, dateFinAvant)) {
+          affectationsACreer.push({
+            ressourceId: affectationOriginale.ressource_id,
+            competence: affectationOriginale.competence,
+            dateDebut: dateDebutOrig,
+            dateFin: dateFinAvant,
+            charge: affectationOriginale.charge,
+          })
+        }
+      }
+
+      // Période modifiée (si elle est valide)
+      if (!isAfter(dateDebutNouv, dateFinNouv)) {
+        affectationsACreer.push({
+          ressourceId: affectationOriginale.ressource_id,
+          competence: affectationOriginale.competence,
+          dateDebut: dateDebutNouv,
+          dateFin: dateFinNouv,
+          charge: affectationOriginale.charge,
+        })
+      }
+
+      // Période après (si elle existe et est valide)
+      if (isAfter(dateFinOrig, dateFinNouv)) {
+        const dateDebutApres = addDays(dateFinNouv, 1)
+        if (!isAfter(dateDebutApres, dateFinOrig)) {
+          affectationsACreer.push({
+            ressourceId: affectationOriginale.ressource_id,
+            competence: affectationOriginale.competence,
+            dateDebut: dateDebutApres,
+            dateFin: dateFinOrig,
+            charge: affectationOriginale.charge,
+          })
+        }
+      }
+
+      // Créer les nouvelles affectations
+      if (affectationsACreer.length > 0) {
+        const ressourcesMap = ressources.map((r) => ({ id: r.id, site: r.site }))
+        await applyAffectationsBatch(
+          affaireId,
+          besoin.site,
+          affectationsACreer,
+          ressourcesMap
+        )
+      }
+
+      // Marquer cette affectation comme déjà modifiée
+      setPeriodesDejaModifiees((prev) => {
+        const next = new Set(prev)
+        next.add(affectationId)
+        return next
+      })
+
+      // Rafraîchir les données
+      onSuccess()
+    } catch (err) {
+      console.error('[AffectationPanel] Erreur lors de la modification de période:', err)
+    }
   }
 
   const handleAffecterJoursDisponibles = (ressourceId: string) => {
@@ -153,7 +252,11 @@ export function AffectationPanel({
         const supabase = createClient()
         
       // Traiter les affectations modifiées (périodes cassées)
+      // Ignorer celles qui ont déjà été modifiées automatiquement
       for (const [affectationId, nouvellePeriode] of modifiedPeriodes.entries()) {
+        // Ignorer si déjà modifiée automatiquement
+        if (periodesDejaModifiees.has(affectationId)) continue
+        
         const affectationOriginale = affectations.find((aff) => aff.id === affectationId)
         if (!affectationOriginale) continue
 

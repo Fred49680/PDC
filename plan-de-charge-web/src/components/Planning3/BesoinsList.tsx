@@ -10,12 +10,14 @@ interface BesoinsListProps {
   besoins: BesoinPeriode[]
   onAffecter: (besoin: BesoinPeriode) => void
   onAffecterMasse?: (besoins: BesoinPeriode[]) => void
+  showExternesGlobal?: boolean // Toggle pour ressources externes
 }
 
 export function BesoinsList({ 
   besoins, 
   onAffecter, 
-  onAffecterMasse 
+  onAffecterMasse,
+  showExternesGlobal = false
 }: BesoinsListProps) {
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedBesoins, setSelectedBesoins] = useState<Set<string>>(new Set())
@@ -212,7 +214,7 @@ export function BesoinsList({
             {/* Contenu (grille de tuiles) - affiché seulement si expandé */}
             {isExpanded && (
               <div className="px-6 pb-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                   {periodes.map((besoin) => (
                     <BesoinCard
                       key={besoin.id}
