@@ -495,7 +495,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         console.log('[useCharge] Étape 10 - Paramètres RPC (force_weekend_ferie calculé automatiquement par trigger):', JSON.stringify(rpcParams, null, 2))
         debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify(rpcParams, null, 2))
         
-        const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', rpcParams)
+        const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge_v2', rpcParams)
         
         if (insertError) {
           console.error('[useCharge] Étape 10 - ERREUR insert:', JSON.stringify(insertError, null, 2))
