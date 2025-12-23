@@ -114,11 +114,10 @@ export function GrilleCharge({
   }, [periodes])
 
   // Charger les affectations pour cette affaire
-  const { affectations } = useAffectations({
-    ...(affaireUuid && { affaireId: affaireUuid }),
-    site,
-    enableRealtime: true,
-  })
+  const affectationsOptions = affaireUuid
+    ? { affaireId: affaireUuid, site, enableRealtime: true as const }
+    : { site, enableRealtime: true as const }
+  const { affectations } = useAffectations(affectationsOptions)
 
   // Calculer le nombre d'affectations uniques par compétence
   const affectationsParCompetence = useMemo(() => {
