@@ -503,8 +503,18 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Nouvel enregistrement : INSERT
         // Le site est déjà normalisé dans periodeDataClean.site
         // FORCER le booléen AVANT de créer l'objet pour éviter toute transformation lors de la sérialisation
-        // Déterminer si force_weekend_ferie doit être true (sinon on l'omet pour utiliser la valeur par défaut)
-        const shouldForceWeekendFerie: boolean = periodeDataClean.force_weekend_ferie === true
+        // SÉCURITÉ : Normaliser force_weekend_ferie en boolean strict avant utilisation
+        const forceWeekendFerieNormalized: boolean = (() => {
+          const value = periodeDataClean.force_weekend_ferie
+          if (typeof value === 'boolean') {
+            return value
+          }
+          if (value === true || value === 'true' || value === 1 || value === '1') {
+            return true
+          }
+          // Par défaut, retourner false (pas de forçage)
+          return false
+        })()
         
         // Créer un objet littéral strict pour éviter toute transformation lors de la sérialisation JSON
         // TOUJOURS inclure force_weekend_ferie explicitement comme booléen strict
@@ -524,15 +534,21 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           date_debut: periodeDataClean.date_debut,
           date_fin: periodeDataClean.date_fin,
           nb_ressources: periodeDataClean.nb_ressources,
-          // Toujours inclure explicitement le booléen (true ou false)
-          force_weekend_ferie: shouldForceWeekendFerie ? true : false,
+          // Toujours inclure explicitement le booléen strict (true ou false, jamais undefined/null)
+          force_weekend_ferie: forceWeekendFerieNormalized,
         }
         
         // Utiliser la fonction RPC PostgreSQL pour éviter les problèmes de sérialisation JSON booléenne
         // Cette fonction accepte TEXT pour force_weekend_ferie pour éviter les problèmes de sérialisation
         // Convertir le booléen en chaîne pour éviter les problèmes de sérialisation JSON
-        const forceWeekendFerieText = insertData.force_weekend_ferie ? 'true' : 'false'
+        // SÉCURITÉ : insertData.force_weekend_ferie est garanti d'être un boolean strict (true ou false)
+        const forceWeekendFerieText = insertData.force_weekend_ferie === true ? 'true' : 'false'
         debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify({ ...insertData, force_weekend_ferie: forceWeekendFerieText }, null, 2))
+        debugLog('[useCharge] Étape 10 - Validation force_weekend_ferie:', {
+          value: insertData.force_weekend_ferie,
+          type: typeof insertData.force_weekend_ferie,
+          text: forceWeekendFerieText
+        })
         
         const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', {
           p_affaire_id: insertData.affaire_id,
@@ -541,7 +557,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           p_date_debut: insertData.date_debut,
           p_date_fin: insertData.date_fin,
           p_nb_ressources: insertData.nb_ressources,
-          p_force_weekend_ferie: forceWeekendFerieText, // Envoyer comme chaîne
+          p_force_weekend_ferie: forceWeekendFerieText, // Envoyer comme chaîne 'true' ou 'false'
         })
         
         if (insertError) {
