@@ -5,6 +5,7 @@ import { X, Target, Search } from 'lucide-react'
 import { GrilleCharge } from '@/components/Charge/GrilleCharge'
 import { Planning3 } from '@/components/Planning3'
 import { useAffaires } from '@/hooks/useAffaires'
+import { useCharge } from '@/hooks/useCharge'
 import { startOfMonth, endOfMonth } from 'date-fns'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { formatPlageSemainesISO } from '@/utils/calendar'
@@ -59,6 +60,48 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   const openChargeModalRef = useRef<(() => void) | null>(null)
   // Ref pour stocker la fonction de refresh de la grille de charge
   const refreshGrilleChargeRef = useRef<(() => Promise<void>) | null>(null)
+
+  // Charger les périodes de charge pour initialiser le calendrier à la première date de charge
+  const { periodes: periodesCharge } = useCharge({
+    affaireId,
+    site,
+    autoRefresh: true,
+    enableRealtime: false, // Pas besoin de Realtime ici, juste pour l'initialisation
+  })
+
+  // Initialiser le calendrier à la première date de charge quand une affaire est sélectionnée
+  const prevAffaireIdRef = useRef<string>('')
+  const prevSiteRef = useRef<string>('')
+  useEffect(() => {
+    // Ne s'exécuter que si l'affaire ou le site a changé (nouvelle sélection)
+    if (
+      affaireId &&
+      site &&
+      periodesCharge.length > 0 &&
+      (prevAffaireIdRef.current !== affaireId || prevSiteRef.current !== site)
+    ) {
+      // Trouver la première date de charge (date_debut la plus ancienne)
+      const premiereDate = periodesCharge.reduce((min, periode) => {
+        const dateDebut = new Date(periode.date_debut)
+        return dateDebut < min ? dateDebut : min
+      }, new Date(periodesCharge[0].date_debut))
+
+      // Initialiser le calendrier à cette date (mois de la première charge)
+      const moisPremiereCharge = startOfMonth(premiereDate)
+      const finMoisPremiereCharge = endOfMonth(premiereDate)
+
+      setDateDebut(moisPremiereCharge)
+      setDateFin(finMoisPremiereCharge)
+
+      // Mettre à jour les refs pour éviter de réinitialiser à chaque changement
+      prevAffaireIdRef.current = affaireId
+      prevSiteRef.current = site
+    } else if (!affaireId || !site) {
+      // Réinitialiser les refs si l'affaire est désélectionnée
+      prevAffaireIdRef.current = ''
+      prevSiteRef.current = ''
+    }
+  }, [affaireId, site, periodesCharge])
 
   // Filtrer les affaires actives et ouvertes/prévisionnelles
   const affairesActives = affaires.filter(
