@@ -527,7 +527,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       {showChargeMasseModal && (() => {
         const modalContent = (
           <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">Déclarer charge période</h3>
               <button
@@ -788,8 +788,16 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
               </button>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )
+        
+        // Utiliser createPortal pour rendre le modal en dehors de la hiérarchie DOM
+        // Cela garantit qu'il sera toujours au-dessus des autres modals (z-index 10000)
+        if (typeof window !== 'undefined') {
+          return createPortal(modalContent, document.body)
+        }
+        return null
+      })()}
 
     </>
   )
