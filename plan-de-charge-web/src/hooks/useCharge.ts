@@ -507,105 +507,21 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       } else {
         // Nouvel enregistrement : INSERT
         // Le site est déjà normalisé dans periodeDataClean.site
-        // FORCER le booléen AVANT de créer l'objet pour éviter toute transformation lors de la sérialisation
-        // SÉCURITÉ : Normaliser force_weekend_ferie en boolean strict avant utilisation
-        const forceWeekendFerieNormalized: boolean = (() => {
-          const value = periodeDataClean.force_weekend_ferie
-          if (typeof value === 'boolean') {
-            return value
-          }
-          if (value === true || value === 'true' || value === 1 || value === '1') {
-            return true
-          }
-          // Par défaut, retourner false (pas de forçage)
-          return false
-        })()
-        
-        // Créer un objet littéral strict pour éviter toute transformation lors de la sérialisation JSON
-        // TOUJOURS inclure force_weekend_ferie explicitement comme booléen strict
-        // Ne JAMAIS omettre ce champ car Supabase peut le transformer en chaîne vide
-        const insertData: {
-          affaire_id: string
-          site: string
-          competence: string
-          date_debut: string
-          date_fin: string
-          nb_ressources: number
-          force_weekend_ferie: boolean
-        } = {
-          affaire_id: periodeDataClean.affaire_id,
-          site: periodeDataClean.site,
-          competence: periodeDataClean.competence,
-          date_debut: periodeDataClean.date_debut,
-          date_fin: periodeDataClean.date_fin,
-          nb_ressources: periodeDataClean.nb_ressources,
-          // Toujours inclure explicitement le booléen strict (true ou false, jamais undefined/null)
-          force_weekend_ferie: forceWeekendFerieNormalized,
-        }
-        
-        // Utiliser la fonction RPC PostgreSQL pour éviter les problèmes de sérialisation JSON booléenne
-        // Cette fonction accepte TEXT pour force_weekend_ferie pour éviter les problèmes de sérialisation
-        // Convertir le booléen en chaîne pour éviter les problèmes de sérialisation JSON
-        // SÉCURITÉ : insertData.force_weekend_ferie est garanti d'être un boolean strict (true ou false)
-        // SÉCURITÉ RENFORCÉE : Double validation pour éviter toute chaîne vide
-        const forceWeekendFerieValue = typeof insertData.force_weekend_ferie === 'boolean' 
-          ? insertData.force_weekend_ferie 
-          : (insertData.force_weekend_ferie === true || insertData.force_weekend_ferie === 'true' || insertData.force_weekend_ferie === 1)
-        const forceWeekendFerieText = forceWeekendFerieValue === true ? 'true' : 'false'
-        
-        // Validation finale : s'assurer que la chaîne n'est jamais vide
-        if (!forceWeekendFerieText || forceWeekendFerieText.trim() === '') {
-          console.error('[useCharge] ERREUR CRITIQUE: forceWeekendFerieText est vide!', {
-            original: insertData.force_weekend_ferie,
-            normalized: forceWeekendFerieValue,
-            text: forceWeekendFerieText
-          })
-          throw new Error('force_weekend_ferie ne peut pas être vide')
-        }
-        
-        debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify({ ...insertData, force_weekend_ferie: forceWeekendFerieText }, null, 2))
-        debugLog('[useCharge] Étape 10 - Validation force_weekend_ferie:', {
-          value: insertData.force_weekend_ferie,
-          type: typeof insertData.force_weekend_ferie,
-          normalized: forceWeekendFerieValue,
-          text: forceWeekendFerieText,
-          textLength: forceWeekendFerieText.length
-        })
-        
-        // SÉCURITÉ FINALE : S'assurer que la valeur est toujours 'true' ou 'false', jamais vide
-        // Forcer la valeur à partir du boolean strict de insertData
-        const pForceWeekendFerie = insertData.force_weekend_ferie === true ? 'true' : 'false'
-        
-        // Validation absolue : la chaîne DOIT être 'true' ou 'false'
-        if (pForceWeekendFerie !== 'true' && pForceWeekendFerie !== 'false') {
-          console.error('[useCharge] ERREUR CRITIQUE: pForceWeekendFerie invalide!', {
-            value: pForceWeekendFerie,
-            type: typeof pForceWeekendFerie,
-            insertDataForceWeekendFerie: insertData.force_weekend_ferie,
-            insertDataType: typeof insertData.force_weekend_ferie
-          })
-          throw new Error(`force_weekend_ferie invalide: "${pForceWeekendFerie}" (doit être 'true' ou 'false')`)
-        }
-        
-        console.log('[useCharge] Étape 10 - Paramètre final envoyé à RPC:', {
-          p_force_weekend_ferie: pForceWeekendFerie,
-          type: typeof pForceWeekendFerie,
-          length: pForceWeekendFerie.length,
-          insertDataValue: insertData.force_weekend_ferie,
-          insertDataType: typeof insertData.force_weekend_ferie
-        })
+        // NOTE: force_weekend_ferie n'est plus envoyé car il est calculé automatiquement par le trigger
+        // Le trigger calculate_jours_ouvres_periode calcule force_weekend_ferie en fonction de si les dates sont des jours ouvrés
         
         const rpcParams = {
-          p_affaire_id: insertData.affaire_id,
-          p_site: insertData.site,
-          p_competence: insertData.competence,
-          p_date_debut: insertData.date_debut,
-          p_date_fin: insertData.date_fin,
-          p_nb_ressources: insertData.nb_ressources,
-          p_force_weekend_ferie: pForceWeekendFerie,
+          p_affaire_id: periodeDataClean.affaire_id,
+          p_site: periodeDataClean.site,
+          p_competence: periodeDataClean.competence,
+          p_date_debut: periodeDataClean.date_debut,
+          p_date_fin: periodeDataClean.date_fin,
+          p_nb_ressources: periodeDataClean.nb_ressources,
+          // p_force_weekend_ferie n'est plus nécessaire, le trigger le calcule automatiquement
         }
         
-        console.log('[useCharge] Étape 10 - Tous les paramètres RPC:', JSON.stringify(rpcParams, null, 2))
+        console.log('[useCharge] Étape 10 - Paramètres RPC (force_weekend_ferie calculé automatiquement par trigger):', JSON.stringify(rpcParams, null, 2))
+        debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify(rpcParams, null, 2))
         
         const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', rpcParams)
         
@@ -811,23 +727,16 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         return new Date().toISOString().split('T')[0]
       }
 
-      const normalizeBoolean = (value: unknown): boolean => {
-        if (value === true || value === 'true' || value === 1 || value === '1') {
-          return true
-        }
-        if (value === false || value === 'false' || value === 0 || value === '0') {
-          return false
-        }
-        return false
-      }
+      // NOTE: normalizeBoolean n'est plus nécessaire car force_weekend_ferie est calculé automatiquement par le trigger
 
       // Préparer les données pour le batch insert
+      // NOTE: force_weekend_ferie n'est plus inclus car il est calculé automatiquement par le trigger
       const periodesData = periodes.map((periode) => ({
         competence: periode.competence || '',
         date_debut: formatDateForDB(periode.date_debut),
         date_fin: formatDateForDB(periode.date_fin),
         nb_ressources: periode.nb_ressources || 0,
-        force_weekend_ferie: normalizeBoolean(periode.force_weekend_ferie),
+        // force_weekend_ferie sera calculé automatiquement par le trigger calculate_jours_ouvres_periode
       }))
 
       // Consolider les périodes : regrouper les jours consécutifs avec la même charge

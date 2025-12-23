@@ -34,14 +34,15 @@ BEGIN
 
   -- Insérer toutes les périodes en une seule requête
   -- Utiliser un INSERT ... ON CONFLICT DO UPDATE en une seule requête
+  -- NOTE: force_weekend_ferie n'est plus inclus, le trigger BEFORE INSERT le calculera automatiquement
   INSERT INTO periodes_charge (
     affaire_id,
     site,
     competence,
     date_debut,
     date_fin,
-    nb_ressources,
-    force_weekend_ferie
+    nb_ressources
+    -- force_weekend_ferie sera calculé automatiquement par le trigger calculate_jours_ouvres_periode
   )
   SELECT
     v_affaire_uuid,
@@ -49,23 +50,14 @@ BEGIN
     (periode->>'competence')::TEXT,
     (periode->>'date_debut')::DATE,
     (periode->>'date_fin')::DATE,
-    COALESCE((periode->>'nb_ressources')::NUMERIC, 0),
-    COALESCE(
-      CASE 
-        WHEN periode->>'force_weekend_ferie' IS NULL THEN FALSE
-        WHEN periode->>'force_weekend_ferie' = '' THEN FALSE
-        WHEN periode->>'force_weekend_ferie' IN ('true', 't', '1') THEN TRUE
-        WHEN periode->>'force_weekend_ferie' IN ('false', 'f', '0') THEN FALSE
-        ELSE (periode->>'force_weekend_ferie')::BOOLEAN
-      END,
-      FALSE
-    )
+    COALESCE((periode->>'nb_ressources')::NUMERIC, 0)
+    -- force_weekend_ferie n'est plus nécessaire, le trigger le calcule automatiquement
   FROM jsonb_array_elements(p_periodes) AS periode
   WHERE COALESCE((periode->>'nb_ressources')::NUMERIC, 0) > 0
   ON CONFLICT (affaire_id, site, competence, date_debut, date_fin)
   DO UPDATE SET
     nb_ressources = EXCLUDED.nb_ressources,
-    force_weekend_ferie = EXCLUDED.force_weekend_ferie,
+    -- force_weekend_ferie sera recalculé automatiquement par le trigger BEFORE UPDATE
     updated_at = NOW();
 
   -- RÉACTIVER les triggers utilisateur
