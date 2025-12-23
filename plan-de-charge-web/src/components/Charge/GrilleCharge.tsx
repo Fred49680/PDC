@@ -10,6 +10,7 @@ import type { Precision } from '@/types/charge'
 import { endOfMonth } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
+import { calculerCouverture } from '@/utils/planning/planning.compute'
 
 interface GrilleChargeProps {
   affaireId: string
@@ -312,67 +313,66 @@ export function GrilleCharge({
     return cols
   }, [dateDebut, dateFin, precision])
 
-  // Calculer les affectations par compétence et par colonne (date)
+  // Calculer les affectations par compétence et par colonne (date) en utilisant la même logique que calculerCouverture
   const affectationsParCompetenceEtColonne = useMemo(() => {
     if (!affaireUuid || !affectations || affectations.length === 0) {
       return new Map<string, Map<number, number>>()
     }
     
-    // Structure: Map<competence, Map<colIndex, Set<ressource_id>>>
-    const tempResult = new Map<string, Map<number, Set<string>>>()
+    // Structure: Map<competence, Map<colIndex, nombreRessourcesUniques>>
+    const result = new Map<string, Map<number, number>>()
     
-    affectations.forEach((aff) => {
-      if (!aff.competence) return // Ignorer les affectations sans compétence
-      
-      if (!tempResult.has(aff.competence)) {
-        tempResult.set(aff.competence, new Map<number, Set<string>>())
+    // Pour chaque compétence dans la grille, calculer les affectations pour chaque colonne
+    competences.forEach((comp) => {
+      if (!result.has(comp)) {
+        result.set(comp, new Map<number, number>())
       }
       
-      const affDateDebut = normalizeDateToUTC(new Date(aff.date_debut))
-      const affDateFin = normalizeDateToUTC(new Date(aff.date_fin))
-      
       colonnes.forEach((col, colIndex) => {
-        const colDate = normalizeDateToUTC(col.date)
-        let correspond = false
+        // Créer une période fictive pour cette compétence et cette colonne
+        let dateDebutPeriode: Date
+        let dateFinPeriode: Date
         
         if (precision === 'JOUR') {
-          correspond = affDateDebut <= colDate && affDateFin >= colDate
+          dateDebutPeriode = normalizeDateToUTC(col.date)
+          dateFinPeriode = normalizeDateToUTC(col.date)
         } else if (precision === 'SEMAINE') {
           if (col.weekStart && col.weekEnd) {
-            const weekStartUTC = normalizeDateToUTC(col.weekStart)
-            const weekEndUTC = normalizeDateToUTC(col.weekEnd)
-            correspond = affDateDebut <= weekEndUTC && affDateFin >= weekStartUTC
+            dateDebutPeriode = normalizeDateToUTC(col.weekStart)
+            dateFinPeriode = normalizeDateToUTC(col.weekEnd)
+          } else {
+            return
           }
         } else if (precision === 'MOIS') {
           if (col.weekStart && col.weekEnd) {
-            const monthStartUTC = normalizeDateToUTC(col.weekStart)
-            const monthEndUTC = normalizeDateToUTC(col.weekEnd)
-            correspond = affDateDebut <= monthEndUTC && affDateFin >= monthStartUTC
+            dateDebutPeriode = normalizeDateToUTC(col.weekStart)
+            dateFinPeriode = normalizeDateToUTC(col.weekEnd)
+          } else {
+            return
           }
+        } else {
+          return
         }
         
-        if (correspond) {
-          const competenceMap = tempResult.get(aff.competence)!
-          if (!competenceMap.has(colIndex)) {
-            competenceMap.set(colIndex, new Set<string>())
-          }
-          competenceMap.get(colIndex)!.add(aff.ressource_id)
+        // Utiliser calculerCouverture pour compter les ressources uniques affectées
+        // Créer une période fictive pour cette compétence
+        const periodeFictive = {
+          id: '',
+          affaire_id: affaireUuid,
+          site: site,
+          competence: comp,
+          date_debut: dateDebutPeriode,
+          date_fin: dateFinPeriode,
+          nb_ressources: 0, // Pas important pour le calcul de couverture
         }
+        
+        const couverture = calculerCouverture(periodeFictive, affectations)
+        result.get(comp)!.set(colIndex, couverture.affecte)
       })
-    })
-    
-    // Convertir les Sets en nombres
-    const result = new Map<string, Map<number, number>>()
-    tempResult.forEach((competenceMap, competence) => {
-      const countMap = new Map<number, number>()
-      competenceMap.forEach((ressourcesSet, colIndex) => {
-        countMap.set(colIndex, ressourcesSet.size)
-      })
-      result.set(competence, countMap)
     })
     
     return result
-  }, [affaireUuid, affectations, colonnes, precision])
+  }, [affaireUuid, affectations, colonnes, precision, competences, site])
 
   // Liste des compétences - Utiliser toutes les compétences disponibles depuis la base (comme Planning2)
   const competencesList = useMemo(() => {
