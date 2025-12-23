@@ -639,8 +639,14 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
     date_debut: string
     date_fin: string
     nb_ressources: number
-    force_weekend_ferie: boolean
-  }>): typeof periodes => {
+    force_weekend_ferie?: boolean // Optionnel car calculé automatiquement par le trigger
+  }>): Array<{
+    competence: string
+    date_debut: string
+    date_fin: string
+    nb_ressources: number
+    force_weekend_ferie?: boolean
+  }> => {
     if (periodes.length === 0) return []
 
     // Trier par compétence, puis par date de début
@@ -660,10 +666,11 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       const nextDateDebut = new Date(next.date_debut)
       
       // Vérifier si on peut fusionner : même compétence, même charge, dates consécutives
+      // force_weekend_ferie est optionnel car calculé automatiquement par le trigger
       const canMerge = 
         current.competence === next.competence &&
         current.nb_ressources === next.nb_ressources &&
-        current.force_weekend_ferie === next.force_weekend_ferie &&
+        (current.force_weekend_ferie ?? false) === (next.force_weekend_ferie ?? false) &&
         (isSameDay(addDays(currentDateFin, 1), nextDateDebut) || 
          currentDateFin >= nextDateDebut)
 
