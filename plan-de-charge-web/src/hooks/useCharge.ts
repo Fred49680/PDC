@@ -567,15 +567,42 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           textLength: forceWeekendFerieText.length
         })
         
-        const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', {
+        // SÉCURITÉ FINALE : S'assurer que la valeur est toujours 'true' ou 'false', jamais vide
+        // Forcer la valeur à partir du boolean strict de insertData
+        const pForceWeekendFerie = insertData.force_weekend_ferie === true ? 'true' : 'false'
+        
+        // Validation absolue : la chaîne DOIT être 'true' ou 'false'
+        if (pForceWeekendFerie !== 'true' && pForceWeekendFerie !== 'false') {
+          console.error('[useCharge] ERREUR CRITIQUE: pForceWeekendFerie invalide!', {
+            value: pForceWeekendFerie,
+            type: typeof pForceWeekendFerie,
+            insertDataForceWeekendFerie: insertData.force_weekend_ferie,
+            insertDataType: typeof insertData.force_weekend_ferie
+          })
+          throw new Error(`force_weekend_ferie invalide: "${pForceWeekendFerie}" (doit être 'true' ou 'false')`)
+        }
+        
+        console.log('[useCharge] Étape 10 - Paramètre final envoyé à RPC:', {
+          p_force_weekend_ferie: pForceWeekendFerie,
+          type: typeof pForceWeekendFerie,
+          length: pForceWeekendFerie.length,
+          insertDataValue: insertData.force_weekend_ferie,
+          insertDataType: typeof insertData.force_weekend_ferie
+        })
+        
+        const rpcParams = {
           p_affaire_id: insertData.affaire_id,
           p_site: insertData.site,
           p_competence: insertData.competence,
           p_date_debut: insertData.date_debut,
           p_date_fin: insertData.date_fin,
           p_nb_ressources: insertData.nb_ressources,
-          p_force_weekend_ferie: forceWeekendFerieText, // Envoyer comme chaîne 'true' ou 'false' (jamais vide)
-        })
+          p_force_weekend_ferie: pForceWeekendFerie,
+        }
+        
+        console.log('[useCharge] Étape 10 - Tous les paramètres RPC:', JSON.stringify(rpcParams, null, 2))
+        
+        const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge', rpcParams)
         
         if (insertError) {
           console.error('[useCharge] Étape 10 - ERREUR insert:', insertError)
