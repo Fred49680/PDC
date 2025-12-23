@@ -985,7 +985,7 @@ export default function Planning2({
                       date_debut: currentDateUTC,
                       date_fin: currentDateUTC,
                       nb_ressources: periodeExistante.nb_ressources,
-                      force_weekend_ferie: periodeExistante.force_weekend_ferie || false
+                      // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
                     })
                   }
                 }
@@ -1023,7 +1023,7 @@ export default function Planning2({
                     date_debut: currentDateUTC,
                     date_fin: currentDateUTC,
                     nb_ressources: nbRessources,
-                    force_weekend_ferie: forceWeekendFerie
+                    // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
                   })
                 } else {
                   // Autres jours : recréer avec l'ancienne valeur
@@ -1035,7 +1035,7 @@ export default function Planning2({
                       date_debut: currentDateUTC,
                       date_fin: currentDateUTC,
                       nb_ressources: periodeExistante.nb_ressources,
-                      force_weekend_ferie: periodeExistante.force_weekend_ferie || false
+                      // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
                     })
                   }
                 }
@@ -1056,7 +1056,7 @@ export default function Planning2({
             date_debut: dateDebutPeriode,
             date_fin: dateFinPeriode,
             nb_ressources: nbRessources,
-            force_weekend_ferie: forceWeekendFerie
+            // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
           })
           
           // La consolidation se fait automatiquement via le trigger PostgreSQL

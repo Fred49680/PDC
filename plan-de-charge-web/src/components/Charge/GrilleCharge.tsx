@@ -632,7 +632,6 @@ export function GrilleCharge({
             
             let dateDebutPeriode: Date
             let dateFinPeriode: Date
-            let forceWeekendFerie = false
             
             if (precision === 'JOUR') {
               dateDebutPeriode = normalizeDateToUTC(col.date)
@@ -648,7 +647,7 @@ export function GrilleCharge({
                   updateGrilleLocal(competence, col, 0)
                   return
                 }
-                forceWeekendFerie = true
+                // force_weekend_ferie sera calculé automatiquement par le trigger PostgreSQL
               }
             } else if (precision === 'SEMAINE') {
               const dayOfWeek = col.date.getDay()
@@ -676,7 +675,7 @@ export function GrilleCharge({
                 date_debut: dateDebutPeriode,
                 date_fin: dateFinPeriode,
                 nb_ressources: value,
-                force_weekend_ferie: forceWeekendFerie,
+                // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
               })
               return result
             } catch (err) {

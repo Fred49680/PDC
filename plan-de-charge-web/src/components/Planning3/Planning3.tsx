@@ -761,7 +761,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
                         date_debut: normalizeDateToUTC(date),
                         date_fin: normalizeDateToUTC(date),
                         nb_ressources: chargeMasseForm.nbRessources,
-                        force_weekend_ferie: false,
+                        // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
                       }))
                     
                     await savePeriodesBatch(periodesACreer)

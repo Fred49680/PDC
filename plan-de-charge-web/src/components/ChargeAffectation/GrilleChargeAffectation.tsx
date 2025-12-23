@@ -811,14 +811,14 @@ export default function GrilleChargeAffectation({
             await deletePeriode(periodeExistante.id)
         } else if (nbRessources > 0) {
           // Appel API réel savePeriode() (le hook gère la mise à jour optimiste)
-          console.log('[handleChargeChange] 📍 POINT DE CONTRÔLE CHARGE 2 : Avant savePeriode, forceWeekendFerieCharge =', forceWeekendFerieCharge)
+          console.log('[handleChargeChange] 📍 POINT DE CONTRÔLE CHARGE 2 : Avant savePeriode')
           console.log('[handleChargeChange] 📦 Données CHARGE à enregistrer:', {
             id: periodeExistante?.id,
             competence,
             date_debut: dateDebutPeriode.toISOString(),
             date_fin: dateFinPeriode.toISOString(),
             nb_ressources: nbRessources,
-            force_weekend_ferie: forceWeekendFerieCharge
+            // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
           })
           
           try {
@@ -829,7 +829,7 @@ export default function GrilleChargeAffectation({
               date_debut: dateDebutPeriode,
               date_fin: dateFinPeriode,
               nb_ressources: nbRessources,
-              force_weekend_ferie: forceWeekendFerieCharge
+              // force_weekend_ferie n'est plus envoyé car calculé automatiquement par le trigger PostgreSQL
             })
             console.log('[handleChargeChange] ✅✅✅ savePeriode() TERMINÉ AVEC SUCCÈS')
           } catch (err) {
