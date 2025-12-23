@@ -431,6 +431,21 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
               )}
             </div>
         </div>
+
+        {/* Modal de sélection de dates personnalisées */}
+        {isDatePickerOpen && (
+          <DateRangePickerModal
+            isOpen={isDatePickerOpen}
+            dateDebut={dateDebut}
+            dateFin={dateFin}
+            onConfirm={(newDateDebut, newDateFin) => {
+              setDateDebut(newDateDebut)
+              setDateFin(newDateFin)
+              setIsDatePickerOpen(false)
+            }}
+            onCancel={() => setIsDatePickerOpen(false)}
+          />
+        )}
       </div>
     </div>
   )
