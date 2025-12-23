@@ -364,6 +364,8 @@ export function GrilleCharge({
           date_debut: dateDebutPeriode,
           date_fin: dateFinPeriode,
           nb_ressources: 0, // Pas important pour le calcul de couverture
+          created_at: new Date(),
+          updated_at: new Date(),
         }
         
         const couverture = calculerCouverture(periodeFictive, affectations)
