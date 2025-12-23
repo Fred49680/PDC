@@ -303,28 +303,58 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                 {showSearchResults && affairesRecherchees.length > 0 && (
                   <div
                     ref={searchResultsRef}
-                    className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    className="absolute z-50 w-full mt-1 bg-white border-2 border-indigo-200 rounded-lg shadow-xl max-h-80 overflow-y-auto"
                   >
-                    {affairesRecherchees.map((affaire) => (
-                      <button
-                        key={affaire.id}
-                        type="button"
-                        onClick={() => handleSelectAffaireFromSearch(affaire)}
-                        className="w-full px-4 py-2 text-left hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm text-gray-900 truncate">
-                              {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {affaire.site && <span className="mr-2">📍 {affaire.site}</span>}
-                              {affaire.responsable && <span>👤 {affaire.responsable}</span>}
+                    {affairesRecherchees.map((affaire) => {
+                      const tooltipText = [
+                        affaire.affaire_id && `ID: ${affaire.affaire_id}`,
+                        affaire.libelle && `Libellé: ${affaire.libelle}`,
+                        affaire.site && `Site: ${affaire.site}`,
+                        affaire.responsable && `Responsable: ${affaire.responsable}`,
+                        affaire.compte && `Compte: ${affaire.compte}`,
+                        affaire.statut && `Statut: ${affaire.statut}`,
+                      ]
+                        .filter(Boolean)
+                        .join('\n')
+                      
+                      return (
+                        <button
+                          key={affaire.id}
+                          type="button"
+                          onClick={() => handleSelectAffaireFromSearch(affaire)}
+                          title={tooltipText}
+                          className="w-full px-5 py-3 text-left hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0 group"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-base text-gray-900 group-hover:text-indigo-700">
+                                {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                              </div>
+                              <div className="text-sm text-gray-600 mt-1.5 flex items-center gap-3 flex-wrap">
+                                {affaire.site && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-indigo-500">📍</span>
+                                    <span>{affaire.site}</span>
+                                  </span>
+                                )}
+                                {affaire.responsable && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-indigo-500">👤</span>
+                                    <span>{affaire.responsable}</span>
+                                  </span>
+                                )}
+                                {affaire.compte && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-indigo-500">💳</span>
+                                    <span>{affaire.compte}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
                 {showSearchResults && searchQuery.trim().length > 0 && affairesRecherchees.length === 0 && (
