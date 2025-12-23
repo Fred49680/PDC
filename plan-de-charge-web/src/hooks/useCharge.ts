@@ -257,6 +257,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
 
       // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
       // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
+      // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       const periodeData: {
         id?: string
         affaire_id: string
@@ -265,7 +266,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         date_debut: Date | string
         date_fin: Date | string
         nb_ressources: number
-        force_weekend_ferie?: boolean | string | number
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       } = {
         affaire_id: affaireData.id,
         site: siteNormalized,
@@ -278,7 +279,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
           ? normalizeDateToUTC(periode.date_fin)
           : periode.date_fin) || new Date(),
         nb_ressources: periode.nb_ressources || 0,
-        force_weekend_ferie: periode.force_weekend_ferie,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       }
       
       // Ajouter l'ID seulement s'il existe
@@ -294,8 +295,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         date_debut: typeof periodeData.date_debut,
         date_fin: typeof periodeData.date_fin,
         nb_ressources: typeof periodeData.nb_ressources,
-        force_weekend_ferie: typeof periodeData.force_weekend_ferie,
-        'force_weekend_ferie value': periodeData.force_weekend_ferie,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       })
 
       // Essayer d'abord un upsert
@@ -332,6 +332,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       // Créer un objet propre avec uniquement les champs nécessaires et correctement formatés
       // Cela évite de propager des valeurs invalides via le spread
       // Le site est déjà normalisé dans periodeData.site
+      // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       const periodeDataClean: {
         id?: string
         affaire_id: string
@@ -340,7 +341,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         date_debut: string
         date_fin: string
         nb_ressources: number
-        force_weekend_ferie?: boolean
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       } = {
         affaire_id: periodeData.affaire_id,
         site: periodeData.site, // Déjà normalisé en majuscules
@@ -348,7 +349,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         date_debut: formatDateForDB(periodeData.date_debut),
         date_fin: formatDateForDB(periodeData.date_fin),
         nb_ressources: periodeData.nb_ressources || 0,
-        force_weekend_ferie: normalizeBoolean(periodeData.force_weekend_ferie),
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       }
       
       // Ajouter l'ID seulement s'il existe (pour UPDATE)
@@ -364,23 +365,8 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         date_debut: typeof periodeDataClean.date_debut,
         date_fin: typeof periodeDataClean.date_fin,
         nb_ressources: typeof periodeDataClean.nb_ressources,
-        force_weekend_ferie: typeof periodeDataClean.force_weekend_ferie,
-        'force_weekend_ferie === true': periodeDataClean.force_weekend_ferie === true,
-        'force_weekend_ferie === false': periodeDataClean.force_weekend_ferie === false,
-        'force_weekend_ferie value': periodeDataClean.force_weekend_ferie,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
       })
-      
-      // S'assurer que force_weekend_ferie est un boolean strict
-      if (periodeDataClean.force_weekend_ferie !== undefined) {
-        periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
-      }
-      
-      // Double vérification : s'assurer que force_weekend_ferie est un boolean strict
-      if (typeof periodeDataClean.force_weekend_ferie !== 'boolean') {
-        console.error('[useCharge] Étape 7 - force_weekend_ferie n\'est pas un boolean:', typeof periodeDataClean.force_weekend_ferie, periodeDataClean.force_weekend_ferie)
-        periodeDataClean.force_weekend_ferie = Boolean(periodeDataClean.force_weekend_ferie)
-        debugLog('[useCharge] Étape 7 - force_weekend_ferie corrigé:', periodeDataClean.force_weekend_ferie)
-      }
       
       debugLog('[useCharge] Étape 8 - Recherche période existante avec clés:', {
         affaire_id: periodeDataClean.affaire_id,
