@@ -168,8 +168,7 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
     if (value.trim().length > 0) {
       setAffaireId('')
       setSite('')
-      // Ne pas réinitialiser le responsable car il peut être utilisé comme filtre
-      // setResponsable('')
+      setResponsable('')
       setNumeroCompte('')
     }
   }
@@ -337,6 +336,20 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Numéro de compte */}
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Numéro de compte
+              </label>
+              <input
+                type="text"
+                value={numeroCompte}
+                onChange={(e) => handleNumeroCompteChange(e.target.value)}
+                placeholder="Rechercher..."
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+              />
             </div>
 
             {/* Responsable */}
