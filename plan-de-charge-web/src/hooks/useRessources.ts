@@ -11,6 +11,7 @@ interface UseRessourcesOptions {
   actif?: boolean
   type_contrat?: string
   enableRealtime?: boolean // Option pour activer/désactiver Realtime
+  competences?: string[] // Option pour filtrer par compétences (optimisation)
 }
 
 export function useRessources(options: UseRessourcesOptions = {}) {
@@ -84,12 +85,20 @@ export function useRessources(options: UseRessourcesOptions = {}) {
       setRessources(ressourcesList)
 
       // Charger les compétences pour toutes les ressources
+      // Si des compétences sont spécifiées, filtrer pour optimiser
       if (ressourcesList.length > 0) {
         const ressourceIds = ressourcesList.map((r) => r.id)
-        const { data: competencesData, error: competencesError } = await supabase
+        let competencesQuery = supabase
           .from('ressources_competences')
           .select('*')
           .in('ressource_id', ressourceIds)
+        
+        // Filtrer par compétences si spécifiées (optimisation)
+        if (options.competences && options.competences.length > 0) {
+          competencesQuery = competencesQuery.in('competence', options.competences)
+        }
+        
+        const { data: competencesData, error: competencesError } = await competencesQuery
 
         if (competencesError) throw competencesError
 
@@ -117,7 +126,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options.ressourceId, options.site, options.actif, options.type_contrat, getSupabaseClient])
+  }, [options.ressourceId, options.site, options.actif, options.type_contrat, options.competences, getSupabaseClient])
 
   const saveRessource = useCallback(
     async (ressource: Partial<Ressource> & { nom: string; site: string }) => {

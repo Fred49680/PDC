@@ -135,10 +135,16 @@ export function BesoinsGrid({
   // Utiliser le toggle global passé en prop
   const hasExternes = showExternesGlobal
   
+  // Extraire les compétences uniques des besoins pour optimiser le chargement
+  const competencesNecessaires = useMemo(() => {
+    return Array.from(new Set(besoins.map(b => b.competence)))
+  }, [besoins])
+
   const { ressources: ressourcesSite, competences: competencesSite, loading: loadingRessourcesSite } = useRessources({
     site,
     actif: true,
     enableRealtime: true,
+    competences: competencesNecessaires.length > 0 ? competencesNecessaires : undefined, // Filtrer par compétences nécessaires
   })
 
   // Charger toutes les ressources seulement si ressources externes activées (lazy loading)
@@ -146,6 +152,7 @@ export function BesoinsGrid({
   const { ressources: ressourcesAll, competences: competencesAll, loading: loadingRessourcesAll } = useRessources({
     actif: true,
     enableRealtime: hasExternes, // Activer Realtime seulement si nécessaire pour optimiser
+    competences: hasExternes && competencesNecessaires.length > 0 ? competencesNecessaires : undefined, // Filtrer par compétences nécessaires
   })
 
   // Utiliser les ressources du site par défaut, toutes si ressources externes activées
