@@ -78,3 +78,8 @@ EXCEPTION
 END;
 $function$;
 
+-- Donner les permissions d'exécution au rôle anon (et authenticated)
+-- Cela permet aux utilisateurs authentifiés d'appeler la fonction via l'API
+GRANT EXECUTE ON FUNCTION public.batch_insert_periodes_charge(jsonb, text, text) TO anon;
+GRANT EXECUTE ON FUNCTION public.batch_insert_periodes_charge(jsonb, text, text) TO authenticated;
+
