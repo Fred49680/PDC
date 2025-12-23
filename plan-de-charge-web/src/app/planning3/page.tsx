@@ -317,8 +317,11 @@ export default function Planning3Page() {
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <div 
-                  className="px-4 py-2 text-center flex-1 cursor-pointer hover:bg-blue-100 rounded-lg transition-colors relative"
-                  onClick={() => setIsDatePickerOpen(true)}
+                  className="px-4 py-2 text-center flex-1 cursor-pointer hover:bg-blue-100 rounded-lg transition-colors relative z-10"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsDatePickerOpen(true)
+                  }}
                   title="Cliquer pour sélectionner une période personnalisée"
                 >
                   <div className="font-semibold text-gray-800">
