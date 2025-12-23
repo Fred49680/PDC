@@ -139,8 +139,9 @@ export function GrilleCharge({
   }, [affaireId, site, periodes])
 
   // Charger les affectations pour cette affaire
+  // useAffectations attend un affaire_id métier, pas un UUID
   const affectationsOptions: UseAffectationsOptions = {
-    ...(affaireUuid && { affaireId: affaireUuid }),
+    affaireId: affaireId, // Utiliser l'affaire_id métier passé en props
     site,
     enableRealtime: true,
   }
