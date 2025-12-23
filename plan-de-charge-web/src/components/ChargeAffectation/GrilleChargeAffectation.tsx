@@ -5,6 +5,7 @@ import { CheckCircle2, Info, Users, Target, ChevronLeft, ChevronRight, Filter, L
 import { normalizeDateToUTC } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
 import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
+import { DateRangePickerModal } from '@/components/Common/DateRangePickerModal'
 import type { Precision } from '@/types/charge'
 import type { Affaire } from '@/types/charge'
 import { useCharge } from '@/hooks/useCharge'
@@ -84,6 +85,7 @@ export default function GrilleChargeAffectation({
   const [dateDebut, setDateDebut] = useState(propDateDebut)
   const [dateFin, setDateFin] = useState(propDateFin)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   
   // Synchroniser avec les props si elles changent
   useEffect(() => {
@@ -1404,7 +1406,11 @@ export default function GrilleChargeAffectation({
               <span>Précédent</span>
             </button>
             
-            <div className="text-center flex-1">
+            <div 
+              className="text-center flex-1 cursor-pointer hover:bg-blue-50 rounded-lg p-2 transition-colors"
+              onClick={() => setIsDatePickerOpen(true)}
+              title="Cliquer pour sélectionner une période personnalisée"
+            >
               <div className="font-bold text-gray-800 text-lg">
                 {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
               </div>
@@ -1940,6 +1946,23 @@ export default function GrilleChargeAffectation({
         confirmText={confirmDialog.confirmText}
         cancelText={confirmDialog.cancelText}
         type={confirmDialog.type}
+      />
+
+      {/* Modal de sélection de dates personnalisées */}
+      <DateRangePickerModal
+        isOpen={isDatePickerOpen}
+        dateDebut={dateDebut}
+        dateFin={dateFin}
+        onConfirm={(newDateDebut, newDateFin) => {
+          setDateDebut(newDateDebut)
+          setDateFin(newDateFin)
+          setIsDatePickerOpen(false)
+          // Remonter le changement au parent si callback fourni
+          if (onDateChange) {
+            onDateChange(newDateDebut, newDateFin)
+          }
+        }}
+        onCancel={() => setIsDatePickerOpen(false)}
       />
     </div>
   )

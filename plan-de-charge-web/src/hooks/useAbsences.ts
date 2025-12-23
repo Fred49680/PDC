@@ -101,21 +101,21 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
           
           // Mise à jour optimiste de l'état local
           if (payload.eventType === 'INSERT' && payload.new) {
-            const newAbsence = payload.new as any
+            const newAbsence = payload.new as Absence
             setAbsences((prev) => {
               const exists = prev.some((a) => a.id === newAbsence.id)
               if (exists) return prev
-              return [...prev, newAbsence as Absence].sort((a, b) => 
+              return [...prev, newAbsence].sort((a, b) => 
                 new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
               )
             })
           } else if (payload.eventType === 'UPDATE' && payload.new) {
-            const updatedAbsence = payload.new as any
+            const updatedAbsence = payload.new as Absence
             setAbsences((prev) =>
-              prev.map((a) => (a.id === updatedAbsence.id ? (updatedAbsence as Absence) : a))
+              prev.map((a) => (a.id === updatedAbsence.id ? updatedAbsence : a))
             )
           } else if (payload.eventType === 'DELETE' && payload.old) {
-            const deletedId = (payload.old as any).id
+            const deletedId = (payload.old as { id: string }).id
             setAbsences((prev) => prev.filter((a) => a.id !== deletedId))
           }
         }
@@ -183,7 +183,13 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
         dateFin = dateFin.trim()
       }
       
-      const absenceData: any = {
+      const absenceData: Partial<Absence> & {
+        ressource_id: string
+        site: string
+        date_debut: string
+        date_fin: string
+        type: string
+      } = {
         ressource_id: absence.ressource_id.trim(),
         site: absence.site.trim(),
         date_debut: dateDebut, // Format ISO string (YYYY-MM-DD)
@@ -245,8 +251,8 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
       
       console.log('[useAbsences] Données à envoyer:', JSON.stringify(absenceData, null, 2))
 
-      let data: any
-      let error: any
+      let data: Absence | null = null
+      let error: Error | null = null
 
       // Si c'est une modification (avec id), utiliser update
       if (absenceData.id) {
@@ -257,8 +263,8 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
           .eq('id', id)
           .select()
           .single()
-        data = result.data
-        error = result.error
+        data = result.data as Absence | null
+        error = result.error ? new Error(result.error.message) : null
       } else {
         // Sinon, utiliser insert pour une nouvelle absence
         const result = await supabase
@@ -266,19 +272,13 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
           .insert(absenceData)
           .select()
           .single()
-        data = result.data
-        error = result.error
+        data = result.data as Absence | null
+        error = result.error ? new Error(result.error.message) : null
       }
 
       if (error) {
-        console.error('[useAbsences] Erreur Supabase complète:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        })
-        const errorMsg = error.message || error.details || 'Erreur lors de la sauvegarde'
-        throw new Error(errorMsg)
+        console.error('[useAbsences] Erreur Supabase:', error.message)
+        throw error
       }
 
       // Recharger les absences
@@ -311,8 +311,11 @@ export function useAbsences(options: UseAbsencesOptions = {}) {
         }
       }
 
-      return data as Absence
-    } catch (err: any) {
+      if (!data) {
+        throw new Error('Aucune donnée retournée par Supabase')
+      }
+      return data
+    } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err))
       setError(error)
       console.error('[useAbsences] Erreur saveAbsence:', err)
