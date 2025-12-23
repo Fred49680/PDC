@@ -397,14 +397,34 @@ export function AffectationMassePanel({
           {/* Ressources déjà affectées */}
           {ressourcesDejaAffectees.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" />
-                Ressources déjà affectées ({ressourcesDejaAffectees.length})
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-600" />
+                  Ressources déjà affectées ({ressourcesDejaAffectees.length})
+                </h3>
+                <button
+                  onClick={() => {
+                    // Sélectionner/désélectionner toutes les ressources déjà affectées
+                    const allSelected = ressourcesDejaAffectees.every((r) => !idsToRemove.has(r.affectationId))
+                    if (allSelected) {
+                      // Tout désélectionner (marquer pour suppression)
+                      setIdsToRemove(new Set(ressourcesDejaAffectees.map((r) => r.affectationId)))
+                    } else {
+                      // Tout sélectionner (garder toutes)
+                      setIdsToRemove(new Set())
+                    }
+                  }}
+                  className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  {ressourcesDejaAffectees.every((r) => !idsToRemove.has(r.affectationId))
+                    ? 'Tout désaffecter'
+                    : 'Tout garder'}
+                </button>
+              </div>
               <p className="text-sm text-gray-600 mb-3">
-                Décochez pour désaffecter ces ressources de l&apos;affaire
+                Cliquez sur une tuile pour désaffecter cette ressource
               </p>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {ressourcesDejaAffectees.map((ressource) => {
                   const isToRemove = idsToRemove.has(ressource.affectationId)
                   return (
@@ -412,26 +432,28 @@ export function AffectationMassePanel({
                       key={ressource.affectationId}
                       onClick={() => handleToggleDejaAffectee(ressource.affectationId)}
                       className={`
-                        p-3 rounded-lg border-2 cursor-pointer transition-all
+                        p-4 rounded-xl border-2 cursor-pointer transition-all shadow-sm hover:shadow-md
                         ${
                           isToRemove
-                            ? 'border-red-500 bg-red-50'
-                            : 'border-purple-200 hover:border-purple-400 hover:bg-purple-50'
+                            ? 'border-red-500 bg-gradient-to-br from-red-50 to-red-100 shadow-md'
+                            : 'border-purple-200 hover:border-purple-400 hover:bg-purple-50 bg-white'
                         }
                       `}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-start gap-3">
                         <input
                           type="checkbox"
                           checked={!isToRemove}
                           onChange={() => handleToggleDejaAffectee(ressource.affectationId)}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                          className="w-5 h-5 mt-0.5 text-purple-600 rounded focus:ring-purple-500 flex-shrink-0"
                         />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-800">{ressource.nom}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-gray-600 flex items-center gap-1">
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-semibold ${isToRemove ? 'text-red-900' : 'text-gray-800'} truncate`}>
+                            {ressource.nom}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="flex items-center gap-1 text-xs text-gray-600">
                               <MapPin className="w-3 h-3" />
                               {ressource.site}
                             </span>
@@ -451,13 +473,9 @@ export function AffectationMassePanel({
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {ressource.dateDebut.toLocaleDateString('fr-FR')} →{' '}
-                            {ressource.dateFin.toLocaleDateString('fr-FR')}
-                            {' '}
-                            <span className="text-gray-400">
-                              (S{String(getISOWeek(ressource.dateDebut)).padStart(2, '0')}-{getISOYear(ressource.dateDebut)})
-                            </span>
+                          <p className="text-xs text-gray-500 mt-2">
+                            {ressource.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} →{' '}
+                            {ressource.dateFin.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
                           </p>
                         </div>
                       </div>
@@ -491,21 +509,46 @@ export function AffectationMassePanel({
             {selectedRessourceIds.size > 0 && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <h4 className="text-sm font-semibold text-gray-700 mb-2">Ressources sélectionnées :</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                   {Array.from(selectedRessourceIds).map((ressourceId) => {
                     const ressource = ressourcesCandidates.find((r) => r.id === ressourceId)
                     if (!ressource) return null
                     return (
                       <div
                         key={ressourceId}
-                        className="px-3 py-2 bg-white rounded-lg border-2 border-blue-300 shadow-sm hover:shadow-md transition-shadow"
+                        onClick={() => handleToggleRessource(ressourceId)}
+                        className="p-4 bg-white rounded-xl border-2 border-blue-300 shadow-sm hover:shadow-md hover:border-blue-400 transition-all cursor-pointer"
                       >
-                        <p className="text-xs font-medium text-gray-800 truncate" title={ressource.nom}>
-                          {ressource.nom}
-                        </p>
-                        {ressource.necessiteTransfert && (
-                          <p className="text-[10px] text-amber-600 mt-0.5">🔄 Transfert</p>
-                        )}
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={true}
+                            onChange={() => handleToggleRessource(ressourceId)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 mt-0.5 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-800 truncate">
+                              {ressource.nom}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <span className="flex items-center gap-1 text-xs text-gray-600">
+                                <MapPin className="w-3 h-3" />
+                                {ressource.site}
+                              </span>
+                              {ressource.isPrincipale && (
+                                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                  ⭐ Principale
+                                </span>
+                              )}
+                              {ressource.necessiteTransfert && (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                  🔄 Transfert
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )
                   })}
