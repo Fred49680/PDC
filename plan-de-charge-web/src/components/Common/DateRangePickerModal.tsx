@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -160,5 +161,13 @@ export function DateRangePickerModal({
       </div>
     </div>
   )
+
+  // Utiliser createPortal pour rendre le modal en dehors de la hiérarchie DOM
+  // Cela garantit qu'il sera toujours au-dessus des autres modals
+  if (typeof window !== 'undefined') {
+    return createPortal(modalContent, document.body)
+  }
+  
+  return null
 }
 
