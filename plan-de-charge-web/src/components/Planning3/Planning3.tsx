@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertCircle, Loader2, Grid3x3, LayoutGrid, X, Plus } from 'lucide-react'
+import { AlertCircle, Loader2, Grid3x3, LayoutGrid, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCharge } from '@/hooks/useCharge'
 import { useAffectations } from '@/hooks/useAffectations'
@@ -19,6 +19,23 @@ import { getDatesBetween, normalizeDateToUTC, isBusinessDay } from '@/utils/cale
 // Note: triggerConsolidationPeriodesCharge retiré - la consolidation se fait automatiquement via les triggers SQL
 
 import type { Precision } from '@/types/charge'
+
+// Type pour les affectations avec dates converties
+interface AffectationWithDates {
+  id: string
+  affaire_id: string
+  site: string
+  ressource_id: string
+  competence: string
+  date_debut: Date
+  date_fin: Date
+  charge: number
+  force_weekend_ferie?: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string
+  updated_by?: string
+}
 
 interface Planning3Props {
   affaireId: string
@@ -48,7 +65,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   const { addToast } = useToast()
 
   // Hooks pour charger les données
-  const { periodes, loading: loadingPeriodes, deletePeriode, refresh: refreshPeriodes } = useCharge({
+  const { periodes, loading: loadingPeriodes, refresh: refreshPeriodes } = useCharge({
     affaireId,
     site,
     autoRefresh: true,
@@ -104,7 +121,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       prevPeriodesRef.current = periodesSignature
       prevCompetencesRef.current = competencesActuelles
     }
-  }, [periodes, refreshAffectations])
+  }, [periodes, refreshAffectations, refreshPeriodes])
 
   // Charger TOUTES les ressources actives (pas seulement du site) pour permettre les transferts
   // Le modal AffectationPanel doit pouvoir afficher les ressources d'autres sites
@@ -135,7 +152,6 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
 
   // Charger toutes les compétences distinctes (hors site) comme dans Planning2
   // Note: Actuellement non utilisé mais disponible pour futures fonctionnalités
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [toutesCompetences, setToutesCompetences] = useState<string[]>([])
   const [loadingCompetences, setLoadingCompetences] = useState(true)
 
@@ -208,7 +224,8 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
   })
 
   // Charger TOUTES les affectations pour détecter les conflits
-  const [allAffectations, setAllAffectations] = useState<any[]>([])
+  const [allAffectations, setAllAffectations] = useState<AffectationWithDates[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingAllAffectations, setLoadingAllAffectations] = useState(false)
 
   useEffect(() => {
@@ -222,7 +239,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
           .order('date_debut', { ascending: true })
         
         if (!error && allAff) {
-          const affectationsAvecDates = allAff.map((a: any) => ({
+          const affectationsAvecDates: AffectationWithDates[] = allAff.map((a) => ({
             ...a,
             date_debut: a.date_debut ? new Date(a.date_debut) : new Date(),
             date_fin: a.date_fin ? new Date(a.date_fin) : new Date(),
@@ -266,7 +283,7 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
 
     // Vérifier les conflits (affectation sur une autre affaire)
     if (affaireUuid) {
-      const hasConflit = allAffectations.some((aff: any) => {
+      const hasConflit = allAffectations.some((aff) => {
         if (aff.ressource_id !== ressourceId) return false
         if (aff.affaire_id === affaireUuid) return false // Même affaire, pas un conflit
         
@@ -355,13 +372,13 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       })
     }
     return []
+    // recalcKey est intentionnellement inclus pour forcer le recalcul quand nécessaire
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodes, affectations, dateDebut, dateFin, recalcKey])
 
   const handleAffecter = (besoin: BesoinPeriode) => {
     setSelectedBesoin(besoin)
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
 
   const handleAffectationSuccess = async () => {
     refreshAffectations()
@@ -598,10 +615,10 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ressources (facultatif) - Sélectionnez jusqu'à {chargeMasseForm.nbRessources} ressource{chargeMasseForm.nbRessources > 1 ? 's' : ''}
+                  Ressources (facultatif) - Sélectionnez jusqu&apos;à {chargeMasseForm.nbRessources} ressource{chargeMasseForm.nbRessources > 1 ? 's' : ''}
                 </label>
                 {!chargeMasseForm.competence ? (
-                  <p className="text-xs text-gray-500 mt-1">Sélectionnez d'abord une compétence</p>
+                  <p className="text-xs text-gray-500 mt-1">Sélectionnez d&apos;abord une compétence</p>
                 ) : (
                   <div className="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-white">
                     {ressourcesFiltrees.length === 0 ? (
