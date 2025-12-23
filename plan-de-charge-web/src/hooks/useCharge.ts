@@ -438,18 +438,21 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         // Le trigger utilisera la valeur existante dans la base de données
         
         // Créer un objet avec seulement nb_ressources pour éviter les problèmes avec le trigger
-        const updateDataOnly: {
-          nb_ressources: number
-          // Ne pas inclure force_weekend_ferie dans l'UPDATE pour éviter les problèmes avec le trigger de consolidation
-          // Le trigger utilisera la valeur existante (NEW.force_weekend_ferie = OLD.force_weekend_ferie)
-        } = {
-          nb_ressources: periodeDataClean.nb_ressources,
+        // IMPORTANT : Ne pas inclure force_weekend_ferie dans l'UPDATE car il est calculé automatiquement par le trigger
+        // Utiliser Object.assign pour créer un objet propre sans propriétés undefined
+        const updateDataOnly: Record<string, unknown> = {}
+        updateDataOnly.nb_ressources = periodeDataClean.nb_ressources
+        // S'assurer explicitement que force_weekend_ferie n'est PAS dans l'objet
+        if ('force_weekend_ferie' in updateDataOnly) {
+          delete updateDataOnly.force_weekend_ferie
         }
         
         console.log('[useCharge] Étape 9 - UPDATE - Paramètres finaux:', {
           nb_ressources: updateDataOnly.nb_ressources,
           id: existingData.id,
-          note: 'force_weekend_ferie non inclus pour éviter problème avec trigger de consolidation'
+          note: 'force_weekend_ferie non inclus pour éviter problème avec trigger de consolidation',
+          'updateDataOnly keys': Object.keys(updateDataOnly),
+          'has force_weekend_ferie': 'force_weekend_ferie' in updateDataOnly
         })
         
         debugLog('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
