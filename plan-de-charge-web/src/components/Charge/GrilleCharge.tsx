@@ -322,8 +322,17 @@ export function GrilleCharge({
     // Structure: Map<competence, Map<colIndex, nombreRessourcesUniques>>
     const result = new Map<string, Map<number, number>>()
     
-    // Pour chaque compétence dans la grille, calculer les affectations pour chaque colonne
-    competences.forEach((comp) => {
+    // Récupérer toutes les compétences uniques des affectations ET de la grille
+    const toutesCompetences = new Set<string>()
+    competences.forEach(comp => toutesCompetences.add(comp))
+    affectations.forEach(aff => {
+      if (aff.competence) {
+        toutesCompetences.add(aff.competence)
+      }
+    })
+    
+    // Pour chaque compétence, calculer les affectations pour chaque colonne
+    toutesCompetences.forEach((comp) => {
       if (!result.has(comp)) {
         result.set(comp, new Map<number, number>())
       }
@@ -1198,6 +1207,21 @@ export function GrilleCharge({
                   detailsParCompetence.push(`${comp}: ${affectees}/${charge > 0 ? charge.toFixed(0) : '0'}`)
                 }
               })
+              
+              // Debug: log si totalAffectees est 0 mais qu'il y a des affectations
+              if (totalAffectees === 0 && affectations && affectations.length > 0 && idx === 0) {
+                console.log('[GrilleCharge] Debug total affectées:', {
+                  affaireUuid,
+                  nbAffectations: affectations.length,
+                  competences: Array.from(competences),
+                  affectationsParCompetenceEtColonne: Array.from(affectationsParCompetenceEtColonne.entries()).map(([comp, map]) => ({
+                    comp,
+                    cols: Array.from(map.entries())
+                  })),
+                  colonneIdx: idx,
+                  colDate: col.date.toISOString()
+                })
+              }
               
               // Créer le tooltip avec les détails par compétence
               const tooltipText = detailsParCompetence.length > 0
