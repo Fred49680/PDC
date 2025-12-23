@@ -566,8 +566,8 @@ export function Planning3({ affaireId, site, dateDebut, dateFin, precision = 'JO
       {/* Modal charge de masse - Utilise un portal pour être au-dessus du modal parent */}
       {showChargeMasseModal && (() => {
         const modalContent = (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] p-6 overflow-y-auto my-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">Déclarer charge période</h3>
               <button
