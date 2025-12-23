@@ -407,18 +407,20 @@ export default function Planning3Page() {
           </div>
         )}
 
-        {/* Modal de sélection de dates personnalisées */}
-        <DateRangePickerModal
-          isOpen={isDatePickerOpen}
-          dateDebut={dateDebut}
-          dateFin={dateFin}
-          onConfirm={(newDateDebut, newDateFin) => {
-            setDateDebut(newDateDebut)
-            setDateFin(newDateFin)
-            setIsDatePickerOpen(false)
-          }}
-          onCancel={() => setIsDatePickerOpen(false)}
-        />
+        {/* Modal de sélection de dates personnalisées - Toujours rendu pour éviter les problèmes de z-index */}
+        {isDatePickerOpen && (
+          <DateRangePickerModal
+            isOpen={isDatePickerOpen}
+            dateDebut={dateDebut}
+            dateFin={dateFin}
+            onConfirm={(newDateDebut, newDateFin) => {
+              setDateDebut(newDateDebut)
+              setDateFin(newDateFin)
+              setIsDatePickerOpen(false)
+            }}
+            onCancel={() => setIsDatePickerOpen(false)}
+          />
+        )}
       </div>
     </Layout>
   )
