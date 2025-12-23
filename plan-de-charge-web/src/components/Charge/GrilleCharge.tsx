@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useCharge } from '@/hooks/useCharge'
-import { useAffectations } from '@/hooks/useAffectations'
+import { useAffectations, type UseAffectationsOptions } from '@/hooks/useAffectations'
 import { createClient } from '@/lib/supabase/client'
 import { formatSemaineISO, normalizeDateToUTC, getDatesBetween } from '@/utils/calendar'
 import { isFrenchHoliday } from '@/utils/holidays'
@@ -114,11 +114,12 @@ export function GrilleCharge({
   }, [periodes])
 
   // Charger les affectations pour cette affaire
-  const { affectations } = useAffectations({
-    ...(affaireUuid ? { affaireId: affaireUuid } : {}),
+  const affectationsOptions: UseAffectationsOptions = {
+    ...(affaireUuid && { affaireId: affaireUuid }),
     site,
     enableRealtime: true,
-  })
+  }
+  const { affectations } = useAffectations(affectationsOptions)
 
   // Calculer le nombre d'affectations uniques par compétence
   const affectationsParCompetence = useMemo(() => {

@@ -41,8 +41,8 @@ interface AbsenceRaw {
   updated_at: string
 }
 
-interface UseAffectationsOptions {
-  affaireId: string
+export interface UseAffectationsOptions {
+  affaireId?: string
   site: string
   competence?: string
   autoRefresh?: boolean // Option pour désactiver le refresh automatique
@@ -69,6 +69,13 @@ export function useAffectations({ affaireId, site, competence, autoRefresh = tru
     try {
       setLoading(true)
       setError(null)
+
+      // Si pas d'affaireId, retourner une liste vide
+      if (!affaireId) {
+        setAffectations([])
+        setLoading(false)
+        return
+      }
 
       const supabase = getSupabaseClient()
 
