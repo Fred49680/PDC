@@ -53,7 +53,7 @@ export function calculerCouverture(
   besoin: PeriodeCharge,
   affectations: Affectation[]
 ): BesoinPeriode['couverture'] {
-  // Compter les affectations pour cette période et cette compétence
+  // Filtrer les affectations qui chevauchent avec la période de besoin
   const affectationsPeriode = affectations.filter((aff) => {
     return (
       aff.competence === besoin.competence &&
@@ -62,7 +62,11 @@ export function calculerCouverture(
     )
   })
 
-  const affecte = affectationsPeriode.length
+  // Compter le nombre de ressources UNIQUES affectées (pas le nombre d'affectations)
+  // Car une même ressource peut avoir plusieurs affectations sur la période
+  const ressourcesUniques = new Set(affectationsPeriode.map(aff => aff.ressource_id))
+  const affecte = ressourcesUniques.size
+  
   const manque = Math.max(0, besoin.nb_ressources - affecte)
   const surplus = Math.max(0, affecte - besoin.nb_ressources)
 
