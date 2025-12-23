@@ -45,6 +45,9 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
   const [showSearchResults, setShowSearchResults] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchResultsRef = useRef<HTMLDivElement>(null)
+  const [showNumeroCompteResults, setShowNumeroCompteResults] = useState(false)
+  const numeroCompteInputRef = useRef<HTMLInputElement>(null)
+  const numeroCompteResultsRef = useRef<HTMLDivElement>(null)
 
   // État pour la page Charge uniquement
   const [dateDebut, setDateDebut] = useState(startOfMonth(new Date()))
@@ -115,6 +118,29 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       .slice(0, 10) // Limiter à 10 résultats pour la performance
   }, [searchQuery, responsable, site, affairesActives, affairesFiltreesParResponsable, affairesFiltreesParResponsableEtSite])
 
+  // Recherche intelligente pour le numéro de compte (affaire_id et compte)
+  const affairesRechercheesParCompte = useMemo(() => {
+    if (!numeroCompte || numeroCompte.trim() === '') {
+      return []
+    }
+    
+    const query = numeroCompte.toLowerCase().trim()
+    const allAffaires = responsable
+      ? site
+        ? affairesFiltreesParResponsableEtSite
+        : affairesFiltreesParResponsable
+      : affairesActives
+    
+    return allAffaires
+      .filter((a) => {
+        const matchId = a.affaire_id?.toLowerCase().includes(query) || false
+        const matchCompte = a.compte?.toLowerCase().includes(query) || false
+        
+        return matchId || matchCompte
+      })
+      .slice(0, 10) // Limiter à 10 résultats pour la performance
+  }, [numeroCompte, responsable, site, affairesActives, affairesFiltreesParResponsable, affairesFiltreesParResponsableEtSite])
+
   // Handlers pour gérer les changements de filtres
   const handleResponsableChange = (newResponsable: string) => {
     setResponsable(newResponsable)
@@ -146,6 +172,15 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
 
   const handleNumeroCompteChange = (value: string) => {
     setNumeroCompte(value)
+    setShowNumeroCompteResults(value.trim().length > 0)
+    
+    // Réinitialiser les champs associés quand on commence à taper dans la recherche
+    if (value.trim().length > 0) {
+      setAffaireId('')
+      setSite('')
+      setResponsable('')
+      setSearchQuery('')
+    }
     
     // Recherche automatique si le numéro de compte correspond exactement
     if (value && value.trim() !== '') {
@@ -155,7 +190,19 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
       if (affaireTrouvee && affaireTrouvee.affaire_id && affaireTrouvee.affaire_id !== affaireId) {
         setAffaireId(affaireTrouvee.affaire_id)
         setSite(affaireTrouvee.site)
+        setShowNumeroCompteResults(false)
       }
+    }
+  }
+
+  const handleSelectAffaireFromNumeroCompte = (affaire: typeof affairesActives[0]) => {
+    if (affaire.affaire_id) {
+      setAffaireId(affaire.affaire_id)
+      setSite(affaire.site)
+      setResponsable(affaire.responsable || '')
+      setNumeroCompte(affaire.affaire_id || affaire.compte || '')
+      setShowNumeroCompteResults(false)
+      setSearchQuery('')
     }
   }
 
@@ -194,6 +241,14 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
         !searchInputRef.current.contains(event.target as Node)
       ) {
         setShowSearchResults(false)
+      }
+      if (
+        numeroCompteResultsRef.current &&
+        !numeroCompteResultsRef.current.contains(event.target as Node) &&
+        numeroCompteInputRef.current &&
+        !numeroCompteInputRef.current.contains(event.target as Node)
+      ) {
+        setShowNumeroCompteResults(false)
       }
     }
 
@@ -369,17 +424,94 @@ export function ModalChargeAffectation({ isOpen, onClose }: ModalChargeAffectati
             </div>
 
             {/* Numéro de compte */}
-            <div className="flex-1 min-w-[150px]">
+            <div className="flex-1 min-w-[200px] relative">
               <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Numéro de compte
               </label>
-              <input
-                type="text"
-                value={numeroCompte}
-                onChange={(e) => handleNumeroCompteChange(e.target.value)}
-                placeholder="Rechercher..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="w-4 h-4 text-gray-400" />
+                </div>
+                <input
+                  ref={numeroCompteInputRef}
+                  type="text"
+                  value={numeroCompte}
+                  onChange={(e) => handleNumeroCompteChange(e.target.value)}
+                  onFocus={() => {
+                    if (numeroCompte.trim().length > 0) {
+                      setShowNumeroCompteResults(true)
+                    }
+                  }}
+                  placeholder="Rechercher par ID ou compte..."
+                  className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+                />
+                {/* Résultats de recherche */}
+                {showNumeroCompteResults && affairesRechercheesParCompte.length > 0 && (
+                  <div
+                    ref={numeroCompteResultsRef}
+                    className="absolute z-50 w-full mt-1 bg-white border-2 border-indigo-200 rounded-lg shadow-xl max-h-80 overflow-y-auto"
+                  >
+                    {affairesRechercheesParCompte.map((affaire) => {
+                      const tooltipText = [
+                        affaire.affaire_id && `ID: ${affaire.affaire_id}`,
+                        affaire.libelle && `Libellé: ${affaire.libelle}`,
+                        affaire.site && `Site: ${affaire.site}`,
+                        affaire.responsable && `Responsable: ${affaire.responsable}`,
+                        affaire.compte && `Compte: ${affaire.compte}`,
+                        affaire.statut && `Statut: ${affaire.statut}`,
+                      ]
+                        .filter(Boolean)
+                        .join('\n')
+                      
+                      return (
+                        <button
+                          key={affaire.id}
+                          type="button"
+                          onClick={() => handleSelectAffaireFromNumeroCompte(affaire)}
+                          title={tooltipText}
+                          className="w-full px-5 py-3 text-left hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0 group"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-base text-gray-900 group-hover:text-indigo-700">
+                                {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                              </div>
+                              <div className="text-sm text-gray-600 mt-1.5 flex items-center gap-3 flex-wrap">
+                                {affaire.site && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-indigo-500">📍</span>
+                                    <span>{affaire.site}</span>
+                                  </span>
+                                )}
+                                {affaire.responsable && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-indigo-500">👤</span>
+                                    <span>{affaire.responsable}</span>
+                                  </span>
+                                )}
+                                {affaire.compte && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-indigo-500">💳</span>
+                                    <span>{affaire.compte}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {showNumeroCompteResults && numeroCompte.trim().length > 0 && affairesRechercheesParCompte.length === 0 && (
+                  <div
+                    ref={numeroCompteResultsRef}
+                    className="absolute z-50 w-full mt-1 bg-white border-2 border-indigo-200 rounded-lg shadow-xl p-4"
+                  >
+                    <p className="text-sm text-gray-500 text-center">Aucune affaire trouvée</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Responsable */}
