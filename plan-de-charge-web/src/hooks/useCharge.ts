@@ -447,52 +447,28 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
       
       if (existingData) {
         // Enregistrement existant : UPDATE avec seulement les champs modifiables
-        // SÉCURITÉ : Normaliser force_weekend_ferie en boolean strict avant UPDATE
-        const forceWeekendFerieUpdateNormalized: boolean = (() => {
-          const value = periodeDataClean.force_weekend_ferie
-          if (typeof value === 'boolean') {
-            return value
-          }
-          if (value === true || value === 'true' || value === 1 || value === '1') {
-            return true
-          }
-          // Par défaut, retourner false (pas de forçage)
-          return false
-        })()
+        // IMPORTANT : Ne pas inclure force_weekend_ferie dans l'UPDATE sauf si on veut vraiment le modifier
+        // Cela évite que le trigger de consolidation reçoive une chaîne vide
+        // Le trigger utilisera la valeur existante dans la base de données
         
-        // Créer un objet littéral strict avec le booléen explicite
+        // Créer un objet avec seulement nb_ressources pour éviter les problèmes avec le trigger
         const updateDataOnly: {
           nb_ressources: number
-          force_weekend_ferie: boolean
+          // Ne pas inclure force_weekend_ferie dans l'UPDATE pour éviter les problèmes avec le trigger de consolidation
+          // Le trigger utilisera la valeur existante (NEW.force_weekend_ferie = OLD.force_weekend_ferie)
         } = {
           nb_ressources: periodeDataClean.nb_ressources,
-          // Toujours inclure explicitement le booléen strict (true ou false, jamais undefined/null)
-          force_weekend_ferie: forceWeekendFerieUpdateNormalized,
-        }
-        
-        // Validation finale : s'assurer que force_weekend_ferie est un boolean strict
-        if (typeof updateDataOnly.force_weekend_ferie !== 'boolean') {
-          console.error('[useCharge] ERREUR CRITIQUE UPDATE: force_weekend_ferie n\'est pas un boolean!', {
-            value: updateDataOnly.force_weekend_ferie,
-            type: typeof updateDataOnly.force_weekend_ferie,
-            normalized: forceWeekendFerieUpdateNormalized
-          })
-          // Forcer la valeur à false si elle n'est pas un boolean
-          updateDataOnly.force_weekend_ferie = false
         }
         
         console.log('[useCharge] Étape 9 - UPDATE - Paramètres finaux:', {
           nb_ressources: updateDataOnly.nb_ressources,
-          force_weekend_ferie: updateDataOnly.force_weekend_ferie,
-          force_weekend_ferie_type: typeof updateDataOnly.force_weekend_ferie,
-          id: existingData.id
+          id: existingData.id,
+          note: 'force_weekend_ferie non inclus pour éviter problème avec trigger de consolidation'
         })
         
         debugLog('[useCharge] Étape 9 - UPDATE - Données à envoyer:', JSON.stringify(updateDataOnly, null, 2))
         debugLog('[useCharge] Étape 9 - UPDATE - Types:', {
           nb_ressources: typeof updateDataOnly.nb_ressources,
-          force_weekend_ferie: typeof updateDataOnly.force_weekend_ferie,
-          'force_weekend_ferie value': updateDataOnly.force_weekend_ferie,
         })
         debugLog('[useCharge] Étape 9 - UPDATE - ID cible:', existingData.id)
         
