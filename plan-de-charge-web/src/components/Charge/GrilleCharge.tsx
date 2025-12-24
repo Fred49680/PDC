@@ -583,9 +583,12 @@ export function GrilleCharge({
         
         await Promise.all(
           savesToProcess.map(async ({ competence, col, value }) => {
-            // Si la valeur est 0, supprimer la période au lieu de la sauvegarder
+            // Si la valeur est 0, utiliser savePeriode avec nb_ressources = 0
+            // Cela déclenchera la suppression automatique via update_periode_charge
             if (value === 0) {
-              // Trouver la période existante pour cette compétence et cette date
+              console.log('[GrilleCharge] 🔴 Valeur 0 détectée - Appel savePeriode avec nb_ressources = 0')
+              
+              // Calculer les dates de la période selon la précision
               let dateDebutPeriode: Date
               let dateFinPeriode: Date
               
@@ -612,22 +615,45 @@ export function GrilleCharge({
                 dateFinPeriode = normalizeDateToUTC(col.date)
               }
               
-              // Trouver la période correspondante
-              const periodeToDelete = periodes.find(p => 
+              // Trouver la période correspondante pour récupérer son ID
+              const periodeExistante = periodes.find(p => 
                 p.competence === competence &&
                 p.date_debut.getTime() === dateDebutPeriode.getTime() &&
                 p.date_fin.getTime() === dateFinPeriode.getTime()
               )
               
-              if (periodeToDelete) {
+              console.log('[GrilleCharge] 🔍 Période existante trouvée:', periodeExistante ? periodeExistante.id : 'Aucune')
+              
+              // Si on trouve une période exacte, utiliser deletePeriode (plus direct)
+              if (periodeExistante) {
                 try {
-                  await deletePeriode(periodeToDelete.id)
+                  console.log('[GrilleCharge] 🗑️ Suppression directe de la période:', periodeExistante.id)
+                  await deletePeriode(periodeExistante.id)
+                  console.log('[GrilleCharge] ✅ Période supprimée avec succès')
+                  return
                 } catch (err) {
-                  // Ignorer silencieusement les erreurs de suppression
-                  console.warn('[GrilleCharge] Erreur suppression période:', err)
+                  console.error('[GrilleCharge] ❌ Erreur suppression directe, tentative avec savePeriode:', err)
+                  // Si la suppression directe échoue, continuer avec savePeriode
                 }
               }
-              return
+              
+              // Sinon, ou si la suppression directe a échoué, utiliser savePeriode avec nb_ressources = 0
+              // Cela déclenchera update_periode_charge qui supprimera automatiquement
+              try {
+                console.log('[GrilleCharge] 📤 Appel savePeriode avec nb_ressources = 0 pour déclencher suppression automatique')
+                const result = await savePeriode({
+                  id: periodeExistante?.id, // Inclure l'ID si on l'a trouvé
+                  competence,
+                  date_debut: dateDebutPeriode,
+                  date_fin: dateFinPeriode,
+                  nb_ressources: 0, // Cela déclenchera la suppression via update_periode_charge
+                })
+                console.log('[GrilleCharge] ✅ savePeriode avec nb_ressources = 0 terminé:', result)
+                return result
+              } catch (err) {
+                console.error('[GrilleCharge] ❌ Erreur savePeriode avec nb_ressources = 0:', err)
+                throw err
+              }
             }
             
             let dateDebutPeriode: Date

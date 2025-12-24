@@ -445,6 +445,7 @@ export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime 
         }
         
         console.log('[useCharge] Étape 9 - UPDATE via RPC - Paramètres:', JSON.stringify(rpcUpdateParams, null, 2))
+        console.log('[useCharge] Étape 9 - nb_ressources:', periodeDataClean.nb_ressources, '(0 = suppression automatique)')
         debugLog('[useCharge] Étape 9 - UPDATE via RPC - Données à envoyer:', JSON.stringify(rpcUpdateParams, null, 2))
         
         const { data: updateDataResult, error: updateError } = await supabase.rpc('update_periode_charge', rpcUpdateParams)
