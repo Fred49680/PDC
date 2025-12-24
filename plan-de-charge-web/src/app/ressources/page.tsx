@@ -2117,6 +2117,7 @@ function InterimsManagement({
                     value={formData.ressource_id}
                     onChange={(e) => handleRessourceChange(e.target.value)}
                     required
+                    disabled={isEditing} // Désactiver le changement de ressource en mode édition
                     className="w-full"
                     options={[
                       { value: '', label: 'Sélectionner une ressource' },
@@ -2124,10 +2125,15 @@ function InterimsManagement({
                         .filter(r => r.type_contrat === 'ETT')
                         .map((ressource) => ({
                           value: ressource.id,
-                          label: ressource.nom,
+                          label: `${ressource.nom}${!ressource.actif ? ' (Inactive)' : ''}`,
                         })),
                     ]}
                   />
+                  {isEditing && formData.ressource_id && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      💡 La ressource ne peut pas être modifiée en mode édition. Vous pouvez modifier le statut de renouvellement ci-dessous.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
