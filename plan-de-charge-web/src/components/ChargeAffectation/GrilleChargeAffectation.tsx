@@ -837,14 +837,9 @@ export default function GrilleChargeAffectation({
             throw err
           }
           
-          // Si mode JOUR et autoRefresh activé, consolider après sauvegarde
-          if (precision === 'JOUR' && autoRefresh) {
-            setTimeout(() => {
-              consolidate(competence).catch(err => {
-                console.error('[GrilleChargeAffectation] Erreur consolidation:', err)
-              })
-            }, 1000)
-          }
+          // NOTE: La consolidation se fait maintenant automatiquement via les triggers SQL
+          // Plus besoin d'appeler consolidate() manuellement après chaque sauvegarde
+          // Les triggers SQL consolident automatiquement après chaque INSERT/UPDATE/DELETE
         }
       } catch (err) {
         console.error('[GrilleChargeAffectation] Erreur savePeriode:', err)

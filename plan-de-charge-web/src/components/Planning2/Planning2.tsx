@@ -1834,22 +1834,12 @@ export default function Planning2({
           )
         }
         
-        // Consolider les périodes pour cette compétence (fusionne les périodes consécutives)
-        // Cela doit être fait APRÈS tous les INSERT pour éviter que le trigger ne supprime les INSERT en cours
-        // Note: Realtime gère automatiquement les mises à jour, mais on garde un refresh après consolidation
-        // car c'est une opération complexe (DELETE puis INSERT) qui modifie beaucoup de lignes
+        // NOTE: La consolidation se fait maintenant automatiquement via les triggers SQL
+        // Plus besoin d'appeler consolidateCharge() manuellement
+        // Les triggers SQL consolident automatiquement après chaque INSERT/UPDATE/DELETE
         if (nbPeriodesCreees > 0) {
-          try {
-            await consolidateCharge(competence)
-            console.log(`[Planning2] Consolidation effectuée pour compétence ${competence}`)
-            
-            // Refresh unique après consolidation (Realtime gère les INSERT individuels, mais consolidation = opération complexe)
-            await refreshCharge()
-          } catch (consolidateErr) {
-            console.error(`[Planning2] Erreur lors de la consolidation pour ${competence}:`, consolidateErr)
-            // Ne pas bloquer si la consolidation échoue, les données sont quand même enregistrées
-            // Realtime a déjà mis à jour l'interface pour les INSERT individuels
-          }
+          // Refresh pour récupérer les périodes consolidées (Realtime gère aussi les mises à jour)
+          await refreshCharge()
         }
 
         // Afficher le message de succès
