@@ -1761,13 +1761,13 @@ function InterimsManagement({
 
     // Si la date est passée et que le statut n'est pas déjà "Non" ou "Oui", mettre à "En cours"
     if (joursRestants < 0 && formData.a_renouveler !== 'Non' && formData.a_renouveler !== 'non' && formData.a_renouveler !== 'Oui' && formData.a_renouveler !== 'oui') {
-      setFormData((prev: InterimFormData) => ({ ...prev, a_renouveler: 'En cours' }))
+      setFormData({ ...formData, a_renouveler: 'En cours' })
     }
     // Si on est dans les 10 jours ouvrés, mettre à "A renouveler"
     else if (joursRestants <= 10 && joursRestants >= 0 && formData.a_renouveler !== 'Oui' && formData.a_renouveler !== 'oui' && formData.a_renouveler !== 'Non' && formData.a_renouveler !== 'non' && formData.a_renouveler !== 'En cours') {
-      setFormData((prev: InterimFormData) => ({ ...prev, a_renouveler: 'A renouveler' }))
+      setFormData({ ...formData, a_renouveler: 'A renouveler' })
     }
-  }, [formData.date_fin_contrat, isEditing])
+  }, [formData.date_fin_contrat, isEditing, formData])
 
   const getJoursRestants = (dateFin: Date): number => {
     const today = new Date()
