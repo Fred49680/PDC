@@ -646,10 +646,21 @@ export function GrilleCharge({
                 date_fin: periodeExistante.date_fin.toISOString(),
               } : 'Aucune')
               
-              // Si on trouve une période exacte, utiliser deletePeriode (plus direct)
-              if (periodeExistante) {
+              // IMPORTANT : Ne pas supprimer la période directement si elle est plus large !
+              // Au lieu de cela, insérer une période avec nb_ressources = 0 pour cette date
+              // Le trigger de consolidation va automatiquement :
+              // 1. Décomposer toutes les périodes en jours individuels (en ignorant celles avec nb_ressources = 0)
+              // 2. Reconstruire les périodes consécutives (cassant la période en deux si nécessaire)
+              
+              // Vérifier si la période existante couvre exactement cette date (pas besoin de découpage)
+              const periodeCouvreExactement = periodeExistante &&
+                periodeExistante.date_debut.getTime() === dateDebutPeriode.getTime() &&
+                periodeExistante.date_fin.getTime() === dateFinPeriode.getTime()
+              
+              if (periodeCouvreExactement) {
+                // Si la période couvre exactement cette date, on peut la supprimer directement
                 try {
-                  console.log('[GrilleCharge] 🗑️ Suppression directe de la période:', periodeExistante.id)
+                  console.log('[GrilleCharge] 🗑️ Période couvre exactement la date - Suppression directe:', periodeExistante.id)
                   await deletePeriode(periodeExistante.id)
                   console.log('[GrilleCharge] ✅ Période supprimée avec succès')
                   return
@@ -659,21 +670,34 @@ export function GrilleCharge({
                 }
               }
               
-              // Sinon, ou si la suppression directe a échoué, utiliser savePeriode avec nb_ressources = 0
-              // Cela déclenchera update_periode_charge qui supprimera automatiquement
+              // Si la période est plus large, insérer une période avec nb_ressources = 0
+              // Le trigger va automatiquement découper la période en excluant ce jour
+              // Exemple : période 1er-5 février (2 res) + insertion 3 février (0 res)
+              // → Le trigger va créer : 1er-2 février (2 res) et 4-5 février (2 res)
               try {
-                console.log('[GrilleCharge] 📤 Appel savePeriode avec nb_ressources = 0 pour déclencher suppression automatique')
+                console.log('[GrilleCharge] 📤 Insertion période avec nb_ressources = 0 pour déclencher découpage automatique')
+                console.log('[GrilleCharge] 📤 La période existante sera découpée en excluant cette date')
+                if (periodeExistante) {
+                  console.log('[GrilleCharge] 📤 Période existante à découper:', {
+                    id: periodeExistante.id,
+                    date_debut: periodeExistante.date_debut.toISOString(),
+                    date_fin: periodeExistante.date_fin.toISOString(),
+                    nb_ressources: periodeExistante.nb_ressources
+                  })
+                }
                 const result = await savePeriode({
-                  id: periodeExistante?.id, // Inclure l'ID si on l'a trouvé
+                  // Ne pas inclure l'ID - on veut créer une nouvelle période avec nb_ressources = 0
+                  // Le trigger va ignorer cette période lors de la consolidation (ligne 85 : AND nb_ressources > 0)
+                  // ce qui va automatiquement exclure ce jour de la période existante lors de la reconstruction
                   competence,
                   date_debut: dateDebutPeriode,
                   date_fin: dateFinPeriode,
-                  nb_ressources: 0, // Cela déclenchera la suppression via update_periode_charge
+                  nb_ressources: 0, // Le trigger va ignorer ce jour lors de la consolidation
                 })
-                console.log('[GrilleCharge] ✅ savePeriode avec nb_ressources = 0 terminé:', result)
+                console.log('[GrilleCharge] ✅ Période avec nb_ressources = 0 insérée, trigger va découper automatiquement')
                 return result
               } catch (err) {
-                console.error('[GrilleCharge] ❌ Erreur savePeriode avec nb_ressources = 0:', err)
+                console.error('[GrilleCharge] ❌ Erreur insertion période avec nb_ressources = 0:', err)
                 throw err
               }
             }
