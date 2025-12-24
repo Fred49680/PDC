@@ -167,8 +167,9 @@ export default function RessourcesPage() {
   } = useInterims(finalInterimsOptions)
 
   // Charger toutes les ressources ETT pour la liste déroulante (seulement si onglet Intérim actif)
+  // Inclure aussi les ressources inactives pour permettre l'édition des intérims avec ressources inactives
   const { ressources: ressourcesETT } = useRessources(
-    activeCategoryTab === 'Intérim' ? { type_contrat: 'ETT', actif: true } : { type_contrat: undefined, actif: true }
+    activeCategoryTab === 'Intérim' ? { type_contrat: 'ETT', actif: undefined } : { type_contrat: undefined, actif: true }
   )
 
   // Normaliser la valeur du site dans formData une fois que les sites sont chargés
