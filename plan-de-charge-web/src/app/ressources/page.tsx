@@ -2210,10 +2210,9 @@ function InterimsManagement({
                     onChange={(e) => setFormData({ ...formData, a_renouveler: e.target.value })}
                     className="w-full"
                     options={[
-                      { value: 'A renouveler', label: 'A renouveler' },
-                      { value: 'En cours', label: 'En cours' },
-                      { value: 'Oui', label: 'Oui' },
                       { value: 'Non', label: 'Non' },
+                      { value: 'En cours', label: 'En cours' },
+                      { value: 'A renouveler', label: 'A renouveler' },
                     ]}
                   />
                 </div>
