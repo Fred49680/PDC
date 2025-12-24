@@ -615,14 +615,36 @@ export function GrilleCharge({
                 dateFinPeriode = normalizeDateToUTC(col.date)
               }
               
-              // Trouver la période correspondante pour récupérer son ID
-              const periodeExistante = periodes.find(p => 
-                p.competence === competence &&
-                p.date_debut.getTime() === dateDebutPeriode.getTime() &&
-                p.date_fin.getTime() === dateFinPeriode.getTime()
-              )
+              // Trouver la période correspondante qui chevauche cette date
+              // Utiliser la même logique que pour construire la grille
+              const periodeDateDebutNormalized = normalizeDateToUTC(new Date(dateDebutPeriode))
+              const periodeDateFinNormalized = normalizeDateToUTC(new Date(dateFinPeriode))
               
-              console.log('[GrilleCharge] 🔍 Période existante trouvée:', periodeExistante ? periodeExistante.id : 'Aucune')
+              const periodeExistante = periodes.find(p => {
+                if (p.competence !== competence) return false
+                
+                const pDateDebut = normalizeDateToUTC(new Date(p.date_debut))
+                const pDateFin = normalizeDateToUTC(new Date(p.date_fin))
+                
+                // Vérifier si la période chevauche la date recherchée
+                return pDateDebut <= periodeDateFinNormalized && pDateFin >= periodeDateDebutNormalized
+              })
+              
+              console.log('[GrilleCharge] 🔍 Recherche période pour:', {
+                competence,
+                dateDebutPeriode: dateDebutPeriode.toISOString(),
+                dateFinPeriode: dateFinPeriode.toISOString(),
+                periodesDisponibles: periodes.filter(p => p.competence === competence).map(p => ({
+                  id: p.id,
+                  date_debut: p.date_debut.toISOString(),
+                  date_fin: p.date_fin.toISOString(),
+                }))
+              })
+              console.log('[GrilleCharge] 🔍 Période existante trouvée:', periodeExistante ? {
+                id: periodeExistante.id,
+                date_debut: periodeExistante.date_debut.toISOString(),
+                date_fin: periodeExistante.date_fin.toISOString(),
+              } : 'Aucune')
               
               // Si on trouve une période exacte, utiliser deletePeriode (plus direct)
               if (periodeExistante) {
