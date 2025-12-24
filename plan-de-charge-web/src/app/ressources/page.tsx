@@ -1947,9 +1947,9 @@ function InterimsManagement({
             className="w-auto min-w-[140px]"
               options={[
               { value: '', label: 'Tous statuts' },
-                { value: 'A renouveler', label: 'À renouveler' },
-                { value: 'Oui', label: 'Renouvelé' },
-                { value: 'Non', label: 'Non renouvelé' },
+                { value: 'A renouveler', label: 'A renouveler' },
+                { value: 'Oui', label: 'En cours' },
+                { value: 'Non', label: 'Non' },
               ]}
             />
           <div className="flex gap-2 ml-auto">
