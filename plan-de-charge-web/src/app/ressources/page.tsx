@@ -1491,11 +1491,14 @@ function InterimsManagement({
     }
 
     // Filtre archivé : inclure les intérims avec statut "Non" OU archive_interim = true
+    // Ne pas masquer les statuts "En cours"
     if (!showArchived) {
       filtered = filtered.filter((interim) => {
         const isNonRenouvele = interim.a_renouveler === 'Non' || interim.a_renouveler === 'non'
         const isArchive = (interim as any).archive_interim === true
-        return !isNonRenouvele && !isArchive
+        const isEnCours = interim.a_renouveler === 'En cours'
+        // Exclure seulement "Non" et archivés, mais garder "En cours"
+        return (!isNonRenouvele && !isArchive) || isEnCours
       })
     }
 
@@ -2002,6 +2005,21 @@ function InterimsManagement({
             const estExpire = joursRestants < 0
             const expireBientot = joursRestants <= 10 && joursRestants >= 0
 
+            // Déterminer la couleur de la tuile selon le statut
+            const getTuileColor = (aRenouveler: string): string => {
+              switch (aRenouveler) {
+                case 'A renouveler':
+                  return 'border-orange-300 bg-orange-50/80'
+                case 'En cours':
+                  return 'border-green-300 bg-green-50/80'
+                case 'Non':
+                case 'non':
+                  return 'border-red-300 bg-red-50/80'
+                default:
+                  return 'border-white/20 bg-white/80'
+              }
+            }
+
             return (
               <div
                 key={interim.id}
@@ -2012,9 +2030,9 @@ function InterimsManagement({
                   }
                   handleEdit(interim)
                 }}
-                className={`bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 hover:shadow-xl hover:bg-white transition-all duration-200 cursor-pointer flex flex-col ${
-                  expireBientot ? 'border-orange-300 bg-orange-50/50' : ''
-                } ${estExpire ? 'border-red-300 bg-red-50/50' : ''}`}
+                className={`backdrop-blur-xl rounded-xl shadow-lg border p-4 hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col ${getTuileColor(interim.a_renouveler || '')} ${
+                  expireBientot && interim.a_renouveler !== 'A renouveler' ? 'border-orange-300 bg-orange-50/50' : ''
+                } ${estExpire && interim.a_renouveler !== 'Non' && interim.a_renouveler !== 'non' ? 'border-red-300 bg-red-50/50' : ''}`}
               >
                 {/* En-tête avec statut */}
                 <div className="flex items-center justify-between mb-3">
