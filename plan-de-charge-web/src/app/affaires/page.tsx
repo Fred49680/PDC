@@ -993,7 +993,7 @@ export default function AffairesPage() {
             }}
           >
             <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
-              <CardHeader gradient="red" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
+              <CardHeader gradient="orange" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
                 <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
               </CardHeader>
               
