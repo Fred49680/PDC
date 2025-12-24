@@ -74,6 +74,20 @@ export default function RootLayout({
                   });
               });
             }
+            
+            // Vérifier l'accessibilité du manifest.json (optionnel, non bloquant)
+            if (typeof window !== 'undefined') {
+              fetch('/manifest.json', { method: 'HEAD' })
+                .then((response) => {
+                  if (!response.ok) {
+                    console.warn('[PWA] Manifest.json non accessible (code:', response.status, ') - Non bloquant');
+                  }
+                })
+                .catch((error) => {
+                  // Ignorer silencieusement les erreurs de manifest (non critique)
+                  console.debug('[PWA] Manifest.json non accessible - Non bloquant:', error.message);
+                });
+            }
           `}
         </Script>
       </body>

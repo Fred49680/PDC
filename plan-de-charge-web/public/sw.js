@@ -7,8 +7,8 @@ const urlsToCache = [
   '/affaires',
   '/ressources',
   '/absences',
-  '/alertes',
-  '/manifest.json'
+  '/alertes'
+  // Note: manifest.json n'est pas mis en cache car il peut nécessiter une authentification
 ]
 
 // Installation
@@ -17,7 +17,15 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('[SW] Cache ouvert')
-        return cache.addAll(urlsToCache)
+        // Ajouter les URLs une par une pour gérer les erreurs individuellement
+        return Promise.allSettled(
+          urlsToCache.map((url) => 
+            cache.add(url).catch((err) => {
+              console.warn('[SW] Erreur cache pour', url, ':', err.message)
+              return null // Continuer même en cas d'erreur
+            })
+          )
+        )
       })
       .catch((err) => {
         console.error('[SW] Erreur cache:', err)
@@ -58,6 +66,22 @@ self.addEventListener('fetch', (event) => {
       url.protocol === 'edge:' ||
       !url.protocol.startsWith('http')) {
     return // Ignorer ces requêtes
+  }
+
+  // Ignorer les erreurs 401/403 sur manifest.json (non bloquant)
+  if (url.pathname === '/manifest.json') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => {
+          // En cas d'erreur (401, 403, etc.), retourner une réponse vide
+          // Le navigateur gérera cela gracieusement
+          return new Response('{}', {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200
+          })
+        })
+    )
+    return
   }
 
   event.respondWith(
