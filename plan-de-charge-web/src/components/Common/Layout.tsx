@@ -25,8 +25,9 @@ export function Layout({ children }: LayoutProps) {
     icon: typeof Home
     color: string
     isModal?: boolean
+    disabled?: boolean
   }> = [
-    { href: '/', label: 'Accueil', icon: Home, color: 'from-blue-500 to-indigo-600' },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'from-orange-500 to-amber-600' },
     { href: '/affaires', label: 'Affaires', icon: Building2, color: 'from-indigo-500 to-purple-600' },
     { href: '/ressources', label: 'Ressources', icon: Users, color: 'from-green-500 to-emerald-600' },
     { href: '#', label: 'Planning', icon: Target, color: 'from-purple-500 to-pink-600', isModal: true },
@@ -34,8 +35,12 @@ export function Layout({ children }: LayoutProps) {
     { href: '/absences', label: 'Absences', icon: Calendar, color: 'from-purple-500 to-indigo-600' },
     { href: '/transferts', label: 'Transferts', icon: ArrowRightLeft, color: 'from-cyan-500 to-blue-600' },
     { href: '/alertes', label: 'Alertes', icon: AlertCircle, color: 'from-orange-500 to-amber-600' },
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'from-orange-500 to-amber-600' },
     { href: '/admin/sites', label: 'Sites', icon: MapPin, color: 'from-blue-500 to-cyan-600' },
+    // Pages désactivées (non affichées dans la navigation)
+    // { href: '/', label: 'Accueil', icon: Home, color: 'from-blue-500 to-indigo-600', disabled: true },
+    // { href: '/planning2', label: 'Planning2', icon: Target, color: 'from-purple-500 to-pink-600', disabled: true },
+    // { href: '/charge', label: 'Charge', icon: BarChart3, color: 'from-blue-500 to-indigo-600', disabled: true },
+    // { href: '/affectations', label: 'Affectations', icon: Users, color: 'from-green-500 to-emerald-600', disabled: true },
   ]
 
   const isActive = (href: string) => {
@@ -66,7 +71,7 @@ export function Layout({ children }: LayoutProps) {
 
             {/* Navigation desktop */}
             <div className="hidden lg:flex items-center space-x-2">
-              {navItems.map((item) => {
+              {navItems.filter(item => !item.disabled).map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
                 return item.isModal ? (
@@ -125,7 +130,7 @@ export function Layout({ children }: LayoutProps) {
           {/* Menu mobile déroulant */}
           {mobileMenuOpen && (
             <div className="lg:hidden pb-4 space-y-2 animate-fade-in">
-              {navItems.map((item) => {
+              {navItems.filter(item => !item.disabled).map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
                 return item.isModal ? (
