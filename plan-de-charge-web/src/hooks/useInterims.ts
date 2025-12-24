@@ -98,14 +98,16 @@ export function useInterims(options: UseInterimsOptions = {}) {
       }
 
       // Filtrer les archivés selon showArchived
+      // Les intérims avec statut "Non" sont considérés comme archivés
       if (memoizedOptions.showArchived === false) {
-        query = query.eq('archive_interim', false)
+        // Exclure les archivés (archive_interim = true) ET les statuts "Non"
+        query = query.eq('archive_interim', false).neq('a_renouveler', 'Non').neq('a_renouveler', 'non')
       } else if (memoizedOptions.showArchived === true) {
         // Si showArchived = true, on peut afficher tous ou seulement les archivés
         // Pour l'instant, on affiche tous (pas de filtre)
       } else {
-        // Par défaut, ne pas afficher les archivés
-        query = query.eq('archive_interim', false)
+        // Par défaut, ne pas afficher les archivés (archive_interim = true) ET les statuts "Non"
+        query = query.eq('archive_interim', false).neq('a_renouveler', 'Non').neq('a_renouveler', 'non')
       }
 
       const { data, error: queryError } = await query

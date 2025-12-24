@@ -1480,8 +1480,27 @@ function InterimsManagement({
       })
     }
 
+    // Filtre par site
+    if (filters.site) {
+      filtered = filtered.filter((interim) => interim.site === filters.site)
+    }
+
+    // Filtre par statut renouvellement
+    if (filters.aRenouveler) {
+      filtered = filtered.filter((interim) => interim.a_renouveler === filters.aRenouveler)
+    }
+
+    // Filtre archivé : inclure les intérims avec statut "Non" OU archive_interim = true
+    if (!showArchived) {
+      filtered = filtered.filter((interim) => {
+        const isNonRenouvele = interim.a_renouveler === 'Non' || interim.a_renouveler === 'non'
+        const isArchive = (interim as any).archive_interim === true
+        return !isNonRenouvele && !isArchive
+      })
+    }
+
     return filtered
-  }, [interims, searchTerm])
+  }, [interims, searchTerm, filters, showArchived])
 
   // Calculer les statistiques
   const stats = useMemo(() => {
@@ -1723,10 +1742,32 @@ function InterimsManagement({
         return 'bg-red-100 text-red-800 border-red-300'
       case 'A renouveler':
         return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+      case 'En cours':
+        return 'bg-blue-100 text-blue-800 border-blue-300'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300'
     }
   }
+
+  // Mettre à jour automatiquement le statut quand la date de fin change dans le modal
+  useEffect(() => {
+    if (!formData.date_fin_contrat || !isEditing) return
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const dateFin = new Date(formData.date_fin_contrat)
+    dateFin.setHours(0, 0, 0, 0)
+    const joursRestants = businessDaysBetween(today, dateFin)
+
+    // Si la date est passée et que le statut n'est pas déjà "Non" ou "Oui", mettre à "En cours"
+    if (joursRestants < 0 && formData.a_renouveler !== 'Non' && formData.a_renouveler !== 'non' && formData.a_renouveler !== 'Oui' && formData.a_renouveler !== 'oui') {
+      setFormData(prev => ({ ...prev, a_renouveler: 'En cours' }))
+    }
+    // Si on est dans les 10 jours ouvrés, mettre à "A renouveler"
+    else if (joursRestants <= 10 && joursRestants >= 0 && formData.a_renouveler !== 'Oui' && formData.a_renouveler !== 'oui' && formData.a_renouveler !== 'Non' && formData.a_renouveler !== 'non' && formData.a_renouveler !== 'En cours') {
+      setFormData(prev => ({ ...prev, a_renouveler: 'A renouveler' }))
+    }
+  }, [formData.date_fin_contrat, isEditing])
 
   const getJoursRestants = (dateFin: Date): number => {
     const today = new Date()
@@ -1948,10 +1989,10 @@ function InterimsManagement({
         </div>
       </div>
 
-      {/* Liste des intérims */}
-      <div className="space-y-4">
+      {/* Liste des intérims en vue tuiles (5 par ligne) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {interimsFiltres.length === 0 ? (
-          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-xl border border-white/20 p-8 text-center">
+          <div className="col-span-full bg-white/80 backdrop-blur-xl rounded-xl shadow-xl border border-white/20 p-8 text-center">
             <Briefcase className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600 text-lg">Aucun intérim trouvé</p>
           </div>
@@ -1971,80 +2012,78 @@ function InterimsManagement({
                   }
                   handleEdit(interim)
                 }}
-                className={`bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 hover:shadow-xl hover:bg-white transition-all duration-200 cursor-pointer ${
+                className={`bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 hover:shadow-xl hover:bg-white transition-all duration-200 cursor-pointer flex flex-col ${
                   expireBientot ? 'border-orange-300 bg-orange-50/50' : ''
-                }`}
+                } ${estExpire ? 'border-red-300 bg-red-50/50' : ''}`}
               >
-                <div className="flex items-center gap-4 text-sm">
-                  {/* Statut */}
+                {/* En-tête avec statut */}
+                <div className="flex items-center justify-between mb-3">
                   <div
-                    className={`px-2 py-1 rounded border shrink-0 ${getStatutColor(interim.a_renouveler || '')}`}
+                    className={`px-2 py-1 rounded border text-xs font-semibold ${getStatutColor(interim.a_renouveler || '')}`}
                   >
-                    <span className="text-xs font-semibold">{interim.a_renouveler || 'En cours'}</span>
-                      </div>
-
-                  {/* Nom de la ressource */}
-                  <div className="font-bold text-gray-800 min-w-[150px]">
-                          {interim.ressource?.nom || 'Ressource inconnue'}
-                    </div>
-
-                  {/* Site */}
-                  <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
-                    <MapPin className="w-3 h-3" />
-                    <span className="font-semibold">{interim.site}</span>
-                        </div>
-
-                  {/* Dates */}
-                  <div className="flex items-center gap-1 text-gray-600 min-w-[200px]">
-                    <Calendar className="w-3 h-3" />
-                    <span>
-                          {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
-                    </span>
-                    </div>
-
-                  {/* Jours restants */}
-                  <div className="flex items-center gap-1 text-gray-600 min-w-[120px]">
-                    <Clock className={`w-3 h-3 ${
-                        estExpire 
-                          ? 'text-red-600' 
-                          : expireBientot 
-                        ? 'text-orange-600' 
-                          : 'text-gray-600'
-                      }`} />
-                    <span className={estExpire ? 'text-red-600 font-semibold' : expireBientot ? 'text-orange-600 font-semibold' : ''}>
-                          {estExpire 
-                            ? `Expiré ${Math.abs(joursRestants)}j`
-                        : `${joursRestants} j. ouvré(s)`
-                          }
-                    </span>
-                    </div>
-
-                  {/* Espace flex pour pousser le contenu */}
-                  <div className="flex-1"></div>
-
-                  {/* Bouton Supprimer/Archiver */}
-                      {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
-                        <button
+                    {interim.a_renouveler || 'En cours'}
+                  </div>
+                  {(interim.a_renouveler === 'Non' || interim.a_renouveler === 'non') && (
+                    <button
                       data-action="delete"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(interim.id, interim.a_renouveler || '')
-                          }}
-                      className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors shrink-0"
-                          title="Archiver l'intérim"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                {/* Commentaire si présent */}
-                  {interim.commentaire && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-sm text-gray-600 italic">
-                        {interim.commentaire}
-                      </p>
-                    </div>
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(interim.id, interim.a_renouveler || '')
+                      }}
+                      className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                      title="Archiver l'intérim"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
+                </div>
+
+                {/* Nom de la ressource */}
+                <div className="font-bold text-gray-800 mb-2 text-sm">
+                  {interim.ressource?.nom || 'Ressource inconnue'}
+                </div>
+
+                {/* Site */}
+                <div className="flex items-center gap-1 text-gray-600 mb-2 text-xs">
+                  <MapPin className="w-3 h-3" />
+                  <span className="font-semibold">{interim.site}</span>
+                </div>
+
+                {/* Dates */}
+                <div className="flex items-center gap-1 text-gray-600 mb-2 text-xs">
+                  <Calendar className="w-3 h-3" />
+                  <span>
+                    {format(new Date(interim.date_debut_contrat), 'dd/MM/yyyy', { locale: fr })} - {format(new Date(interim.date_fin_contrat), 'dd/MM/yyyy', { locale: fr })}
+                  </span>
+                </div>
+
+                {/* Jours restants */}
+                <div className="flex items-center gap-1 text-gray-600 mb-3 text-xs">
+                  <Clock className={`w-3 h-3 ${
+                    estExpire 
+                      ? 'text-red-600' 
+                      : expireBientot 
+                      ? 'text-orange-600' 
+                      : 'text-gray-600'
+                  }`} />
+                  <span className={`font-semibold ${
+                    estExpire ? 'text-red-600' : expireBientot ? 'text-orange-600' : 'text-gray-600'
+                  }`}>
+                    {estExpire 
+                      ? `Expiré ${Math.abs(joursRestants)}j`
+                      : `${joursRestants} j. ouvré(s)`
+                    }
+                  </span>
+                </div>
+
+                {/* Commentaire si présent */}
+                {interim.commentaire && (
+                  <div className="mt-auto pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-600 italic line-clamp-2">
+                      {interim.commentaire}
+                    </p>
+                  </div>
+                )}
               </div>
             )
           })
@@ -2172,6 +2211,7 @@ function InterimsManagement({
                     className="w-full"
                     options={[
                       { value: 'A renouveler', label: 'A renouveler' },
+                      { value: 'En cours', label: 'En cours' },
                       { value: 'Oui', label: 'Oui' },
                       { value: 'Non', label: 'Non' },
                     ]}
