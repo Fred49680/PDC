@@ -128,26 +128,62 @@ DECLARE
   v_affaire_id UUID;
   v_site TEXT;
   v_competence TEXT;
+  v_periode_data RECORD;
 BEGIN
-  -- Désactiver temporairement les triggers de consolidation
-  ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_insert;
-  ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_update;
-  ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_delete;
+  RAISE NOTICE '[update_periode_charge] DÉBUT - p_id: %, p_nb_ressources: %', p_id, p_nb_ressources;
 
   -- Récupérer les informations de la période avant l'UPDATE
-  SELECT pc.affaire_id, pc.site, pc.competence
-  INTO v_affaire_id, v_site, v_competence
+  SELECT pc.id, pc.affaire_id, pc.site, pc.competence, pc.date_debut, pc.date_fin, pc.nb_ressources
+  INTO v_periode_data
   FROM periodes_charge pc
   WHERE pc.id = p_id;
 
   -- Si la période n'existe pas, lever une erreur
-  IF v_affaire_id IS NULL THEN
-    -- Réactiver les triggers avant de lever l'erreur
+  IF v_periode_data.id IS NULL THEN
+    RAISE NOTICE '[update_periode_charge] Période non trouvée - p_id: %', p_id;
+    RAISE EXCEPTION 'Période avec id % non trouvée', p_id;
+  END IF;
+
+  v_affaire_id := v_periode_data.affaire_id;
+  v_site := v_periode_data.site;
+  v_competence := v_periode_data.competence;
+
+  RAISE NOTICE '[update_periode_charge] Période trouvée - affaire_id: %, site: %, competence: %, nb_ressources actuel: %', v_affaire_id, v_site, v_competence, v_periode_data.nb_ressources;
+
+  -- Si nb_ressources = 0, supprimer directement la période au lieu de faire un UPDATE
+  IF p_nb_ressources <= 0 THEN
+    RAISE NOTICE '[update_periode_charge] nb_ressources = 0 détecté - Suppression directe de la période';
+    
+    -- Désactiver temporairement les triggers pour éviter la récursion
+    ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_insert;
+    ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_update;
+    ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_delete;
+
+    -- Supprimer la période
+    DELETE FROM periodes_charge
+    WHERE periodes_charge.id = p_id;
+
+    -- Réactiver les triggers
     ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_insert;
     ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_update;
     ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_delete;
-    RAISE EXCEPTION 'Période avec id % non trouvée', p_id;
+
+    -- Déclencher la consolidation pour nettoyer les autres périodes si nécessaire
+    PERFORM consolidate_periodes_charge_for_competence(v_affaire_id, v_site, v_competence);
+
+    RAISE NOTICE '[update_periode_charge] Période supprimée - Retour tableau vide';
+    
+    -- Retourner un tableau vide car la période a été supprimée
+    RETURN;
   END IF;
+
+  -- Si nb_ressources > 0, faire un UPDATE normal
+  RAISE NOTICE '[update_periode_charge] nb_ressources > 0 - Mise à jour normale';
+
+  -- Désactiver temporairement les triggers de consolidation
+  ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_insert;
+  ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_update;
+  ALTER TABLE periodes_charge DISABLE TRIGGER trigger_consolidate_periodes_charge_delete;
 
   -- Faire l'UPDATE
   UPDATE periodes_charge
@@ -172,7 +208,7 @@ BEGIN
   ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_update;
   ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_delete;
 
-  -- NOTE: Plus besoin de queue_consolidation car la consolidation se fait automatiquement via les triggers
+  RAISE NOTICE '[update_periode_charge] UPDATE réussi - Retour période mise à jour';
 
   -- Retourner la période mise à jour
   RETURN QUERY
@@ -198,7 +234,7 @@ EXCEPTION
     ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_insert;
     ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_update;
     ALTER TABLE periodes_charge ENABLE TRIGGER trigger_consolidate_periodes_charge_delete;
-    RAISE WARNING 'Erreur dans update_periode_charge: % - %', SQLSTATE, SQLERRM;
+    RAISE WARNING '[update_periode_charge] ERREUR: % - %', SQLSTATE, SQLERRM;
     RAISE;
 END;
 $function$;
