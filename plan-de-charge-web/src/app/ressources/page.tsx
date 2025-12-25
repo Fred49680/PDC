@@ -1302,23 +1302,9 @@ function InterimsManagement({
     'HSE_CRP',
     'IEG',
     'IES',
-    'INSTRUM',
-    'MECANIQUE',
-    'MONTAGE',
-    'PLOMBERIE',
-    'SERRURERIE',
-    'SOLDURE',
-    'TECHNICIEN',
-    'TELECOM',
-    'ELECTRICITE',
-    'ELECTROMECANIQUE',
-    'MAINTENANCE',
-    'CONTROLE',
-    'QUALITE',
-    'SECURITE',
-    'LOGISTIQUE',
-    'MANUTENTION',
-  ]
+    'INSTRUM',     
+    'SERRURERIE'
+      ]
 
   // Fonctions pour gérer les compétences
   const loadCompetencesForRessource = (ressourceId: string) => {
