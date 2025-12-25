@@ -1292,19 +1292,7 @@ function InterimsManagement({
   const [competenceFormRessourceId, setCompetenceFormRessourceId] = useState<string | null>(null)
   
   // Liste prédéfinie des compétences (même que dans ressources)
-  const competencesPredéfinies = [
-    'ADMIN',
-    'AUTO',
-    'BE_IES',
-    'ENCADREMENT',
-    'ESSAIS',
-    'FIBRE OPTIQUE',
-    'HSE_CRP',
-    'IEG',
-    'IES',
-    'INSTRUM',     
-    'SERRURERIE'
-      ]
+ 
 
   // Fonctions pour gérer les compétences
   const loadCompetencesForRessource = (ressourceId: string) => {
