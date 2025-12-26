@@ -4,7 +4,10 @@
 
 Le projet Next.js se trouve dans le sous-dossier `plan-de-charge-web/` alors que le dépôt Git est à la racine. Vercel doit être configuré pour utiliser ce sous-dossier comme répertoire racine.
 
-**Note importante** : Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`. Le Root Directory doit pointer vers le nom réel du dossier.
+**Note importante** : 
+- Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`
+- Le Root Directory doit pointer vers `plan-de-charge-web` (un seul niveau, PAS `plan-de-charge-web/plan-de-charge-web`)
+- Le dossier imbriqué `plan-de-charge-web/plan-de-charge-web/` a été supprimé car il contenait un projet Next.js par défaut
 
 ## Solution
 
@@ -21,10 +24,13 @@ La propriété `rootDirectory` ne peut **pas** être définie dans `vercel.json`
 
 ### 2. Configurer le Root Directory
 
-**Important** : Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`.
+**Important** : 
+- Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`
+- Utilisez **UNIQUEMENT** `plan-de-charge-web` (sans niveau imbriqué supplémentaire)
+- Ne pas utiliser `plan-de-charge-web/plan-de-charge-web/` (ce dossier a été supprimé)
 
 1. Dans la section **Root Directory**, cliquez sur **Edit**
-2. Entrez : `plan-de-charge-web` (le nom réel du dossier dans votre dépôt Git)
+2. Entrez : `plan-de-charge-web` (le nom réel du dossier dans votre dépôt Git, un seul niveau)
 3. Cliquez sur **Save**
 
 ### 3. Vérifier la configuration
