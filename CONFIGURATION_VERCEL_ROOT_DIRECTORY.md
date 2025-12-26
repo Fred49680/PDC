@@ -1,0 +1,92 @@
+# Configuration Vercel - Root Directory
+
+## Problème
+
+Le projet Next.js se trouve dans le sous-dossier `plan-de-charge-web/` alors que le dépôt Git est à la racine. Vercel doit être configuré pour utiliser ce sous-dossier comme répertoire racine.
+
+**Note importante** : 
+- Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`
+- Le Root Directory doit pointer vers `plan-de-charge-web` (un seul niveau, PAS `plan-de-charge-web/plan-de-charge-web`)
+- Le dossier imbriqué `plan-de-charge-web/plan-de-charge-web/` a été supprimé car il contenait un projet Next.js par défaut
+
+## Solution
+
+La propriété `rootDirectory` ne peut **pas** être définie dans `vercel.json`. Elle doit être configurée dans le **dashboard Vercel**.
+
+## Étapes de configuration
+
+### 1. Accéder aux paramètres du projet
+
+1. Connectez-vous à [vercel.com](https://vercel.com)
+2. Sélectionnez votre projet **PDC** (le nom du projet dans Vercel)
+3. Allez dans **Settings** (Paramètres)
+4. Cliquez sur **General** dans le menu de gauche
+
+### 2. Configurer le Root Directory
+
+**Important** : 
+- Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`
+- Utilisez **UNIQUEMENT** `plan-de-charge-web` (sans niveau imbriqué supplémentaire)
+- Ne pas utiliser `plan-de-charge-web/plan-de-charge-web/` (ce dossier a été supprimé)
+
+1. Dans la section **Root Directory**, cliquez sur **Edit**
+2. Entrez : `plan-de-charge-web` (le nom réel du dossier dans votre dépôt Git, un seul niveau)
+3. Cliquez sur **Save**
+
+### 3. Vérifier la configuration
+
+Après avoir sauvegardé, Vercel :
+- Utilisera `plan-de-charge-web/` comme répertoire racine
+- Trouvera le `package.json` dans ce répertoire
+- Installera toutes les dépendances correctement
+- Construira l'application depuis ce répertoire
+
+### 4. Redéployer
+
+Après avoir configuré le Root Directory :
+1. Allez dans l'onglet **Deployments**
+2. Cliquez sur les **trois points** (⋯) du dernier déploiement
+3. Sélectionnez **Redeploy**
+4. Ou poussez un nouveau commit sur GitHub pour déclencher un nouveau déploiement automatique
+
+## Alternative : Configuration via CLI
+
+Si vous préférez utiliser la CLI Vercel :
+
+```bash
+# Installer Vercel CLI (si pas déjà installé)
+npm i -g vercel
+
+# Se connecter
+vercel login
+
+# Lier le projet (depuis la racine du dépôt)
+vercel link
+
+# Configurer le root directory
+vercel env pull  # Pour récupérer la config actuelle
+# Puis modifier dans le dashboard ou via:
+vercel --prod
+```
+
+## Vérification
+
+Après configuration, le prochain build devrait :
+- ✅ Trouver `package.json` dans `plan-de-charge-web/`
+- ✅ Installer `@supabase/ssr`, `clsx`, `date-fns`, `tailwind-merge`, etc.
+- ✅ Construire l'application sans erreurs de modules manquants
+
+## Solution alternative : vercel.json avec commandes personnalisées
+
+Si vous préférez utiliser un fichier `vercel.json` au lieu du dashboard, vous pouvez utiliser des commandes de build personnalisées :
+
+```json
+{
+  "buildCommand": "cd plan-de-charge-web && npm install && npm run build",
+  "outputDirectory": "plan-de-charge-web/.next",
+  "installCommand": "cd plan-de-charge-web && npm install"
+}
+```
+
+**Note** : Cette approche fonctionne, mais la configuration via le dashboard (Root Directory) est recommandée car elle est plus simple et plus fiable.
+

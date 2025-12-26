@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAbsences } from '@/hooks/useAbsences'
 import { useRessources } from '@/hooks/useRessources'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Calendar, Plus, Trash2, Search, AlertCircle, X, CheckCircle2, Filter } from 'lucide-react'
+import { Calendar, Plus, Trash2, Search, AlertCircle, X, CheckCircle2, Filter, Clock, Archive } from 'lucide-react'
 import type { Absence } from '@/types/absences'
 import { Card, CardHeader } from '@/components/UI/Card'
 import { Button } from '@/components/UI/Button'
@@ -24,6 +24,14 @@ export default function AbsencesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   
+  // Fonction pour valider si une chaîne ressemble à un UUID
+  const isValidUUID = useCallback((str: string): boolean => {
+    if (!str || str.trim() === '') return false
+    // Format UUID v4 : xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str.trim())
+  }, [])
+
   // Debounce pour la recherche
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -33,10 +41,11 @@ export default function AbsencesPage() {
   }, [searchQuery])
   
   // Mémoriser l'objet options pour éviter les re-renders infinis
+  // Ne passer au hook que les valeurs valides (UUID pour ressourceId uniquement)
+  // Le filtre site est toujours géré côté client pour éviter les refreshes
   const absenceOptions = useMemo(() => ({
-    ressourceId,
-    site,
-  }), [ressourceId, site])
+    ressourceId: ressourceId && isValidUUID(ressourceId) ? ressourceId : undefined,
+  }), [ressourceId, isValidUUID])
   
   const { absences, loading, error, saveAbsence, deleteAbsence, refresh } = useAbsences(absenceOptions)
 
@@ -278,6 +287,26 @@ export default function AbsencesPage() {
     }
   }
 
+  // Calculer les statistiques
+  const stats = useMemo(() => {
+    const total = absences.length
+    const actives = absences.filter(a => a.statut === 'Actif' || !a.statut).length
+    const cloturees = absences.filter(a => a.statut === 'Clôturé').length
+    
+    // Compter les absences en cours (date aujourd'hui entre date_debut et date_fin)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const enCours = absences.filter(a => {
+      const dateDebut = new Date(a.date_debut)
+      dateDebut.setHours(0, 0, 0, 0)
+      const dateFin = new Date(a.date_fin)
+      dateFin.setHours(0, 0, 0, 0)
+      return (a.statut === 'Actif' || !a.statut) && dateDebut <= today && dateFin >= today
+    }).length
+
+    return { total, actives, cloturees, enCours }
+  }, [absences])
+
   // Filtrer les absences selon le toggle et la recherche
   const filteredAbsences = useMemo(() => {
     let filtered = absences
@@ -287,7 +316,25 @@ export default function AbsencesPage() {
       filtered = filtered.filter(a => a.statut !== 'Clôturé')
     }
 
-    // Filtre par recherche
+    // Filtre par ressource (si ce n'est pas un UUID valide, chercher par nom)
+    if (ressourceId && ressourceId.trim() !== '' && !isValidUUID(ressourceId)) {
+      const ressourceQuery = ressourceId.trim().toUpperCase()
+      filtered = filtered.filter(absence => {
+        const ressource = ressources.find(r => r.id === absence.ressource_id)
+        const ressourceNom = ressource ? ressource.nom.toUpperCase() : ''
+        return ressourceNom.includes(ressourceQuery) || absence.ressource_id.toUpperCase().includes(ressourceQuery)
+      })
+    }
+
+    // Filtre par site (toujours côté client - recherche textuelle)
+    if (site && site.trim() !== '') {
+      const siteQuery = site.trim().toUpperCase()
+      filtered = filtered.filter(absence => {
+        return absence.site.toUpperCase().includes(siteQuery)
+      })
+    }
+
+    // Filtre par recherche textuelle globale
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.trim().toUpperCase()
       filtered = filtered.filter(absence => {
@@ -310,11 +357,34 @@ export default function AbsencesPage() {
     }
 
     return filtered
-  }, [absences, showCloturees, debouncedSearchQuery, ressources])
+  }, [absences, showCloturees, debouncedSearchQuery, ressources, ressourceId, site, isValidUUID])
+
+  if (loading) {
+    return (
+      <Layout>
+        <Loading />
+      </Layout>
+    )
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-red-600" />
+            <p className="text-red-800 font-medium">
+              Erreur lors du chargement des absences : {error.message}
+            </p>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
 
   return (
     <Layout>
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* En-tête moderne */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
@@ -325,81 +395,121 @@ export default function AbsencesPage() {
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
                 Gestion des Absences
               </h1>
-              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Gérez les absences, formations et congés des ressources</p>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
+                {stats.total} absence(s) au total • {stats.actives} active(s) • {stats.cloturees} clôturée(s) • {stats.enCours} en cours
+              </p>
             </div>
           </div>
-          <Button variant="primary" icon={<Plus className="w-4 h-4 sm:w-5 sm:h-5" />} onClick={handleNew} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-xs sm:text-sm px-3 sm:px-4 py-2">
-            <span className="hidden sm:inline">Nouvelle absence</span>
-            <span className="sm:hidden">Nouvelle</span>
-          </Button>
         </div>
 
-        {/* Filtres modernes */}
-        <Card>
-          <CardHeader gradient="purple" icon={<Filter className="w-6 h-6 text-purple-600" />}>
-            <h2 className="text-2xl font-bold text-gray-800">Filtres</h2>
-          </CardHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Statistiques - Vignettes sur une ligne */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-purple-600 font-medium leading-tight">Total</p>
+                <p className="text-base font-bold text-purple-800 leading-tight">{stats.total}</p>
+              </div>
+              <Calendar className="w-4 h-4 text-purple-500 flex-shrink-0" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-green-600 font-medium leading-tight">Actives</p>
+                <p className="text-base font-bold text-green-800 leading-tight">{stats.actives}</p>
+              </div>
+              <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 font-medium leading-tight">Clôturées</p>
+                <p className="text-base font-bold text-gray-800 leading-tight">{stats.cloturees}</p>
+              </div>
+              <Archive className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-lg flex-1 min-w-[120px] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-blue-600 font-medium leading-tight">En cours</p>
+                <p className="text-base font-bold text-blue-800 leading-tight">{stats.enCours}</p>
+              </div>
+              <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            </div>
+          </div>
+
+          {/* Toggle pour afficher les absences clôturées */}
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 px-4 py-2.5">
+            <span className="text-sm text-gray-600 whitespace-nowrap">Afficher clôturées</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showCloturees}
+              onClick={() => setShowCloturees(!showCloturees)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                showCloturees ? 'bg-purple-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showCloturees ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Actions et filtres - Ligne compacte - STICKY */}
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Rechercher..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
             <Input
-              label="Ressource"
+              type="text"
+              placeholder="Filtrer par ressource..."
               value={ressourceId}
               onChange={(e) => setRessourceId(e.target.value)}
-              placeholder="Filtrer par ressource ID..."
-              icon={<Search className="w-4 h-4" />}
+              className="w-auto min-w-[140px] h-9 text-sm"
             />
             <Input
-              label="Site"
+              type="text"
+              placeholder="Filtrer par site..."
               value={site}
               onChange={(e) => setSite(e.target.value)}
-              placeholder="Filtrer par site..."
-              icon={<Search className="w-4 h-4" />}
+              className="w-auto min-w-[140px] h-9 text-sm"
             />
+            <div className="flex gap-2 ml-auto">
+              <Button
+                onClick={handleNew}
+                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white h-9 px-3 text-sm"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Nouveau
+              </Button>
+            </div>
           </div>
-        </Card>
+        </div>
 
         {/* Liste des absences */}
-        <Card>
-          <CardHeader gradient="purple" icon={<Calendar className="w-6 h-6 text-purple-600" />}>
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <h2 className="text-2xl font-bold text-gray-800">Liste des absences</h2>
-              <div className="flex items-center gap-4 flex-wrap">
-                {/* Barre de recherche */}
-                <div className="flex-1 min-w-[200px] max-w-md">
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher (ressource, type, site, dates...)"
-                    icon={<Search className="w-4 h-4" />}
-                  />
-                </div>
-                {/* Toggle pour afficher les absences clôturées */}
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showCloturees}
-                    onChange={(e) => setShowCloturees(e.target.checked)}
-                    className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-2"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Afficher les absences clôturées</span>
-                </label>
-              </div>
-            </div>
-          </CardHeader>
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 overflow-hidden">
 
-          {loading ? (
-            <Loading message="Chargement des absences..." />
-          ) : error ? (
-            <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-                <p className="text-red-800 font-semibold">Erreur: {error.message}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border-2 border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gradient-to-r from-purple-50 to-indigo-50 sticky top-0 z-10">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gradient-to-r from-purple-50 to-indigo-50 sticky top-0 z-0">
                   <tr>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ressource</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Site</th>
@@ -472,12 +582,10 @@ export default function AbsencesPage() {
                       )
                     })
                     )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </Card>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Modal de création/modification */}
         {showModal && (
