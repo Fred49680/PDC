@@ -219,6 +219,7 @@ export default function AffairesPage() {
   }
 
   const handleEdit = (affaire: typeof affaires[0]) => {
+    console.log('[AffairesPage] handleEdit appelé - Modal d\'édition ouverte pour:', affaire.id, affaire.libelle)
     setEditingAffaire(affaire)
     setFormData({
       id: affaire.id,
