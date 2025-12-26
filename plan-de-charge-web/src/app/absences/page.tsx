@@ -41,11 +41,11 @@ export default function AbsencesPage() {
   }, [searchQuery])
   
   // Mémoriser l'objet options pour éviter les re-renders infinis
-  // Ne passer au hook que les valeurs valides (UUID pour ressourceId, chaîne non vide pour site)
+  // Ne passer au hook que les valeurs valides (UUID pour ressourceId uniquement)
+  // Le filtre site est toujours géré côté client pour éviter les refreshes
   const absenceOptions = useMemo(() => ({
     ressourceId: ressourceId && isValidUUID(ressourceId) ? ressourceId : undefined,
-    site: site && site.trim() !== '' ? site.trim().toUpperCase() : undefined,
-  }), [ressourceId, site, isValidUUID])
+  }), [ressourceId, isValidUUID])
   
   const { absences, loading, error, saveAbsence, deleteAbsence, refresh } = useAbsences(absenceOptions)
 
