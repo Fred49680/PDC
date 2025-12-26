@@ -149,7 +149,7 @@ export default function AffairesPage() {
     try {
       const affaireToSave = {
         id: formData.id || undefined,
-        affaire_id: formData.affaire_id || null,
+        affaire_id: formData.affaire_id || undefined,
         site: formData.site,
         libelle: formData.libelle,
         tranche: formData.tranche,
@@ -157,8 +157,8 @@ export default function AffairesPage() {
         budget_heures: formData.budget_heures,
         raf_heures: formData.raf_heures,
         date_maj_raf: formData.date_maj_raf,
-        responsable: formData.responsable || null,
-        compte: formData.compte || null,
+        responsable: formData.responsable || undefined,
+        compte: formData.compte || undefined,
         actif: formData.actif,
       }
       await saveAffaire(affaireToSave)
