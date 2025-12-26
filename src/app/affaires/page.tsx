@@ -215,7 +215,6 @@ export default function AffairesPage() {
     }
   }
 
-<<<<<<< HEAD
   const handleEdit = (affaire: typeof affaires[0]) => {
     setEditingAffaire(affaire)
     setFormData({
@@ -233,106 +232,6 @@ export default function AffairesPage() {
       actif: affaire.actif ?? true,
     })
     setShowModal(true)
-=======
-  const normalizeSite = (siteValue: string | undefined | null): string => {
-    if (!siteValue) return ''
-    const normalized = siteValue.trim()
-    for (const site of SITES_LIST) {
-      if (site.toLowerCase() === normalized.toLowerCase()) {
-        return site
-      }
-    }
-    return normalized
-  }
-
-  const normalizeTranche = (trancheValue: string | undefined | null): string => {
-    if (!trancheValue) return ''
-    const normalized = trancheValue.trim()
-    if (normalized === '0') return '0'
-    for (const tranche of TRANCHES_LIST) {
-      if (tranche.toLowerCase() === normalized.toLowerCase()) {
-        return tranche
-      }
-    }
-    return normalized
-  }
-
-  const handleCellEdit = (affaire: typeof affaires[0], field: string) => {
-    let initialValue: string | number | Date | undefined = ''
-    switch (field) {
-      case 'site': initialValue = affaire.site || ''; break
-      case 'responsable': initialValue = affaire.responsable || ''; break
-      case 'libelle': initialValue = affaire.libelle || ''; break
-      case 'tranche': initialValue = affaire.tranche || ''; break
-      case 'compte': initialValue = affaire.compte || ''; break
-      case 'statut': initialValue = affaire.statut || 'Ouverte'; break
-      case 'budget_heures': initialValue = affaire.budget_heures || 0; break
-      case 'raf_heures': initialValue = affaire.raf_heures || 0; break
-      case 'date_maj_raf': initialValue = affaire.date_maj_raf ? format(affaire.date_maj_raf, 'yyyy-MM-dd') : ''; break
-    }
-    setEditingCell({ rowId: affaire.id, field })
-    setEditingValue(initialValue)
-  }
-  
-  const handleCellSave = async (affaire: typeof affaires[0], field: string) => {
-    if (!editingCell || editingCell.rowId !== affaire.id || editingCell.field !== field) return
-    
-    try {
-      const normalizedSite = normalizeSite(affaire.site)
-      const normalizedTranche = normalizeTranche(affaire.tranche)
-      
-      let newSite = normalizedSite
-      let newTranche = normalizedTranche
-      
-      if (field === 'site') newSite = normalizeSite(String(editingValue))
-      if (field === 'tranche') newTranche = normalizeTranche(String(editingValue))
-      
-      const updatedAffaire = {
-        ...affaire,
-        site: newSite,
-        responsable: field === 'responsable' ? String(editingValue) : affaire.responsable,
-        libelle: field === 'libelle' ? String(editingValue) : affaire.libelle,
-        tranche: newTranche,
-        compte: field === 'compte' ? String(editingValue) : affaire.compte,
-        statut: field === 'statut' ? String(editingValue) : affaire.statut,
-        budget_heures: field === 'budget_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.budget_heures,
-        raf_heures: field === 'raf_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.raf_heures,
-        date_maj_raf: field === 'date_maj_raf' ? (editingValue && String(editingValue).trim() !== '' ? new Date(String(editingValue)) : undefined) : affaire.date_maj_raf,
-        date_modification: new Date(),
-      }
-      
-      if (field === 'statut' || field === 'tranche' || field === 'site' || field === 'libelle') {
-        const newLibelle = field === 'libelle' ? String(editingValue) : affaire.libelle
-        const newStatut = field === 'statut' ? String(editingValue) : affaire.statut
-        
-        if (newTranche && newSite && newLibelle && newStatut) {
-          const generatedId = generateAffaireId(newTranche, newSite, newLibelle, newStatut)
-          updatedAffaire.affaire_id = (newStatut === 'Ouverte' || newStatut === 'Prévisionnelle') ? generatedId : null
-        } else {
-          updatedAffaire.affaire_id = null
-        }
-      }
-      
-      if (field === 'raf_heures') {
-        const rafValue = typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0
-        if (rafValue > 0) {
-          updatedAffaire.date_maj_raf = new Date()
-        }
-      }
-      
-      await saveAffaire(updatedAffaire)
-      setEditingCell(null)
-      setEditingValue('')
-    } catch (err: any) {
-      console.error('[AffairesPage] Erreur sauvegarde inline:', err)
-      alert('Erreur lors de la sauvegarde :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
-    }
-  }
-  
-  const handleCellCancel = () => {
-    setEditingCell(null)
-    setEditingValue('')
->>>>>>> 6c1d55694459bec91a0563c2035a0dcd3e44be10
   }
 
   const handleNew = () => {
