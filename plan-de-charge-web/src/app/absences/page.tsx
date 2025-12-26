@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAbsences } from '@/hooks/useAbsences'
 import { useRessources } from '@/hooks/useRessources'
@@ -24,6 +24,14 @@ export default function AbsencesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   
+  // Fonction pour valider si une chaîne ressemble à un UUID
+  const isValidUUID = useCallback((str: string): boolean => {
+    if (!str || str.trim() === '') return false
+    // Format UUID v4 : xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str.trim())
+  }, [])
+
   // Debounce pour la recherche
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -33,10 +41,11 @@ export default function AbsencesPage() {
   }, [searchQuery])
   
   // Mémoriser l'objet options pour éviter les re-renders infinis
+  // Ne passer au hook que les valeurs valides (UUID pour ressourceId, chaîne non vide pour site)
   const absenceOptions = useMemo(() => ({
-    ressourceId,
-    site,
-  }), [ressourceId, site])
+    ressourceId: ressourceId && isValidUUID(ressourceId) ? ressourceId : undefined,
+    site: site && site.trim() !== '' ? site.trim().toUpperCase() : undefined,
+  }), [ressourceId, site, isValidUUID])
   
   const { absences, loading, error, saveAbsence, deleteAbsence, refresh } = useAbsences(absenceOptions)
 
@@ -307,7 +316,28 @@ export default function AbsencesPage() {
       filtered = filtered.filter(a => a.statut !== 'Clôturé')
     }
 
-    // Filtre par recherche
+    // Filtre par ressource (si ce n'est pas un UUID valide, chercher par nom)
+    if (ressourceId && ressourceId.trim() !== '' && !isValidUUID(ressourceId)) {
+      const ressourceQuery = ressourceId.trim().toUpperCase()
+      filtered = filtered.filter(absence => {
+        const ressource = ressources.find(r => r.id === absence.ressource_id)
+        const ressourceNom = ressource ? ressource.nom.toUpperCase() : ''
+        return ressourceNom.includes(ressourceQuery) || absence.ressource_id.toUpperCase().includes(ressourceQuery)
+      })
+    }
+
+    // Filtre par site (si la valeur n'est pas vide, chercher par texte - le hook gère déjà les valeurs exactes)
+    if (site && site.trim() !== '') {
+      const siteQuery = site.trim().toUpperCase()
+      // Si le site n'a pas été utilisé comme filtre exact dans le hook (car ce n'est pas une valeur exacte)
+      if (!absenceOptions.site || !absenceOptions.site.toUpperCase().includes(siteQuery)) {
+        filtered = filtered.filter(absence => {
+          return absence.site.toUpperCase().includes(siteQuery)
+        })
+      }
+    }
+
+    // Filtre par recherche textuelle globale
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.trim().toUpperCase()
       filtered = filtered.filter(absence => {
@@ -330,7 +360,7 @@ export default function AbsencesPage() {
     }
 
     return filtered
-  }, [absences, showCloturees, debouncedSearchQuery, ressources])
+  }, [absences, showCloturees, debouncedSearchQuery, ressources, ressourceId, site, absenceOptions, isValidUUID])
 
   if (loading) {
     return (
