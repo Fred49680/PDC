@@ -2,7 +2,9 @@
 
 ## Problème
 
-Le projet Next.js se trouve dans le sous-dossier `PDC/` alors que le dépôt Git est à la racine. Vercel doit être configuré pour utiliser ce sous-dossier comme répertoire racine.
+Le projet Next.js se trouve dans le sous-dossier `plan-de-charge-web/` alors que le dépôt Git est à la racine. Vercel doit être configuré pour utiliser ce sous-dossier comme répertoire racine.
+
+**Note importante** : Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`. Le Root Directory doit pointer vers le nom réel du dossier.
 
 ## Solution
 
@@ -19,14 +21,16 @@ La propriété `rootDirectory` ne peut **pas** être définie dans `vercel.json`
 
 ### 2. Configurer le Root Directory
 
+**Important** : Le projet s'appelle **PDC** dans Vercel, mais le dossier dans le dépôt Git s'appelle `plan-de-charge-web`.
+
 1. Dans la section **Root Directory**, cliquez sur **Edit**
-2. Entrez : `PDC` (le nom du dossier dans votre dépôt Git)
+2. Entrez : `plan-de-charge-web` (le nom réel du dossier dans votre dépôt Git)
 3. Cliquez sur **Save**
 
 ### 3. Vérifier la configuration
 
 Après avoir sauvegardé, Vercel :
-- Utilisera `PDC/` comme répertoire racine
+- Utilisera `plan-de-charge-web/` comme répertoire racine
 - Trouvera le `package.json` dans ce répertoire
 - Installera toutes les dépendances correctement
 - Construira l'application depuis ce répertoire
@@ -62,7 +66,7 @@ vercel --prod
 ## Vérification
 
 Après configuration, le prochain build devrait :
-- ✅ Trouver `package.json` dans `PDC/`
+- ✅ Trouver `package.json` dans `plan-de-charge-web/`
 - ✅ Installer `@supabase/ssr`, `clsx`, `date-fns`, `tailwind-merge`, etc.
 - ✅ Construire l'application sans erreurs de modules manquants
 
@@ -72,9 +76,9 @@ Si vous préférez utiliser un fichier `vercel.json` au lieu du dashboard, vous 
 
 ```json
 {
-  "buildCommand": "cd PDC && npm install && npm run build",
-  "outputDirectory": "PDC/.next",
-  "installCommand": "cd PDC && npm install"
+  "buildCommand": "cd plan-de-charge-web && npm install && npm run build",
+  "outputDirectory": "plan-de-charge-web/.next",
+  "installCommand": "cd plan-de-charge-web && npm install"
 }
 ```
 
