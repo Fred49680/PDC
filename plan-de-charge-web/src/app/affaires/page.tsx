@@ -193,13 +193,31 @@ export default function AffairesPage() {
     }
   }
 
+  // Normaliser le site pour correspondre exactement à SITES_LIST
+  const normalizeSiteForSelect = (site: string | null | undefined): string => {
+    if (!site) return ''
+    const siteTrimmed = site.trim()
+    
+    // Rechercher une correspondance exacte (insensible à la casse) dans SITES_LIST
+    const matchedSite = SITES_LIST.find(s => s.toLowerCase() === siteTrimmed.toLowerCase())
+    
+    if (matchedSite) {
+      return matchedSite
+    }
+    
+    // Si aucune correspondance exacte, retourner la valeur originale (sera vide dans le select)
+    return siteTrimmed
+  }
+
   const handleEdit = (affaire: typeof affaires[0]) => {
-    console.log('[AffairesPage] handleEdit appelé - Modal d\'édition ouverte pour:', affaire.id, affaire.libelle)
+    console.log('[AffairesPage] handleEdit appelé - Modal d\'édition ouverte pour:', affaire.id, affaire.libelle, 'site:', affaire.site)
     setEditingAffaire(affaire)
+    const normalizedSite = normalizeSiteForSelect(affaire.site)
+    console.log('[AffairesPage] Site normalisé:', normalizedSite)
     setFormData({
       id: affaire.id,
       affaire_id: affaire.affaire_id || '',
-      site: affaire.site || '',
+      site: normalizedSite,
       libelle: affaire.libelle || '',
       tranche: affaire.tranche || '',
       statut: affaire.statut || 'Ouverte',
