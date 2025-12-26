@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -21,7 +21,16 @@ export function useRessources(options: UseRessourcesOptions = {}) {
   const [error, setError] = useState<Error | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const competencesChannelRef = useRef<RealtimeChannel | null>(null)
-  const enableRealtime = options.enableRealtime !== false // Par défaut activé
+  const loadRessourcesRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  
+  // Stabiliser les valeurs d'options pour éviter les re-créations inutiles
+  const ressourceId = useMemo(() => options.ressourceId, [options.ressourceId])
+  const site = useMemo(() => options.site, [options.site])
+  const actif = useMemo(() => options.actif, [options.actif])
+  const type_contrat = useMemo(() => options.type_contrat, [options.type_contrat])
+  // Stabiliser le tableau de compétences - les callers doivent passer des tableaux stables (useMemo)
+  const competencesList = useMemo(() => options.competences, [options.competences])
+  const enableRealtime = useMemo(() => options.enableRealtime !== false, [options.enableRealtime])
 
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -42,24 +51,24 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         .select('*')
         .order('nom', { ascending: true })
 
-      if (options.ressourceId) {
-        query = query.eq('id', options.ressourceId)
+      if (ressourceId) {
+        query = query.eq('id', ressourceId)
       }
 
-      if (options.site) {
-        query = query.eq('site', options.site)
+      if (site) {
+        query = query.eq('site', site)
       }
 
-      if (options.actif !== undefined) {
-        query = query.eq('actif', options.actif)
+      if (actif !== undefined) {
+        query = query.eq('actif', actif)
       }
 
-      if (options.type_contrat) {
+      if (type_contrat) {
         // Pour Intérim, filtrer par ETT (c'est la valeur stockée en base)
-        if (options.type_contrat === 'Intérim') {
+        if (type_contrat === 'Intérim') {
           query = query.eq('type_contrat', 'ETT')
         } else {
-          query = query.eq('type_contrat', options.type_contrat)
+          query = query.eq('type_contrat', type_contrat)
         }
       }
 
@@ -94,8 +103,8 @@ export function useRessources(options: UseRessourcesOptions = {}) {
           .in('ressource_id', ressourceIds)
         
         // Filtrer par compétences si spécifiées (optimisation)
-        if (options.competences && options.competences.length > 0) {
-          competencesQuery = competencesQuery.in('competence', options.competences)
+        if (competencesList && competencesList.length > 0) {
+          competencesQuery = competencesQuery.in('competence', competencesList)
         }
         
         const { data: competencesData, error: competencesError } = await competencesQuery
@@ -126,7 +135,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options.ressourceId, options.site, options.actif, options.type_contrat, options.competences, getSupabaseClient])
+  }, [ressourceId, site, actif, type_contrat, competencesList, getSupabaseClient])
 
   const saveRessource = useCallback(
     async (ressource: Partial<Ressource> & { nom: string; site: string }) => {
@@ -293,28 +302,48 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     [getSupabaseClient, loadRessources]
   )
 
+  // Mettre à jour la référence quand loadRessources change
+  useEffect(() => {
+    loadRessourcesRef.current = loadRessources
+  }, [loadRessources])
+
   // Abonnement Realtime pour les ressources
   useEffect(() => {
-    if (!enableRealtime) return
+    if (!enableRealtime) {
+      // Nettoyer les channels existants si Realtime est désactivé
+      if (channelRef.current) {
+        const supabase = getSupabaseClient()
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+      return
+    }
 
     const supabase = getSupabaseClient()
+    
+    // Nettoyer le channel existant avant d'en créer un nouveau
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+    
     const channelName = `ressources-changes-${Date.now()}-${Math.random()}`
     
     // Construire le filtre pour Realtime
     let filter = ''
-    if (options.ressourceId) {
-      filter = `id=eq.${options.ressourceId}`
+    if (ressourceId) {
+      filter = `id=eq.${ressourceId}`
     }
-    if (options.site) {
-      filter = filter ? `${filter}&site=eq.${options.site}` : `site=eq.${options.site}`
+    if (site) {
+      filter = filter ? `${filter}&site=eq.${site}` : `site=eq.${site}`
     }
-    if (options.actif !== undefined) {
-      filter = filter ? `${filter}&actif=eq.${options.actif}` : `actif=eq.${options.actif}`
+    if (actif !== undefined) {
+      filter = filter ? `${filter}&actif=eq.${actif}` : `actif=eq.${actif}`
     }
-    if (options.type_contrat) {
+    if (type_contrat) {
       // Pour Intérim, on ne peut pas filtrer en Realtime avec IN, donc on laisse vide (rechargement complet)
-      if (options.type_contrat !== 'Intérim') {
-        filter = filter ? `${filter}&type_contrat=eq.${options.type_contrat}` : `type_contrat=eq.${options.type_contrat}`
+      if (type_contrat !== 'Intérim') {
+        filter = filter ? `${filter}&type_contrat=eq.${type_contrat}` : `type_contrat=eq.${type_contrat}`
       }
     }
 
@@ -328,11 +357,11 @@ export function useRessources(options: UseRessourcesOptions = {}) {
           table: 'ressources',
           filter: filter || undefined,
         },
-        (payload) => {
-          console.log('[useRessources] Changement Realtime:', payload.eventType)
+        () => {
+          console.log('[useRessources] Changement Realtime détecté - rechargement...')
           
-          // Recharger les ressources et compétences
-          loadRessources()
+          // Utiliser la référence pour éviter les dépendances circulaires
+          loadRessourcesRef.current()
         }
       )
       .subscribe((status) => {
@@ -349,13 +378,28 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         channelRef.current = null
       }
     }
-  }, [enableRealtime, options.ressourceId, options.site, options.actif, options.type_contrat, getSupabaseClient, loadRessources])
+  }, [enableRealtime, ressourceId, site, actif, type_contrat, getSupabaseClient])
 
   // Abonnement Realtime pour les compétences
   useEffect(() => {
-    if (!enableRealtime) return
+    if (!enableRealtime) {
+      // Nettoyer les channels existants si Realtime est désactivé
+      if (competencesChannelRef.current) {
+        const supabase = getSupabaseClient()
+        supabase.removeChannel(competencesChannelRef.current)
+        competencesChannelRef.current = null
+      }
+      return
+    }
 
     const supabase = getSupabaseClient()
+    
+    // Nettoyer le channel existant avant d'en créer un nouveau
+    if (competencesChannelRef.current) {
+      supabase.removeChannel(competencesChannelRef.current)
+      competencesChannelRef.current = null
+    }
+    
     const channelName = `ressources-competences-changes-${Date.now()}-${Math.random()}`
 
     const channel = supabase
@@ -367,11 +411,11 @@ export function useRessources(options: UseRessourcesOptions = {}) {
           schema: 'public',
           table: 'ressources_competences',
         },
-        (payload) => {
-          console.log('[useRessources] Changement Realtime compétences:', payload.eventType)
+        () => {
+          console.log('[useRessources] Changement Realtime compétences détecté - rechargement...')
           
-          // Recharger les ressources et compétences
-          loadRessources()
+          // Utiliser la référence pour éviter les dépendances circulaires
+          loadRessourcesRef.current()
         }
       )
       .subscribe((status) => {
@@ -388,7 +432,8 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         competencesChannelRef.current = null
       }
     }
-  }, [enableRealtime, getSupabaseClient, loadRessources])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableRealtime, getSupabaseClient])
 
   useEffect(() => {
     loadRessources()
