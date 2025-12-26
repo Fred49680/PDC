@@ -85,7 +85,6 @@ export default function AffairesPage() {
       )
     : affairesFiltreesParTranche
 
-  // Réinitialiser les filtres dépendants quand le filtre parent change
   useEffect(() => {
     if (responsable) {
       setSite('')
@@ -141,8 +140,6 @@ export default function AffairesPage() {
         setFormData((prev) => ({ ...prev, affaire_id: '' }))
       }
     }
-    // formData.affaire_id est intentionnellement exclu des dépendances pour éviter les boucles
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.tranche, formData.site, formData.libelle, formData.statut])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -212,13 +209,13 @@ export default function AffairesPage() {
       })
       setEditingAffaire(null)
       setShowModal(false)
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error('[AffairesPage] Erreur:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'
-      alert('Erreur lors de l\'enregistrement :\n\n' + errorMessage)
+      alert('Erreur lors de l\'enregistrement :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
     }
   }
 
+<<<<<<< HEAD
   const handleEdit = (affaire: typeof affaires[0]) => {
     setEditingAffaire(affaire)
     setFormData({
@@ -236,6 +233,106 @@ export default function AffairesPage() {
       actif: affaire.actif ?? true,
     })
     setShowModal(true)
+=======
+  const normalizeSite = (siteValue: string | undefined | null): string => {
+    if (!siteValue) return ''
+    const normalized = siteValue.trim()
+    for (const site of SITES_LIST) {
+      if (site.toLowerCase() === normalized.toLowerCase()) {
+        return site
+      }
+    }
+    return normalized
+  }
+
+  const normalizeTranche = (trancheValue: string | undefined | null): string => {
+    if (!trancheValue) return ''
+    const normalized = trancheValue.trim()
+    if (normalized === '0') return '0'
+    for (const tranche of TRANCHES_LIST) {
+      if (tranche.toLowerCase() === normalized.toLowerCase()) {
+        return tranche
+      }
+    }
+    return normalized
+  }
+
+  const handleCellEdit = (affaire: typeof affaires[0], field: string) => {
+    let initialValue: string | number | Date | undefined = ''
+    switch (field) {
+      case 'site': initialValue = affaire.site || ''; break
+      case 'responsable': initialValue = affaire.responsable || ''; break
+      case 'libelle': initialValue = affaire.libelle || ''; break
+      case 'tranche': initialValue = affaire.tranche || ''; break
+      case 'compte': initialValue = affaire.compte || ''; break
+      case 'statut': initialValue = affaire.statut || 'Ouverte'; break
+      case 'budget_heures': initialValue = affaire.budget_heures || 0; break
+      case 'raf_heures': initialValue = affaire.raf_heures || 0; break
+      case 'date_maj_raf': initialValue = affaire.date_maj_raf ? format(affaire.date_maj_raf, 'yyyy-MM-dd') : ''; break
+    }
+    setEditingCell({ rowId: affaire.id, field })
+    setEditingValue(initialValue)
+  }
+  
+  const handleCellSave = async (affaire: typeof affaires[0], field: string) => {
+    if (!editingCell || editingCell.rowId !== affaire.id || editingCell.field !== field) return
+    
+    try {
+      const normalizedSite = normalizeSite(affaire.site)
+      const normalizedTranche = normalizeTranche(affaire.tranche)
+      
+      let newSite = normalizedSite
+      let newTranche = normalizedTranche
+      
+      if (field === 'site') newSite = normalizeSite(String(editingValue))
+      if (field === 'tranche') newTranche = normalizeTranche(String(editingValue))
+      
+      const updatedAffaire = {
+        ...affaire,
+        site: newSite,
+        responsable: field === 'responsable' ? String(editingValue) : affaire.responsable,
+        libelle: field === 'libelle' ? String(editingValue) : affaire.libelle,
+        tranche: newTranche,
+        compte: field === 'compte' ? String(editingValue) : affaire.compte,
+        statut: field === 'statut' ? String(editingValue) : affaire.statut,
+        budget_heures: field === 'budget_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.budget_heures,
+        raf_heures: field === 'raf_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.raf_heures,
+        date_maj_raf: field === 'date_maj_raf' ? (editingValue && String(editingValue).trim() !== '' ? new Date(String(editingValue)) : undefined) : affaire.date_maj_raf,
+        date_modification: new Date(),
+      }
+      
+      if (field === 'statut' || field === 'tranche' || field === 'site' || field === 'libelle') {
+        const newLibelle = field === 'libelle' ? String(editingValue) : affaire.libelle
+        const newStatut = field === 'statut' ? String(editingValue) : affaire.statut
+        
+        if (newTranche && newSite && newLibelle && newStatut) {
+          const generatedId = generateAffaireId(newTranche, newSite, newLibelle, newStatut)
+          updatedAffaire.affaire_id = (newStatut === 'Ouverte' || newStatut === 'Prévisionnelle') ? generatedId : null
+        } else {
+          updatedAffaire.affaire_id = null
+        }
+      }
+      
+      if (field === 'raf_heures') {
+        const rafValue = typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0
+        if (rafValue > 0) {
+          updatedAffaire.date_maj_raf = new Date()
+        }
+      }
+      
+      await saveAffaire(updatedAffaire)
+      setEditingCell(null)
+      setEditingValue('')
+    } catch (err: any) {
+      console.error('[AffairesPage] Erreur sauvegarde inline:', err)
+      alert('Erreur lors de la sauvegarde :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+    }
+  }
+  
+  const handleCellCancel = () => {
+    setEditingCell(null)
+    setEditingValue('')
+>>>>>>> 6c1d55694459bec91a0563c2035a0dcd3e44be10
   }
 
   const handleNew = () => {
@@ -276,10 +373,9 @@ export default function AffairesPage() {
       setShowDeleteModal(false)
       setAffaireToDelete(null)
       setDeleteConfirmText('')
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error('[AffairesPage] Erreur suppression:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'
-      alert('Erreur lors de la suppression :\n\n' + errorMessage)
+      alert('Erreur lors de la suppression :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
     }
   }
 
@@ -525,7 +621,7 @@ export default function AffairesPage() {
                               handleDeleteClick(affaire)
                             }}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Supprimer l&apos;affaire"
+                            title="Supprimer l'affaire"
                           >
                             <span className="hidden sm:inline">Supprimer</span>
                           </Button>
@@ -570,7 +666,7 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heures Planifiées</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d&apos;affaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d'affaire</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                   </tr>
                 </thead>
@@ -780,14 +876,14 @@ export default function AffairesPage() {
           >
             <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
               <CardHeader gradient="orange" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
-                <h2 className="text-2xl font-bold text-gray-800">Supprimer l&apos;affaire</h2>
+                <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
               </CardHeader>
               
               <div className="p-6 space-y-4">
                 <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
                   <p className="text-red-800 font-semibold mb-2">⚠️ Attention : Cette action est irréversible</p>
                   <p className="text-gray-700 text-sm">
-                    Vous êtes sur le point de supprimer l&apos;affaire :
+                    Vous êtes sur le point de supprimer l'affaire :
                   </p>
                   <p className="text-gray-900 font-bold mt-2">
                     {affaireToDelete.affaire_id || affaireToDelete.libelle} - {affaireToDelete.site}
@@ -801,7 +897,7 @@ export default function AffairesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pour confirmer, tapez <span className="font-bold text-red-600">&quot;Effacer&quot;</span> :
+                    Pour confirmer, tapez <span className="font-bold text-red-600">"Effacer"</span> :
                   </label>
                   <Input
                     value={deleteConfirmText}
