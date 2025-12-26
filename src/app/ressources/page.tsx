@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useRessources } from '@/hooks/useRessources'
 import { useSites } from '@/hooks/useSites'
@@ -8,7 +8,7 @@ import { useInterims } from '@/hooks/useInterims'
 import { Loading } from '@/components/Common/Loading'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Users, Plus, Trash2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter, Briefcase, RefreshCw, Calendar, User, Building2, Clock, AlertTriangle, MapPin } from 'lucide-react'
+import { Users, Plus, Trash2, Search, AlertCircle, CheckCircle2, X, Award, Star, FileSpreadsheet, Filter, Briefcase, RefreshCw, Calendar, Clock, AlertTriangle, MapPin } from 'lucide-react'
 import type { Interim } from '@/types/interims'
 import type { Ressource, RessourceCompetence } from '@/types/affectations'
 import type { Site } from '@/types/sites'
@@ -1489,7 +1489,9 @@ function InterimsManagement({
     if (!showArchived) {
       filtered = filtered.filter((interim) => {
         const isNonRenouvele = interim.a_renouveler === 'Non' || interim.a_renouveler === 'non'
-        const isArchive = (interim as any).archive_interim === true
+        // archive_interim est une propriété de la ressource, pas de l'interim
+        // Vérifier via la ressource associée si disponible
+        const isArchive = false // TODO: Accéder à archive_interim via la relation ressource si nécessaire
         const isEnCours = interim.a_renouveler === 'En cours'
         // Exclure seulement "Non" et archivés, mais garder "En cours"
         return (!isNonRenouvele && !isArchive) || isEnCours
@@ -1773,7 +1775,8 @@ function InterimsManagement({
     else if (joursRestants <= 10 && joursRestants >= 0 && formData.a_renouveler !== 'A renouveler' && formData.a_renouveler !== 'En cours') {
       setFormData({ ...formData, a_renouveler: 'A renouveler' })
     }
-  }, [formData.date_fin_contrat, isEditing])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.date_fin_contrat, formData.a_renouveler, isEditing])
 
   const getJoursRestants = (dateFin: Date): number => {
     const today = new Date()

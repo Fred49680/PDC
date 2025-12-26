@@ -69,6 +69,7 @@ export default function AffairesPage() {
       )
     : affairesFiltreesParTranche
 
+  // Réinitialiser les filtres dépendants quand le filtre parent change
   useEffect(() => {
     if (responsable) {
       setSite('')
@@ -125,6 +126,8 @@ export default function AffairesPage() {
         setFormData((prev) => ({ ...prev, affaire_id: '' }))
       }
     }
+    // formData.affaire_id est intentionnellement exclu des dépendances pour éviter les boucles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.tranche, formData.site, formData.libelle, formData.statut])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -170,9 +173,10 @@ export default function AffairesPage() {
         actif: true,
       })
       setShowModal(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AffairesPage] Erreur:', err)
-      alert('Erreur lors de l\'enregistrement :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+      const errorMessage = err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'
+      alert('Erreur lors de l\'enregistrement :\n\n' + errorMessage)
     }
   }
 
@@ -265,9 +269,10 @@ export default function AffairesPage() {
       await saveAffaire(updatedAffaire)
       setEditingCell(null)
       setEditingValue('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AffairesPage] Erreur sauvegarde inline:', err)
-      alert('Erreur lors de la sauvegarde :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+      const errorMessage = err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'
+      alert('Erreur lors de la sauvegarde :\n\n' + errorMessage)
     }
   }
   
@@ -313,9 +318,10 @@ export default function AffairesPage() {
       setShowDeleteModal(false)
       setAffaireToDelete(null)
       setDeleteConfirmText('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AffairesPage] Erreur suppression:', err)
-      alert('Erreur lors de la suppression :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+      const errorMessage = err instanceof Error ? err.message : 'Une erreur inattendue s\'est produite'
+      alert('Erreur lors de la suppression :\n\n' + errorMessage)
     }
   }
 
@@ -704,7 +710,7 @@ export default function AffairesPage() {
                               handleDeleteClick(affaire)
                             }}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Supprimer l'affaire"
+                            title="Supprimer l&apos;affaire"
                           >
                             <span className="hidden sm:inline">Supprimer</span>
                           </Button>
@@ -749,7 +755,7 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heures Planifiées</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d'affaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d&apos;affaire</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                   </tr>
                 </thead>
@@ -994,14 +1000,14 @@ export default function AffairesPage() {
           >
             <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
               <CardHeader gradient="orange" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
-                <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
+                <h2 className="text-2xl font-bold text-gray-800">Supprimer l&apos;affaire</h2>
               </CardHeader>
               
               <div className="p-6 space-y-4">
                 <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
                   <p className="text-red-800 font-semibold mb-2">⚠️ Attention : Cette action est irréversible</p>
                   <p className="text-gray-700 text-sm">
-                    Vous êtes sur le point de supprimer l'affaire :
+                    Vous êtes sur le point de supprimer l&apos;affaire :
                   </p>
                   <p className="text-gray-900 font-bold mt-2">
                     {affaireToDelete.affaire_id || affaireToDelete.libelle} - {affaireToDelete.site}
@@ -1015,7 +1021,7 @@ export default function AffairesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pour confirmer, tapez <span className="font-bold text-red-600">"Effacer"</span> :
+                    Pour confirmer, tapez <span className="font-bold text-red-600">&quot;Effacer&quot;</span> :
                   </label>
                   <Input
                     value={deleteConfirmText}
