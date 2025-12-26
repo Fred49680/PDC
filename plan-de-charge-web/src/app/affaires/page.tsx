@@ -682,7 +682,7 @@ export default function AffairesPage() {
                 <div className="flex items-center justify-end gap-4 pt-4 border-t">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => {
                       setShowModal(false)
                       setEditingAffaire(null)
@@ -738,7 +738,7 @@ export default function AffairesPage() {
                 />
                 <div className="flex items-center justify-end gap-4 pt-4">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => {
                       setShowDeleteModal(false)
                       setAffaireToDelete(null)
