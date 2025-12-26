@@ -2,7 +2,7 @@
   "name": "Plan de Charge",
   "short_name": "Plan Charge",
   "description": "Application web moderne pour la gestion des ressources, des affectations et du planning",
-  "start_url": "/Dashboard",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#6366f1",
