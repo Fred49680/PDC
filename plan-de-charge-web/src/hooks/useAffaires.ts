@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Affaire } from '@/types/charge'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -17,6 +17,10 @@ export function useAffaires(options: UseAffairesOptions = {}) {
   const [error, setError] = useState<Error | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const enableRealtime = options.enableRealtime !== false // Par défaut activé
+  
+  // Stabiliser les valeurs d'options pour éviter les re-créations inutiles
+  const affaireId = useMemo(() => options.affaireId, [options.affaireId])
+  const site = useMemo(() => options.site, [options.site])
 
   const getSupabaseClient = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -37,12 +41,12 @@ export function useAffaires(options: UseAffairesOptions = {}) {
         .select('*')
         .order('affaire_id', { ascending: true })
 
-      if (options.affaireId) {
-        query = query.eq('affaire_id', options.affaireId)
+      if (affaireId) {
+        query = query.eq('affaire_id', affaireId)
       }
 
-      if (options.site) {
-        query = query.eq('site', options.site)
+      if (site) {
+        query = query.eq('site', site)
       }
 
       const { data, error: queryError } = await query
@@ -79,7 +83,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [options.affaireId, options.site, getSupabaseClient])
+  }, [affaireId, site, getSupabaseClient])
 
   const saveAffaire = useCallback(
     async (affaire: Partial<Affaire> & { site: string; libelle: string }) => {
@@ -214,11 +218,11 @@ export function useAffaires(options: UseAffairesOptions = {}) {
     
     // Construire le filtre pour Realtime
     let filter = ''
-    if (options.affaireId) {
-      filter = `affaire_id=eq.${options.affaireId}`
+    if (affaireId) {
+      filter = `affaire_id=eq.${affaireId}`
     }
-    if (options.site) {
-      filter = filter ? `${filter}&site=eq.${options.site}` : `site=eq.${options.site}`
+    if (site) {
+      filter = filter ? `${filter}&site=eq.${site}` : `site=eq.${site}`
     }
 
     const channel = supabase
@@ -319,7 +323,7 @@ export function useAffaires(options: UseAffairesOptions = {}) {
         channelRef.current = null
       }
     }
-  }, [enableRealtime, options.affaireId, options.site, getSupabaseClient])
+  }, [enableRealtime, affaireId, site, getSupabaseClient])
 
   useEffect(() => {
     loadAffaires()
