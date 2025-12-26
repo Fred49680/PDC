@@ -807,7 +807,7 @@ export function BesoinsGrid({
               </button>
             </div>
 
-            {/* Contenu (grille) - affiché seulement si expandé */}
+            {/* Grille affectation - affichée seulement si expandé */}
             {isExpanded && (
               <div className="px-6 pb-6 overflow-x-auto overflow-y-auto max-h-[600px]">
                 <div className="rounded-lg border border-gray-200 shadow-sm">
