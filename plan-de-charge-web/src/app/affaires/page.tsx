@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAffaires } from '@/hooks/useAffaires'
 import { useRessources } from '@/hooks/useRessources'
@@ -415,7 +415,7 @@ export default function AffairesPage() {
               onChange={(e) => handleResponsableChange(e.target.value)}
               options={[
                 { value: '', label: 'Tous les responsables...' },
-                ...responsablesDisponibles.map((resp) => ({ value: resp, label: resp }))
+                ...responsablesDisponibles.map((resp: string) => ({ value: resp, label: resp }))
               ]}
             />
             <Select
@@ -823,7 +823,7 @@ export default function AffairesPage() {
                     onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
                     options={[
                       { value: '', label: 'Sélectionner un responsable...' },
-                      ...responsablesDisponibles.map((resp) => ({ value: resp, label: resp }))
+                      ...responsablesDisponibles.map((resp: string) => ({ value: resp, label: resp }))
                     ]}
                   />
                   <Input
