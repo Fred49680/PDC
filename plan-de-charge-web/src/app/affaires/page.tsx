@@ -148,33 +148,9 @@ export default function AffairesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      let affaireIdToSave: string | null = null
-      if (formData.tranche && formData.site && formData.libelle && formData.statut) {
-        const generatedId = generateAffaireId(
-          formData.tranche,
-          formData.site,
-          formData.libelle,
-          formData.statut
-        )
-        affaireIdToSave = generatedId && generatedId.trim() !== '' 
-          ? generatedId.trim() 
-          : (formData.affaire_id && formData.affaire_id.trim() !== '' ? formData.affaire_id.trim() : null)
-      } else {
-        affaireIdToSave = formData.affaire_id && formData.affaire_id.trim() !== '' 
-          ? formData.affaire_id.trim() 
-          : null
-      }
-      
-      const affaireToSave = {
-        ...formData,
-        affaire_id: affaireIdToSave,
-        date_creation: formData.id ? new Date() : new Date(),
-        date_modification: new Date(),
-      }
-      
       const affaireToSave = {
         id: formData.id || undefined,
-        affaire_id: affaireIdToSave,
+        affaire_id: formData.affaire_id || undefined,
         site: formData.site,
         libelle: formData.libelle,
         tranche: formData.tranche,
@@ -182,18 +158,12 @@ export default function AffairesPage() {
         budget_heures: formData.budget_heures,
         raf_heures: formData.raf_heures,
         date_maj_raf: formData.date_maj_raf,
-        responsable: formData.responsable || null,
-        compte: formData.compte || null,
+        responsable: formData.responsable || undefined,
+        compte: formData.compte || undefined,
         actif: formData.actif,
       }
-      
-      console.log('[AffairesPage] handleSubmit - affaireToSave:', affaireToSave)
       await saveAffaire(affaireToSave)
-      
-      // Attendre un peu pour que la sauvegarde soit complète
       await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Forcer le rechargement pour éviter les problèmes de cache Realtime
       await loadAffaires()
       
       setFormData({
