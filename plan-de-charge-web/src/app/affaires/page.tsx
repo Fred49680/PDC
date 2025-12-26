@@ -22,9 +22,6 @@ import { ImportExcel } from '@/components/Affaires/ImportExcel'
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
-  // VERSION: 2025-01-22-INLINE-EDITING - Édition inline dans l'onglet gestion
-  console.log('[AffairesPage] Version chargée: 2025-01-22-INLINE-EDITING - Édition inline active')
-  
   const [showImport, setShowImport] = useState(false)
   const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires, deleteAffaire } = useAffaires()
   const { ressources: allRessources, competences: ressourcesCompetences } = useRessources({ competences: ['Encadrement'] })
