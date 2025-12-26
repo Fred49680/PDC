@@ -266,7 +266,7 @@ export default function AffairesPage() {
           </div>
           <div className="flex items-center gap-3">
             <Button
-              variant="outline"
+              variant="secondary"
               icon={<FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />}
               onClick={() => setShowImport(true)}
               className="text-xs sm:text-sm px-3 sm:px-4 py-2"
