@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAffaires } from '@/hooks/useAffaires'
+import { useRessources } from '@/hooks/useRessources'
 import { Loading } from '@/components/Common/Loading'
 import { Card, CardHeader } from '@/components/UI/Card'
 import { Button } from '@/components/UI/Button'
@@ -12,7 +13,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { 
   Building2, Plus, Search, AlertCircle, CheckCircle2, 
-  Eye, EyeOff, FileSpreadsheet, Filter, Trash2 
+  Eye, EyeOff, FileSpreadsheet, Filter, Trash2, Edit 
 } from 'lucide-react'
 import { generateAffaireId, SITES_LIST, TRANCHES_LIST } from '@/utils/siteMap'
 import { ImportExcel } from '@/components/Affaires/ImportExcel'
@@ -20,8 +21,12 @@ import { ImportExcel } from '@/components/Affaires/ImportExcel'
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
+  // VERSION: 2025-01-22-MODAL-CLICK - Modal d'édition au clic, pas d'édition inline
+  console.log('[AffairesPage] Version chargée: 2025-01-22-MODAL-CLICK - Modal au clic uniquement')
+  
   const [showImport, setShowImport] = useState(false)
   const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires, deleteAffaire } = useAffaires()
+  const { ressources: allRessources, competences: ressourcesCompetences } = useRessources({ competences: ['Encadrement'] })
   const [activeTab, setActiveTab] = useState<'liste' | 'gestion'>('liste')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [affaireToDelete, setAffaireToDelete] = useState<typeof affaires[0] | null>(null)
@@ -38,9 +43,23 @@ export default function AffairesPage() {
     return true
   })
 
-  const responsablesDisponibles = Array.from(
-    new Set(affairesActives.map((a) => a.responsable).filter((r): r is string => Boolean(r)))
-  ).sort()
+  // Liste des responsables : ceux qui ont déjà une affaire + ressources avec compétence encadrement
+  const responsablesDisponibles = useMemo(() => {
+    const responsablesFromAffaires = Array.from(
+      new Set(affairesActives.map((a) => a.responsable).filter((r): r is string => Boolean(r)))
+    )
+    
+    // Ajouter les ressources avec compétence encadrement
+    const ressourcesEncadrement = allRessources.filter((r) => {
+      const comps = ressourcesCompetences.get(r.id) || []
+      return comps.some((c) => c.competence.toLowerCase() === 'encadrement')
+    })
+    const responsablesFromRessources = ressourcesEncadrement.map((r) => r.nom)
+    
+    // Combiner et dédupliquer
+    const allResponsables = Array.from(new Set([...responsablesFromAffaires, ...responsablesFromRessources]))
+    return allResponsables.sort()
+  }, [affairesActives, allRessources, ressourcesCompetences])
 
   const affairesFiltreesParResponsable = responsable
     ? affairesActives.filter((a) => a.responsable === responsable)
@@ -106,8 +125,7 @@ export default function AffairesPage() {
   })
 
   const [showModal, setShowModal] = useState(false)
-  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
-  const [editingValue, setEditingValue] = useState<string | number | Date | undefined>('')
+  const [editingAffaire, setEditingAffaire] = useState<typeof affaires[0] | null>(null)
 
   useEffect(() => {
     if (formData.tranche && formData.site && formData.libelle && formData.statut) {
@@ -117,44 +135,37 @@ export default function AffairesPage() {
         formData.libelle,
         formData.statut
       )
-      if (generatedId !== formData.affaire_id) {
-        setFormData((prev) => ({ ...prev, affaire_id: generatedId }))
-      }
+      setFormData((prev) => ({
+        ...prev,
+        affaire_id: (formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle') ? generatedId : '',
+      }))
     } else {
-      if (formData.affaire_id) {
-        setFormData((prev) => ({ ...prev, affaire_id: '' }))
-      }
+      setFormData((prev) => ({ ...prev, affaire_id: '' }))
     }
   }, [formData.tranche, formData.site, formData.libelle, formData.statut])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      let affaireIdToSave: string | null = null
-      if (formData.tranche && formData.site && formData.libelle && formData.statut) {
-        const generatedId = generateAffaireId(
-          formData.tranche,
-          formData.site,
-          formData.libelle,
-          formData.statut
-        )
-        affaireIdToSave = generatedId && generatedId.trim() !== '' 
-          ? generatedId.trim() 
-          : (formData.affaire_id && formData.affaire_id.trim() !== '' ? formData.affaire_id.trim() : null)
-      } else {
-        affaireIdToSave = formData.affaire_id && formData.affaire_id.trim() !== '' 
-          ? formData.affaire_id.trim() 
-          : null
-      }
-      
       const affaireToSave = {
-        ...formData,
-        affaire_id: affaireIdToSave,
-        date_creation: formData.id ? new Date() : new Date(),
-        date_modification: new Date(),
+        id: formData.id || undefined,
+        affaire_id: formData.affaire_id || null,
+        site: formData.site,
+        libelle: formData.libelle,
+        tranche: formData.tranche,
+        statut: formData.statut,
+        budget_heures: formData.budget_heures,
+        raf_heures: formData.raf_heures,
+        date_maj_raf: formData.date_maj_raf,
+        responsable: formData.responsable || null,
+        compte: formData.compte || null,
+        actif: formData.actif,
       }
-      
       await saveAffaire(affaireToSave)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await loadAffaires()
+      setShowModal(false)
+      setEditingAffaire(null)
       setFormData({
         id: '',
         affaire_id: '',
@@ -169,114 +180,34 @@ export default function AffairesPage() {
         compte: '',
         actif: true,
       })
-      setShowModal(false)
     } catch (err: any) {
       console.error('[AffairesPage] Erreur:', err)
       alert('Erreur lors de l\'enregistrement :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
     }
   }
 
-  const normalizeSite = (siteValue: string | undefined | null): string => {
-    if (!siteValue) return ''
-    const normalized = siteValue.trim()
-    for (const site of SITES_LIST) {
-      if (site.toLowerCase() === normalized.toLowerCase()) {
-        return site
-      }
-    }
-    return normalized
-  }
-
-  const normalizeTranche = (trancheValue: string | undefined | null): string => {
-    if (!trancheValue) return ''
-    const normalized = trancheValue.trim()
-    if (normalized === '0') return '0'
-    for (const tranche of TRANCHES_LIST) {
-      if (tranche.toLowerCase() === normalized.toLowerCase()) {
-        return tranche
-      }
-    }
-    return normalized
-  }
-
-  const handleCellEdit = (affaire: typeof affaires[0], field: string) => {
-    let initialValue: string | number | Date | undefined = ''
-    switch (field) {
-      case 'site': initialValue = affaire.site || ''; break
-      case 'responsable': initialValue = affaire.responsable || ''; break
-      case 'libelle': initialValue = affaire.libelle || ''; break
-      case 'tranche': initialValue = affaire.tranche || ''; break
-      case 'compte': initialValue = affaire.compte || ''; break
-      case 'statut': initialValue = affaire.statut || 'Ouverte'; break
-      case 'budget_heures': initialValue = affaire.budget_heures || 0; break
-      case 'raf_heures': initialValue = affaire.raf_heures || 0; break
-      case 'date_maj_raf': initialValue = affaire.date_maj_raf ? format(affaire.date_maj_raf, 'yyyy-MM-dd') : ''; break
-    }
-    setEditingCell({ rowId: affaire.id, field })
-    setEditingValue(initialValue)
-  }
-  
-  const handleCellSave = async (affaire: typeof affaires[0], field: string) => {
-    if (!editingCell || editingCell.rowId !== affaire.id || editingCell.field !== field) return
-    
-    try {
-      const normalizedSite = normalizeSite(affaire.site)
-      const normalizedTranche = normalizeTranche(affaire.tranche)
-      
-      let newSite = normalizedSite
-      let newTranche = normalizedTranche
-      
-      if (field === 'site') newSite = normalizeSite(String(editingValue))
-      if (field === 'tranche') newTranche = normalizeTranche(String(editingValue))
-      
-      const updatedAffaire = {
-        ...affaire,
-        site: newSite,
-        responsable: field === 'responsable' ? String(editingValue) : affaire.responsable,
-        libelle: field === 'libelle' ? String(editingValue) : affaire.libelle,
-        tranche: newTranche,
-        compte: field === 'compte' ? String(editingValue) : affaire.compte,
-        statut: field === 'statut' ? String(editingValue) : affaire.statut,
-        budget_heures: field === 'budget_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.budget_heures,
-        raf_heures: field === 'raf_heures' ? (typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0) : affaire.raf_heures,
-        date_maj_raf: field === 'date_maj_raf' ? (editingValue && String(editingValue).trim() !== '' ? new Date(String(editingValue)) : undefined) : affaire.date_maj_raf,
-        date_modification: new Date(),
-      }
-      
-      if (field === 'statut' || field === 'tranche' || field === 'site' || field === 'libelle') {
-        const newLibelle = field === 'libelle' ? String(editingValue) : affaire.libelle
-        const newStatut = field === 'statut' ? String(editingValue) : affaire.statut
-        
-        if (newTranche && newSite && newLibelle && newStatut) {
-          const generatedId = generateAffaireId(newTranche, newSite, newLibelle, newStatut)
-          updatedAffaire.affaire_id = (newStatut === 'Ouverte' || newStatut === 'Prévisionnelle') ? generatedId : null
-        } else {
-          updatedAffaire.affaire_id = null
-        }
-      }
-      
-      if (field === 'raf_heures') {
-        const rafValue = typeof editingValue === 'number' ? editingValue : parseFloat(String(editingValue)) || 0
-        if (rafValue > 0) {
-          updatedAffaire.date_maj_raf = new Date()
-        }
-      }
-      
-      await saveAffaire(updatedAffaire)
-      setEditingCell(null)
-      setEditingValue('')
-    } catch (err: any) {
-      console.error('[AffairesPage] Erreur sauvegarde inline:', err)
-      alert('Erreur lors de la sauvegarde :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
-    }
-  }
-  
-  const handleCellCancel = () => {
-    setEditingCell(null)
-    setEditingValue('')
+  const handleEdit = (affaire: typeof affaires[0]) => {
+    console.log('[AffairesPage] handleEdit appelé - Modal d\'édition ouverte pour:', affaire.id, affaire.libelle)
+    setEditingAffaire(affaire)
+    setFormData({
+      id: affaire.id,
+      affaire_id: affaire.affaire_id || '',
+      site: affaire.site || '',
+      libelle: affaire.libelle || '',
+      tranche: affaire.tranche || '',
+      statut: affaire.statut || 'Ouverte',
+      budget_heures: affaire.budget_heures || 0,
+      raf_heures: affaire.raf_heures || 0,
+      date_maj_raf: affaire.date_maj_raf,
+      responsable: affaire.responsable || '',
+      compte: affaire.compte || '',
+      actif: affaire.actif ?? true,
+    })
+    setShowModal(true)
   }
 
   const handleNew = () => {
+    setEditingAffaire(null)
     setFormData({
       id: '',
       affaire_id: '',
@@ -329,21 +260,18 @@ export default function AffairesPage() {
               <Building2 className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Gestion des Affaires
-              </h1>
-              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Créez et gérez les affaires et leurs sites</p>
+              <h1 className="text-3xl font-bold text-gray-900">Gestion des Affaires</h1>
+              <p className="text-gray-600 mt-1">Gérez vos affaires et projets</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <Button
-              variant="secondary"
+              variant="outline"
               icon={<FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />}
-              onClick={() => setShowImport(!showImport)}
+              onClick={() => setShowImport(true)}
               className="text-xs sm:text-sm px-3 sm:px-4 py-2"
             >
-              <span className="hidden sm:inline">{showImport ? 'Masquer import' : 'Importer Excel'}</span>
-              <span className="sm:hidden">Import</span>
+              Importer Excel
             </Button>
             <Button
               variant="primary"
@@ -351,25 +279,12 @@ export default function AffairesPage() {
               onClick={handleNew}
               className="text-xs sm:text-sm px-3 sm:px-4 py-2"
             >
-              <span className="hidden sm:inline">Nouvelle affaire</span>
-              <span className="sm:hidden">Nouvelle</span>
+              Nouvelle affaire
             </Button>
           </div>
         </div>
 
-        {/* Import Excel */}
-        {showImport && (
-          <Card>
-            <ImportExcel
-              onImportComplete={() => {
-                loadAffaires()
-                setShowImport(false)
-              }}
-            />
-          </Card>
-        )}
-
-        {/* Filtres modernes */}
+        {/* Filtres */}
         <Card>
           <CardHeader gradient="indigo" icon={<Filter className="w-6 h-6 text-indigo-600" />}>
             <div className="flex items-center justify-between w-full">
@@ -503,210 +418,63 @@ export default function AffairesPage() {
                     affaires.map((affaire) => (
                       <tr 
                         key={affaire.id} 
-                        className="hover:bg-indigo-50/50 transition-colors duration-150"
+                        className="hover:bg-indigo-50/50 transition-colors duration-150 cursor-pointer"
+                        onClick={() => handleEdit(affaire)}
+                        title="Cliquez pour modifier"
                       >
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => handleCellEdit(affaire, 'site')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'site' ? (
-                            <select
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'site')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'site')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            >
-                              {SITES_LIST.map((s) => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span>{affaire.site}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {affaire.site}
                         </td>
                         
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden md:table-cell"
-                          onClick={() => handleCellEdit(affaire, 'responsable')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'responsable' ? (
-                            <input
-                              type="text"
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'responsable')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'responsable')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                          ) : (
-                            <span>{affaire.responsable || '-'}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden md:table-cell">
+                          {affaire.responsable || '-'}
                         </td>
                         
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => handleCellEdit(affaire, 'libelle')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'libelle' ? (
-                            <input
-                              type="text"
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'libelle')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'libelle')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                          ) : (
-                            <span>{affaire.libelle}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-gray-600">
+                          {affaire.libelle}
                         </td>
                         
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden lg:table-cell"
-                          onClick={() => handleCellEdit(affaire, 'tranche')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'tranche' ? (
-                            <select
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'tranche')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'tranche')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            >
-                              {TRANCHES_LIST.map((t) => (
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span>{affaire.tranche || '-'}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">
+                          {affaire.tranche || '-'}
                         </td>
                         
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden lg:table-cell"
-                          onClick={() => handleCellEdit(affaire, 'compte')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'compte' ? (
-                            <input
-                              type="text"
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'compte')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'compte')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                          ) : (
-                            <span>{affaire.compte || '-'}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">
+                          {affaire.compte || '-'}
                         </td>
                         
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => handleCellEdit(affaire, 'statut')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'statut' ? (
-                            <select
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'statut')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'statut')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            >
-                              <option value="Ouverte">Ouverte</option>
-                              <option value="Prévisionnelle">Prévisionnelle</option>
-                              <option value="Clôturé">Clôturé</option>
-                            </select>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                          {affaire.statut === 'Ouverte' ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              Ouverte
+                            </span>
+                          ) : affaire.statut === 'Prévisionnelle' ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                              Prévisionnelle
+                            </span>
+                          ) : affaire.statut === 'Clôturé' ? (
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                              Clôturé
+                            </span>
                           ) : (
-                            <span>
-                              {affaire.statut === 'Ouverte' ? (
-                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                  Ouverte
-                                </span>
-                              ) : affaire.statut === 'Prévisionnelle' ? (
-                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                  Prévisionnelle
-                                </span>
-                              ) : affaire.statut === 'Clôturé' ? (
-                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                  Clôturé
-                                </span>
-                              ) : (
-                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                  {affaire.statut || 'Non défini'}
-                                </span>
-                              )}
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              {affaire.statut || 'Non défini'}
                             </span>
                           )}
                         </td>
                         
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer hidden sm:table-cell"
-                          onClick={() => handleCellEdit(affaire, 'budget_heures')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'budget_heures' ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={typeof editingValue === 'number' ? editingValue : (typeof editingValue === 'string' ? parseFloat(editingValue) || 0 : 0)}
-                              onChange={(e) => setEditingValue(parseFloat(e.target.value) || 0)}
-                              onBlur={() => handleCellSave(affaire, 'budget_heures')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'budget_heures')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                          ) : (
-                            <span>{affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden sm:table-cell">
+                          {affaire.budget_heures?.toFixed(2) || '0.00'}h
                         </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                        
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="sm"
                             icon={<Trash2 className="w-4 h-4 text-red-600" />}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteClick(affaire)
-                            }}
+                            onClick={() => handleDeleteClick(affaire)}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Supprimer l'affaire"
                           >
-                            <span className="hidden sm:inline">Supprimer</span>
+                            Supprimer
                           </Button>
                         </td>
                       </tr>
@@ -719,7 +487,7 @@ export default function AffairesPage() {
         </Card>
         )}
 
-        {/* Onglet Gestion affaire */}
+        {/* Gestion affaire */}
         {activeTab === 'gestion' && (
         <Card>
           <CardHeader gradient="indigo" icon={<Building2 className="w-6 h-6 text-indigo-600" />}>
@@ -749,7 +517,7 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heures Planifiées</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d'affaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d&apos;affaire</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                   </tr>
                 </thead>
@@ -772,60 +540,20 @@ export default function AffairesPage() {
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 font-medium">
                           {affaire.affaire_id || '-'}
                         </td>
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => handleCellEdit(affaire, 'raf_heures')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'raf_heures' ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={typeof editingValue === 'number' ? editingValue : (typeof editingValue === 'string' ? parseFloat(editingValue) || 0 : 0)}
-                              onChange={(e) => setEditingValue(parseFloat(e.target.value) || 0)}
-                              onBlur={() => handleCellSave(affaire, 'raf_heures')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'raf_heures')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                          ) : (
-                            <span>{affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}</span>
-                          )}
-                        </td>
-                        <td 
-                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => handleCellEdit(affaire, 'date_maj_raf')}
-                          title="Cliquez pour modifier"
-                        >
-                          {editingCell?.rowId === affaire.id && editingCell?.field === 'date_maj_raf' ? (
-                            <input
-                              type="date"
-                              value={String(editingValue)}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => handleCellSave(affaire, 'date_maj_raf')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCellSave(affaire, 'date_maj_raf')
-                                if (e.key === 'Escape') handleCellCancel()
-                              }}
-                              autoFocus
-                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                          ) : (
-                            <span>{affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}</span>
-                          )}
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.total_planifie !== undefined && affaire.total_planifie !== null ? affaire.total_planifie.toFixed(2) : '-'}
+                          {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                          {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '0.00'}h
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_fin_demande ? format(affaire.date_fin_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                          {affaire.date_debut ? format(affaire.date_debut, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        </td>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {affaire.date_fin ? format(affaire.date_fin, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                       </tr>
                     ))
@@ -839,69 +567,81 @@ export default function AffairesPage() {
 
         {/* Modal de création/modification */}
         {showModal && (
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
-            onClick={() => {
-              setShowModal(false)
-              setFormData({
-                id: '',
-                affaire_id: '',
-                site: '',
-                libelle: '',
-                tranche: '',
-                statut: 'Ouverte',
-                budget_heures: 0,
-                raf_heures: 0,
-                date_maj_raf: undefined,
-                responsable: '',
-                compte: '',
-                actif: true,
-              })
-            }}
-          >
-            <Card className="max-w-3xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <CardHeader gradient="indigo" icon={<Plus className="w-6 h-6 text-indigo-600" />}>
-                <h2 className="text-2xl font-bold text-gray-800">Nouvelle affaire</h2>
-              </CardHeader>
-              
-              <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4 flex items-center justify-between rounded-t-xl">
+                <div className="flex items-center gap-3">
+                  {editingAffaire ? (
+                    <Edit className="w-6 h-6 text-white" />
+                  ) : (
+                    <Plus className="w-6 h-6 text-white" />
+                  )}
+                  <h2 className="text-xl font-bold text-white">
+                    {editingAffaire ? 'Modifier affaire' : 'Nouvelle affaire'}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowModal(false)
+                    setEditingAffaire(null)
+                  }}
+                  className="text-white hover:text-gray-200 transition-colors"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Affaire ID"
-                    value={formData.affaire_id}
-                    readOnly
-                    className="bg-gray-50 cursor-not-allowed"
-                    placeholder={
-                      formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
-                        ? 'Sera généré automatiquement...'
-                        : 'Vide (statut ≠ Ouverte/Prévisionnelle)'
-                    }
-                  />
                   <Select
-                    label="Site"
+                    label="Site *"
                     value={formData.site}
                     onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                     required
                     options={[
                       { value: '', label: 'Sélectionner un site...' },
-                      ...SITES_LIST.map((site) => ({ value: site, label: site }))
+                      ...SITES_LIST.map((s) => ({ value: s, label: s }))
                     ]}
                   />
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Select
-                    label="Tranche"
+                    label="Responsable"
+                    value={formData.responsable || ''}
+                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                    options={[
+                      { value: '', label: 'Sélectionner un responsable...' },
+                      ...responsablesDisponibles.map((resp) => ({ value: resp, label: resp }))
+                    ]}
+                  />
+
+                  <Input
+                    label="Libellé *"
+                    value={formData.libelle}
+                    onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
+                    required
+                    placeholder="Nom de l'affaire"
+                  />
+
+                  <Select
+                    label="Tranche *"
                     value={formData.tranche}
                     onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
                     required
                     options={[
                       { value: '', label: 'Sélectionner une tranche...' },
-                      ...TRANCHES_LIST.map((tranche) => ({ value: tranche, label: tranche }))
+                      ...TRANCHES_LIST.map((t) => ({ value: t, label: t }))
                     ]}
                   />
+
+                  <Input
+                    label="Compte"
+                    value={formData.compte}
+                    onChange={(e) => setFormData({ ...formData, compte: e.target.value })}
+                    placeholder="Numéro de compte"
+                  />
+
                   <Select
-                    label="Statut"
+                    label="Statut *"
                     value={formData.statut}
                     onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
                     required
@@ -911,124 +651,94 @@ export default function AffairesPage() {
                       { value: 'Clôturé', label: 'Clôturé' }
                     ]}
                   />
+
+                  <Input
+                    label="Budget (heures)"
+                    type="number"
+                    step="0.01"
+                    value={formData.budget_heures}
+                    onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
+                  />
+
+                  <Input
+                    label="RAF (heures)"
+                    type="number"
+                    step="0.01"
+                    value={formData.raf_heures}
+                    onChange={(e) => setFormData({ ...formData, raf_heures: parseFloat(e.target.value) || 0 })}
+                  />
+
+                  <Input
+                    label="Date de mise à jour RAF"
+                    type="date"
+                    value={formData.date_maj_raf ? format(formData.date_maj_raf, 'yyyy-MM-dd') : ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      date_maj_raf: e.target.value ? new Date(e.target.value) : undefined 
+                    })}
+                  />
                 </div>
 
-                <Input
-                  label="Libellé (Affaire)"
-                  value={formData.libelle}
-                  onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
-                  required
-                  placeholder="Ex: PACK TEM"
-                />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Responsable"
-                    value={formData.responsable || ''}
-                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                    placeholder="Nom du responsable"
-                  />
-                  <Input
-                    label="Numéro de compte"
-                    value={formData.compte || ''}
-                    onChange={(e) => setFormData({ ...formData, compte: e.target.value })}
-                    placeholder="Ex: 123ABC456"
-                  />
-                </div>
-
-                <Input
-                  label="Budget (H)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.budget_heures || ''}
-                  onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-end gap-4 pt-4 border-t">
                   <Button
-                    variant="ghost"
+                    type="button"
+                    variant="outline"
                     onClick={() => {
                       setShowModal(false)
-                      setFormData({
-                        id: '',
-                        affaire_id: '',
-                        site: '',
-                        libelle: '',
-                        tranche: '',
-                        statut: 'Ouverte',
-                        budget_heures: 0,
-                        raf_heures: 0,
-                        date_maj_raf: undefined,
-                        responsable: '',
-                        compte: '',
-                        actif: true,
-                      })
+                      setEditingAffaire(null)
                     }}
                   >
                     Annuler
                   </Button>
                   <Button
-                    variant="primary"
-                    icon={<CheckCircle2 className="w-5 h-5" />}
                     type="submit"
+                    variant="primary"
+                    icon={editingAffaire ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   >
-                    Créer
+                    {editingAffaire ? 'Enregistrer' : 'Créer'}
                   </Button>
                 </div>
               </form>
-            </Card>
+            </div>
           </div>
         )}
 
-        {/* Modal de confirmation de suppression */}
+        {/* Modal de suppression */}
         {showDeleteModal && affaireToDelete && (
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
-            onClick={() => {
-              setShowDeleteModal(false)
-              setAffaireToDelete(null)
-              setDeleteConfirmText('')
-            }}
-          >
-            <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
-              <CardHeader gradient="orange" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
-                <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
-              </CardHeader>
-              
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+              <div className="bg-gradient-to-r from-red-500 to-rose-600 px-6 py-4 flex items-center justify-between rounded-t-xl">
+                <div className="flex items-center gap-3">
+                  <Trash2 className="w-6 h-6 text-white" />
+                  <h2 className="text-xl font-bold text-white">Supprimer l'affaire</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false)
+                    setAffaireToDelete(null)
+                    setDeleteConfirmText('')
+                  }}
+                  className="text-white hover:text-gray-200 transition-colors"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
               <div className="p-6 space-y-4">
-                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                  <p className="text-red-800 font-semibold mb-2">⚠️ Attention : Cette action est irréversible</p>
-                  <p className="text-gray-700 text-sm">
-                    Vous êtes sur le point de supprimer l'affaire :
-                  </p>
-                  <p className="text-gray-900 font-bold mt-2">
-                    {affaireToDelete.affaire_id || affaireToDelete.libelle} - {affaireToDelete.site}
-                  </p>
-                  {affaireToDelete.affaire_id && (
-                    <p className="text-gray-600 text-xs mt-1">
-                      ID: {affaireToDelete.affaire_id}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pour confirmer, tapez <span className="font-bold text-red-600">"Effacer"</span> :
-                  </label>
-                  <Input
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder="Effacer"
-                    className="border-2 border-red-300 focus:border-red-500"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <p className="text-gray-700">
+                  Êtes-vous sûr de vouloir supprimer l'affaire <strong>{affaireToDelete.libelle}</strong> ?
+                </p>
+                <p className="text-sm text-gray-500">
+                  Cette action est irréversible. Tapez &quot;Effacer&quot; pour confirmer :
+                </p>
+                <Input
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Effacer"
+                />
+                <div className="flex items-center justify-end gap-4 pt-4">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => {
                       setShowDeleteModal(false)
                       setAffaireToDelete(null)
@@ -1048,8 +758,19 @@ export default function AffairesPage() {
                   </Button>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
+        )}
+
+        {/* Modal d'import Excel */}
+        {showImport && (
+          <ImportExcel
+            onClose={() => setShowImport(false)}
+            onSuccess={() => {
+              setShowImport(false)
+              loadAffaires()
+            }}
+          />
         )}
       </div>
     </Layout>
