@@ -21,6 +21,9 @@ import { ImportExcel } from '@/components/Affaires/ImportExcel'
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
+  // VERSION: 2025-01-22-MODAL-CLICK - Modal d'édition au clic, pas d'édition inline
+  console.log('[AffairesPage] Version chargée: 2025-01-22-MODAL-CLICK - Modal au clic uniquement')
+  
   const [showImport, setShowImport] = useState(false)
   const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires, deleteAffaire } = useAffaires()
   const { ressources: allRessources, competences: ressourcesCompetences } = useRessources({ competences: ['Encadrement'] })
