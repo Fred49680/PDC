@@ -326,11 +326,14 @@ export default function AbsencesPage() {
       })
     }
 
-    // Filtre par site (si la valeur n'est pas vide, chercher par texte - le hook gère déjà les valeurs exactes)
+    // Filtre par site (côté client - recherche textuelle)
+    // Le hook utilise déjà absenceOptions.site pour le filtre exact si c'est une valeur exacte
+    // Ici on fait une recherche textuelle supplémentaire si nécessaire
     if (site && site.trim() !== '') {
       const siteQuery = site.trim().toUpperCase()
-      // Si le site n'a pas été utilisé comme filtre exact dans le hook (car ce n'est pas une valeur exacte)
-      if (!absenceOptions.site || !absenceOptions.site.toUpperCase().includes(siteQuery)) {
+      // Si absenceOptions.site existe, le filtre exact a déjà été appliqué par le hook
+      // Sinon, on applique le filtre textuel côté client
+      if (!absenceOptions.site) {
         filtered = filtered.filter(absence => {
           return absence.site.toUpperCase().includes(siteQuery)
         })
