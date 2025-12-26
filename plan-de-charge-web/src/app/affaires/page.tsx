@@ -550,10 +550,10 @@ export default function AffairesPage() {
                           {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '0.00'}h
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_debut ? format(affaire.date_debut, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                          {affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_fin ? format(affaire.date_fin, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                          {affaire.date_fin_demande ? format(affaire.date_fin_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                       </tr>
                     ))
