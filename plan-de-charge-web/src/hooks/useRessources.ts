@@ -21,6 +21,7 @@ export function useRessources(options: UseRessourcesOptions = {}) {
   const [error, setError] = useState<Error | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const competencesChannelRef = useRef<RealtimeChannel | null>(null)
+  const loadRessourcesRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const enableRealtime = options.enableRealtime !== false // Par défaut activé
 
   const getSupabaseClient = useCallback(() => {
@@ -293,6 +294,11 @@ export function useRessources(options: UseRessourcesOptions = {}) {
     [getSupabaseClient, loadRessources]
   )
 
+  // Mettre à jour la référence quand loadRessources change
+  useEffect(() => {
+    loadRessourcesRef.current = loadRessources
+  }, [loadRessources])
+
   // Abonnement Realtime pour les ressources
   useEffect(() => {
     if (!enableRealtime) return
@@ -331,8 +337,8 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         () => {
           console.log('[useRessources] Changement Realtime détecté - rechargement...')
           
-          // Recharger les ressources et compétences (loadRessources est stable grâce à useCallback)
-          loadRessources()
+          // Utiliser la référence pour éviter les dépendances circulaires
+          loadRessourcesRef.current()
         }
       )
       .subscribe((status) => {
@@ -371,8 +377,8 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         () => {
           console.log('[useRessources] Changement Realtime compétences détecté - rechargement...')
           
-          // Recharger les ressources et compétences (loadRessources est stable grâce à useCallback)
-          loadRessources()
+          // Utiliser la référence pour éviter les dépendances circulaires
+          loadRessourcesRef.current()
         }
       )
       .subscribe((status) => {
