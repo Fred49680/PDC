@@ -779,8 +779,8 @@ export function BesoinsGrid({
         
         return (
           <div key={competence} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 overflow-hidden">
-            {/* En-tête avec nom de compétence et flèche */}
-            <div className="flex items-center gap-3 p-6">
+            {/* En-tête avec nom de compétence et flèche - Sticky */}
+            <div className="flex items-center gap-3 p-6 sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200">
               <div 
                 className="flex items-center gap-3 flex-1 cursor-pointer hover:bg-gray-50/50 transition-colors rounded p-2 -m-2"
                 onClick={() => toggleCompetence(competence)}
@@ -809,12 +809,12 @@ export function BesoinsGrid({
 
             {/* Contenu (grille) - affiché seulement si expandé */}
             {isExpanded && (
-              <div className="px-6 pb-6 overflow-x-auto">
+              <div className="px-6 pb-6 overflow-x-auto overflow-y-auto max-h-[600px]">
                 <div className="rounded-lg border border-gray-200 shadow-sm">
                   <table className="min-w-full border-collapse">
                     <thead>
-                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                        <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20">
+                        <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 z-30 bg-gradient-to-r from-gray-50 to-gray-100">
                           Ressource
                         </th>
                         {colonnes.map((col, idx) => (
@@ -833,9 +833,9 @@ export function BesoinsGrid({
                           </th>
                         ))}
                       </tr>
-                      {/* Ligne de rappel de charge - UNIQUEMENT pour cette compétence */}
-                      <tr className="bg-gradient-to-r from-indigo-100 to-purple-100 border-b-2 border-indigo-300">
-                        <th className="border-b border-r border-gray-300 px-4 py-2.5 text-left text-sm font-bold text-indigo-900 sticky left-0 z-10 bg-gradient-to-r from-indigo-100 to-purple-100 whitespace-nowrap">
+                      {/* Ligne de rappel de charge - UNIQUEMENT pour cette compétence - Sticky */}
+                      <tr className="bg-gradient-to-r from-indigo-100 to-purple-100 border-b-2 border-indigo-300 sticky top-[48px] z-20">
+                        <th className="border-b border-r border-gray-300 px-4 py-2.5 text-left text-sm font-bold text-indigo-900 sticky left-0 z-30 bg-gradient-to-r from-indigo-100 to-purple-100 whitespace-nowrap">
                           Charge
                         </th>
                         {colonnes.map((col, idx) => {
@@ -876,7 +876,7 @@ export function BesoinsGrid({
                               className={`border-b border-r border-gray-300 px-2 py-2.5 text-center text-sm font-bold ${
                                 charge > 0 
                                   ? 'text-indigo-900 bg-indigo-50' 
-                                  : 'text-gray-400'
+                                  : 'text-gray-400 bg-indigo-100'
                               } ${
                                 col.isWeekend ? 'bg-blue-100' :
                                 col.isHoliday ? 'bg-rose-100' :
@@ -898,7 +898,7 @@ export function BesoinsGrid({
                           <tr key={ressource.id} className={isEven ? 'bg-white' : 'bg-gray-50/50'}>
                             <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-10 ${
                               isEven ? 'bg-white' : 'bg-gray-50/50'
-                            }`}>
+                            }`} style={{ backgroundColor: isEven ? 'white' : '#f9fafb' }}>
                               <div className="font-medium">{ressource.nom}</div>
                               <div className={`text-xs ${isExterne ? 'text-orange-600 font-semibold' : 'text-gray-500'}`}>
                                 {ressource.site} {isExterne && '(Transfert)'}
