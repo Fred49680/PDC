@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAffaires } from '@/hooks/useAffaires'
 import { useRessources } from '@/hooks/useRessources'
+import type { Affaire } from '@/types/charge'
 import { Loading } from '@/components/Common/Loading'
 import { Card, CardHeader } from '@/components/UI/Card'
 import { Button } from '@/components/UI/Button'
@@ -21,16 +22,20 @@ import { ImportExcel } from '@/components/Affaires/ImportExcel'
 export const dynamic = 'force-dynamic'
 
 export default function AffairesPage() {
-  // VERSION: 2025-01-22-MODAL-CLICK - Modal d'édition au clic, pas d'édition inline
-  console.log('[AffairesPage] Version chargée: 2025-01-22-MODAL-CLICK - Modal au clic uniquement')
+  // VERSION: 2025-01-22-INLINE-EDITING - Édition inline dans l'onglet gestion
+  console.log('[AffairesPage] Version chargée: 2025-01-22-INLINE-EDITING - Édition inline active')
   
   const [showImport, setShowImport] = useState(false)
   const { affaires: allAffaires, loading, error, saveAffaire, loadAffaires, deleteAffaire } = useAffaires()
   const { ressources: allRessources, competences: ressourcesCompetences } = useRessources({ competences: ['Encadrement'] })
   const [activeTab, setActiveTab] = useState<'liste' | 'gestion'>('liste')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [affaireToDelete, setAffaireToDelete] = useState<typeof affaires[0] | null>(null)
+  const [affaireToDelete, setAffaireToDelete] = useState<Affaire | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  
+  // États pour l'édition inline
+  const [editingCell, setEditingCell] = useState<{ affaireId: string, field: string } | null>(null)
+  const [editingValue, setEditingValue] = useState<string>('')
   
   const [responsable, setResponsable] = useState('')
   const [site, setSite] = useState('')
@@ -70,7 +75,7 @@ export default function AffairesPage() {
   ).sort()
 
   const affairesFiltreesParResponsableEtSite = site
-    ? affairesFiltreesParResponsable.filter((a) => a.site === site)
+    ? affairesFiltreesParResponsable.filter((a) => a.site?.toLowerCase() === site.toLowerCase())
     : affairesFiltreesParResponsable
 
   const tranchesDisponibles = Array.from(
@@ -125,7 +130,7 @@ export default function AffairesPage() {
   })
 
   const [showModal, setShowModal] = useState(false)
-  const [editingAffaire, setEditingAffaire] = useState<typeof affaires[0] | null>(null)
+  const [editingAffaire, setEditingAffaire] = useState<Affaire | null>(null)
 
   useEffect(() => {
     if (formData.tranche && formData.site && formData.libelle && formData.statut) {
@@ -249,6 +254,72 @@ export default function AffairesPage() {
     } catch (err: any) {
       console.error('[AffairesPage] Erreur suppression:', err)
       alert('Erreur lors de la suppression :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+    }
+  }
+
+  // Handlers pour l'édition inline
+  const handleCellEdit = (affaireId: string, field: string, currentValue: string | number | Date | null | undefined) => {
+    let valueToEdit = ''
+    if (currentValue instanceof Date) {
+      // Format date pour input type="date" (YYYY-MM-DD)
+      valueToEdit = format(currentValue, 'yyyy-MM-dd')
+    } else if (typeof currentValue === 'number') {
+      valueToEdit = currentValue.toString()
+    } else if (currentValue) {
+      valueToEdit = currentValue.toString()
+    }
+    setEditingCell({ affaireId, field })
+    setEditingValue(valueToEdit)
+  }
+
+  const handleCellSave = async (affaireId: string, field: string) => {
+    try {
+      const affaire = affaires.find(a => a.id === affaireId)
+      if (!affaire) return
+
+      let valueToSave: number | Date | undefined = undefined
+
+      // Convertir la valeur selon le type de champ
+      if (field === 'raf_heures') {
+        valueToSave = parseFloat(editingValue) || 0
+      } else if (field === 'date_maj_raf' || field === 'date_debut_demande' || field === 'date_fin_demande') {
+        if (editingValue.trim()) {
+          valueToSave = new Date(editingValue)
+        } else {
+          valueToSave = undefined
+        }
+      }
+
+      const affaireToUpdate = {
+        ...affaire,
+        [field]: valueToSave
+      }
+
+      await saveAffaire(affaireToUpdate)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await loadAffaires()
+      
+      setEditingCell(null)
+      setEditingValue('')
+    } catch (err: unknown) {
+      const error = err as { message?: string }
+      console.error('[AffairesPage] Erreur édition inline:', err)
+      alert('Erreur lors de l\'enregistrement :\n\n' + (error.message || 'Une erreur inattendue s\'est produite'))
+    }
+  }
+
+  const handleCellCancel = () => {
+    setEditingCell(null)
+    setEditingValue('')
+  }
+
+  const handleCellKeyDown = (e: React.KeyboardEvent, affaireId: string, field: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleCellSave(affaireId, field)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCellCancel()
     }
   }
 
@@ -562,20 +633,81 @@ export default function AffairesPage() {
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 font-medium">
                           {affaire.affaire_id || '-'}
                         </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'}
+                        <td 
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 cursor-pointer hover:bg-indigo-100"
+                          onClick={() => handleCellEdit(affaire.id, 'raf_heures', affaire.raf_heures)}
+                        >
+                          {editingCell?.affaireId === affaire.id && editingCell?.field === 'raf_heures' ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire.id, 'raf_heures')}
+                              onKeyDown={(e) => handleCellKeyDown(e, affaire.id, 'raf_heures')}
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              autoFocus
+                            />
+                          ) : (
+                            affaire.raf_heures !== undefined ? affaire.raf_heures.toFixed(2) : '-'
+                          )}
                         </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        <td 
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 cursor-pointer hover:bg-indigo-100"
+                          onClick={() => handleCellEdit(affaire.id, 'date_maj_raf', affaire.date_maj_raf)}
+                        >
+                          {editingCell?.affaireId === affaire.id && editingCell?.field === 'date_maj_raf' ? (
+                            <input
+                              type="date"
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire.id, 'date_maj_raf')}
+                              onKeyDown={(e) => handleCellKeyDown(e, affaire.id, 'date_maj_raf')}
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              autoFocus
+                            />
+                          ) : (
+                            affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'
+                          )}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                           {affaire.total_planifie !== undefined && affaire.total_planifie !== null ? affaire.total_planifie.toFixed(2) : '-'}
                         </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        <td 
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 cursor-pointer hover:bg-indigo-100"
+                          onClick={() => handleCellEdit(affaire.id, 'date_debut_demande', affaire.date_debut_demande)}
+                        >
+                          {editingCell?.affaireId === affaire.id && editingCell?.field === 'date_debut_demande' ? (
+                            <input
+                              type="date"
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire.id, 'date_debut_demande')}
+                              onKeyDown={(e) => handleCellKeyDown(e, affaire.id, 'date_debut_demande')}
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              autoFocus
+                            />
+                          ) : (
+                            affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'
+                          )}
                         </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.date_fin_demande ? format(affaire.date_fin_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
+                        <td 
+                          className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 cursor-pointer hover:bg-indigo-100"
+                          onClick={() => handleCellEdit(affaire.id, 'date_fin_demande', affaire.date_fin_demande)}
+                        >
+                          {editingCell?.affaireId === affaire.id && editingCell?.field === 'date_fin_demande' ? (
+                            <input
+                              type="date"
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(affaire.id, 'date_fin_demande')}
+                              onKeyDown={(e) => handleCellKeyDown(e, affaire.id, 'date_fin_demande')}
+                              className="w-full px-2 py-1 border-2 border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              autoFocus
+                            />
+                          ) : (
+                            affaire.date_fin_demande ? format(affaire.date_fin_demande, 'dd/MM/yyyy', { locale: fr }) : '-'
+                          )}
                         </td>
                       </tr>
                     ))
