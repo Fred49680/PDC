@@ -814,13 +814,13 @@ export function BesoinsGrid({
                   <table className="min-w-full border-collapse">
                     <thead>
                       <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                        <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 top-0 z-30 bg-gradient-to-r from-gray-50 to-gray-100">
+                        <th className="border-b border-r border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 sticky left-0 top-0 z-50 bg-gradient-to-r from-gray-50 to-gray-100 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
                           Ressource
                         </th>
                         {colonnes.map((col, idx) => (
                           <th
                             key={idx}
-                            className={`border-b border-r border-gray-300 px-3 py-2 text-center min-w-[90px] text-xs font-semibold sticky top-0 z-20 ${
+                            className={`border-b border-r border-gray-300 px-3 py-2 text-center min-w-[90px] text-xs font-semibold sticky top-0 z-40 shadow-[0_2px_4px_rgba(0,0,0,0.1)] ${
                               col.isWeekend ? 'bg-blue-100 text-blue-800' :
                               col.isHoliday ? 'bg-rose-100 text-rose-800' :
                               'bg-gray-50 text-gray-700'
@@ -835,7 +835,7 @@ export function BesoinsGrid({
                       </tr>
                       {/* Ligne de rappel de charge - UNIQUEMENT pour cette compétence - Sticky */}
                       <tr className="bg-gradient-to-r from-indigo-100 to-purple-100 border-b-2 border-indigo-300">
-                        <th className="border-b border-r border-gray-300 px-4 py-2.5 text-left text-sm font-bold text-indigo-900 sticky left-0 top-[48px] z-30 bg-gradient-to-r from-indigo-100 to-purple-100 whitespace-nowrap">
+                        <th className="border-b border-r border-gray-300 px-4 py-2.5 text-left text-sm font-bold text-indigo-900 sticky left-0 z-50 bg-gradient-to-r from-indigo-100 to-purple-100 whitespace-nowrap shadow-[2px_0_4px_rgba(0,0,0,0.1)]" style={{ top: '48px' }}>
                           Charge
                         </th>
                         {colonnes.map((col, idx) => {
@@ -873,7 +873,7 @@ export function BesoinsGrid({
                           return (
                             <th
                               key={idx}
-                              className={`border-b border-r border-gray-300 px-2 py-2.5 text-center text-sm font-bold sticky top-[48px] z-20 ${
+                              className={`border-b border-r border-gray-300 px-2 py-2.5 text-center text-sm font-bold sticky z-40 shadow-[0_2px_4px_rgba(0,0,0,0.1)] ${
                                 charge > 0 
                                   ? 'text-indigo-900 bg-indigo-50' 
                                   : 'text-gray-400 bg-indigo-100'
@@ -882,6 +882,7 @@ export function BesoinsGrid({
                                 col.isHoliday ? 'bg-rose-100' :
                                 ''
                               }`}
+                              style={{ top: '48px' }}
                             >
                               {charge > 0 ? charge : '-'}
                             </th>
@@ -896,7 +897,7 @@ export function BesoinsGrid({
                         
                         return (
                           <tr key={ressource.id} className={isEven ? 'bg-white' : 'bg-gray-50/50'}>
-                            <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-10 ${
+                            <td className={`border-b border-r border-gray-300 px-4 py-3 font-semibold text-sm text-gray-800 sticky left-0 z-30 shadow-[2px_0_4px_rgba(0,0,0,0.1)] ${
                               isEven ? 'bg-white' : 'bg-gray-50/50'
                             }`} style={{ backgroundColor: isEven ? 'white' : '#f9fafb' }}>
                               <div className="font-medium">{ressource.nom}</div>
