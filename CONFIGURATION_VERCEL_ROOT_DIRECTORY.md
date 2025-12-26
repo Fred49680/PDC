@@ -66,7 +66,17 @@ Après configuration, le prochain build devrait :
 - ✅ Installer `@supabase/ssr`, `clsx`, `date-fns`, `tailwind-merge`, etc.
 - ✅ Construire l'application sans erreurs de modules manquants
 
-## Note importante
+## Solution alternative : vercel.json avec commandes personnalisées
 
-Le fichier `vercel.json` a été supprimé car `rootDirectory` n'est pas une propriété valide dans ce fichier. La configuration doit se faire via le dashboard Vercel.
+Si vous préférez utiliser un fichier `vercel.json` au lieu du dashboard, vous pouvez utiliser des commandes de build personnalisées :
+
+```json
+{
+  "buildCommand": "cd plan-de-charge-web && npm install && npm run build",
+  "outputDirectory": "plan-de-charge-web/.next",
+  "installCommand": "cd plan-de-charge-web && npm install"
+}
+```
+
+**Note** : Cette approche fonctionne, mais la configuration via le dashboard (Root Directory) est recommandée car elle est plus simple et plus fiable.
 

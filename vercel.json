@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd plan-de-charge-web && npm install && npm run build",
+  "outputDirectory": "plan-de-charge-web/.next",
+  "installCommand": "cd plan-de-charge-web && npm install"
+}
+
