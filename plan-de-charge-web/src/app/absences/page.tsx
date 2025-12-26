@@ -20,6 +20,17 @@ export const dynamic = 'force-dynamic'
 export default function AbsencesPage() {
   const [ressourceId, setRessourceId] = useState('')
   const [site, setSite] = useState('')
+  const [showCloturees, setShowCloturees] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  
+  // Debounce pour la recherche
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
   
   // Mémoriser l'objet options pour éviter les re-renders infinis
   const absenceOptions = useMemo(() => ({
@@ -34,12 +45,10 @@ export default function AbsencesPage() {
 
   // Charger tous les types d'absences existants
   const [typesAbsences, setTypesAbsences] = useState<string[]>([])
-  const [loadingTypes, setLoadingTypes] = useState(false)
   
   useEffect(() => {
     const loadTypesAbsences = async () => {
       try {
-        setLoadingTypes(true)
         const { createClient } = await import('@/lib/supabase/client')
         const supabase = createClient()
         
@@ -50,23 +59,23 @@ export default function AbsencesPage() {
         
         if (error) throw error
         
-        // Extraire les types uniques
+        // Extraire les types uniques (normalisés en MAJUSCULE pour éviter les doublons)
         const typesSet = new Set<string>()
         ;(data || []).forEach((item) => {
           if (item.type && item.type.trim()) {
-            typesSet.add(item.type.trim())
+            typesSet.add(item.type.trim().toUpperCase())
           }
         })
         
-        // Types par défaut
+        // Types par défaut (en MAJUSCULE pour éviter les doublons)
         const defaultTypes = [
-          'Formation',
-          'Congés payés',
-          'Maladie',
-          'Paternité',
-          'Maternité',
-          'Parental',
-          'Autre'
+          'FORMATION',
+          'CONGES PAYES',
+          'MALADIE',
+          'PATERNITE',
+          'MATERNITE',
+          'CONGE PARENTAL',
+          'AUTRE'
         ]
         
         // Fusionner les types par défaut avec ceux de la base
@@ -76,18 +85,16 @@ export default function AbsencesPage() {
         setTypesAbsences(typesList)
       } catch (err) {
         console.error('[AbsencesPage] Erreur chargement types absences:', err)
-        // En cas d'erreur, utiliser les types par défaut
+        // En cas d'erreur, utiliser les types par défaut (en MAJUSCULE)
         setTypesAbsences([
-          'Formation',
-          'Congés payés',
-          'Maladie',
-          'Paternité',
-          'Maternité',
-          'Parental',
-          'Autre'
+          'FORMATION',
+          'CONGES PAYES',
+          'MALADIE',
+          'PATERNITE',
+          'MATERNITE',
+          'CONGE PARENTAL',
+          'AUTRE'
         ])
-      } finally {
-        setLoadingTypes(false)
       }
     }
     
@@ -104,7 +111,7 @@ export default function AbsencesPage() {
     site: '',
     date_debut: format(new Date(), 'yyyy-MM-dd'),
     date_fin: format(new Date(), 'yyyy-MM-dd'),
-    type: 'Congés payés',
+      type: 'CONGES PAYES',
     competence: '',
     commentaire: '',
     statut: 'Actif' as 'Actif' | 'Clôturé',
@@ -128,7 +135,7 @@ export default function AbsencesPage() {
       site: '',
       date_debut: format(new Date(), 'yyyy-MM-dd'),
       date_fin: format(new Date(), 'yyyy-MM-dd'),
-      type: 'Congés payés',
+      type: 'CONGES PAYES',
       competence: '',
       commentaire: '',
       statut: 'Actif',
@@ -176,20 +183,23 @@ export default function AbsencesPage() {
     }
     
     try {
+      // Normaliser en MAJUSCULE le type d'absence
+      const typeNormalise = (isCustomType ? customType.trim() : formData.type.trim()).toUpperCase()
+      
       // Préparer les données pour Supabase
       const absenceData: Partial<Absence> = {
         ressource_id: formData.ressource_id.trim(),
-        site: formData.site.trim(),
+        site: formData.site.trim().toUpperCase(),
         date_debut: formData.date_debut, // Format ISO déjà (YYYY-MM-DD)
         date_fin: formData.date_fin, // Format ISO déjà (YYYY-MM-DD)
-        type: formData.type.trim(),
-        competence: formData.competence && formData.competence.trim() !== '' ? formData.competence.trim() : null,
+        type: typeNormalise,
+        competence: formData.competence && formData.competence.trim() !== '' ? formData.competence.trim().toUpperCase() : null,
         commentaire: formData.commentaire && formData.commentaire.trim() !== '' ? formData.commentaire.trim() : null,
         validation_saisie: 'Non' as const,
         date_saisie: new Date().toISOString(),
         statut: formData.statut,
         // Type d'arrêt maladie : seulement si c'est un arrêt maladie
-        type_arret_maladie: (formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) 
+        type_arret_maladie: (typeNormalise.includes('MALADIE') || typeNormalise.includes('ARRÊT') || typeNormalise.includes('ARRET')) 
           && formData.type_arret_maladie !== '' 
           ? formData.type_arret_maladie as 'Initial' | 'Prolongation' 
           : null,
@@ -202,9 +212,9 @@ export default function AbsencesPage() {
 
       await saveAbsence(absenceData)
       
-      // Si c'est un nouveau type, l'ajouter à la liste des types disponibles
-      if (isCustomType && customType.trim() && !typesAbsences.includes(customType.trim())) {
-        setTypesAbsences(prev => [...prev, customType.trim()].sort())
+      // Si c'est un nouveau type, l'ajouter à la liste des types disponibles (en MAJUSCULE)
+      if (isCustomType && customType.trim() && !typesAbsences.includes(customType.trim().toUpperCase())) {
+        setTypesAbsences(prev => [...prev, customType.trim().toUpperCase()].sort())
       }
       
       // Fermer le modal et réinitialiser
@@ -212,14 +222,14 @@ export default function AbsencesPage() {
       setIsEditing(false)
       resetForm()
       await refresh()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AbsencesPage] Erreur complète:', err)
       // Afficher un message d'erreur plus détaillé
       let errorMessage = 'Erreur lors de la sauvegarde'
-      if (err?.message) {
-        errorMessage = err.message
-      } else if (err?.error?.message) {
-        errorMessage = err.error.message
+      if (err && typeof err === 'object' && 'message' in err) {
+        errorMessage = String(err.message)
+      } else if (err && typeof err === 'object' && 'error' in err && err.error && typeof err.error === 'object' && 'message' in err.error) {
+        errorMessage = String(err.error.message)
       } else if (typeof err === 'string') {
         errorMessage = err
       }
@@ -267,6 +277,40 @@ export default function AbsencesPage() {
       }
     }
   }
+
+  // Filtrer les absences selon le toggle et la recherche
+  const filteredAbsences = useMemo(() => {
+    let filtered = absences
+
+    // Filtre par statut (clôturées ou non)
+    if (!showCloturees) {
+      filtered = filtered.filter(a => a.statut !== 'Clôturé')
+    }
+
+    // Filtre par recherche
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.trim().toUpperCase()
+      filtered = filtered.filter(absence => {
+        // Trouver le nom de la ressource
+        const ressource = ressources.find(r => r.id === absence.ressource_id)
+        const ressourceNom = ressource ? ressource.nom.toUpperCase() : absence.ressource_id.toUpperCase()
+        
+        return (
+          ressourceNom.includes(query) ||
+          absence.site.toUpperCase().includes(query) ||
+          absence.type.toUpperCase().includes(query) ||
+          (absence.competence && absence.competence.toUpperCase().includes(query)) ||
+          (absence.commentaire && absence.commentaire.toUpperCase().includes(query)) ||
+          format(new Date(absence.date_debut), 'dd/MM/yyyy', { locale: fr }).includes(query) ||
+          format(new Date(absence.date_fin), 'dd/MM/yyyy', { locale: fr }).includes(query) ||
+          (absence.statut && absence.statut.toUpperCase().includes(query)) ||
+          (absence.type_arret_maladie && absence.type_arret_maladie.toUpperCase().includes(query))
+        )
+      })
+    }
+
+    return filtered
+  }, [absences, showCloturees, debouncedSearchQuery, ressources])
 
   return (
     <Layout>
@@ -316,7 +360,30 @@ export default function AbsencesPage() {
         {/* Liste des absences */}
         <Card>
           <CardHeader gradient="purple" icon={<Calendar className="w-6 h-6 text-purple-600" />}>
-            <h2 className="text-2xl font-bold text-gray-800">Liste des absences</h2>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <h2 className="text-2xl font-bold text-gray-800">Liste des absences</h2>
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* Barre de recherche */}
+                <div className="flex-1 min-w-[200px] max-w-md">
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher (ressource, type, site, dates...)"
+                    icon={<Search className="w-4 h-4" />}
+                  />
+                </div>
+                {/* Toggle pour afficher les absences clôturées */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showCloturees}
+                    onChange={(e) => setShowCloturees(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Afficher les absences clôturées</span>
+                </label>
+              </div>
+            </div>
           </CardHeader>
 
           {loading ? (
@@ -329,9 +396,10 @@ export default function AbsencesPage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border-2 border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gradient-to-r from-purple-50 to-indigo-50">
+            <div className="rounded-xl border-2 border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gradient-to-r from-purple-50 to-indigo-50 sticky top-0 z-10">
                   <tr>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ressource</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Site</th>
@@ -340,26 +408,29 @@ export default function AbsencesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Statut</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Type arrêt</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Compétence</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Commentaire</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {absences.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <Calendar className="w-12 h-12 text-gray-300" />
-                          <p className="text-gray-500 font-medium">Aucune absence trouvée</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    absences.map((absence) => {
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredAbsences.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center gap-3">
+                            <Calendar className="w-12 h-12 text-gray-300" />
+                            <p className="text-gray-500 font-medium">
+                              {absences.length === 0 
+                                ? "Aucune absence trouvée" 
+                                : "Aucune absence ne correspond à votre recherche"}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAbsences.map((absence) => {
                       // Trouver le nom de la ressource
                       const ressource = ressources.find(r => r.id === absence.ressource_id)
                       const ressourceNom = ressource ? ressource.nom : absence.ressource_id
-                      const isArretMaladie = absence.type.toLowerCase().includes('maladie') || absence.type.toLowerCase().includes('arrêt')
+                      const isArretMaladie = absence.type.toUpperCase().includes('MALADIE') || absence.type.toUpperCase().includes('ARRÊT') || absence.type.toUpperCase().includes('ARRET')
                       
                       return (
                         <tr 
@@ -396,14 +467,14 @@ export default function AbsencesPage() {
                               </span>
                             ) : '-'}
                           </td>
-                          <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden lg:table-cell">{absence.competence || '-'}</td>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-xs truncate hidden md:table-cell">{absence.commentaire || '-'}</td>
                         </tr>
                       )
                     })
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </Card>
@@ -461,10 +532,11 @@ export default function AbsencesPage() {
                         } else {
                           setIsCustomType(false)
                           setCustomType('')
-                          const isArretMaladie = selectedValue.toLowerCase().includes('maladie') || selectedValue.toLowerCase().includes('arrêt')
+                          const selectedValueUpper = selectedValue.toUpperCase()
+                          const isArretMaladie = selectedValueUpper.includes('MALADIE') || selectedValueUpper.includes('ARRÊT') || selectedValueUpper.includes('ARRET')
                           setFormData({ 
                             ...formData, 
-                            type: selectedValue,
+                            type: selectedValueUpper,
                             // Réinitialiser type_arret_maladie si ce n'est plus un arrêt maladie
                             type_arret_maladie: isArretMaladie ? formData.type_arret_maladie : ''
                           })
@@ -481,9 +553,9 @@ export default function AbsencesPage() {
                         type="text"
                         value={customType}
                         onChange={(e) => {
-                          const newType = e.target.value
+                          const newType = e.target.value.toUpperCase()
                           setCustomType(newType)
-                          const isArretMaladie = newType.toLowerCase().includes('maladie') || newType.toLowerCase().includes('arrêt')
+                          const isArretMaladie = newType.includes('MALADIE') || newType.includes('ARRÊT') || newType.includes('ARRET')
                           setFormData({ 
                             ...formData, 
                             type: newType,
@@ -537,7 +609,7 @@ export default function AbsencesPage() {
                 </div>
 
                 {/* Quatrième ligne : Statut et Type arrêt maladie (si maladie) */}
-                {(formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) && (
+                {(formData.type.toUpperCase().includes('MALADIE') || formData.type.toUpperCase().includes('ARRÊT') || formData.type.toUpperCase().includes('ARRET')) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
                       label="Type d'arrêt maladie"
@@ -562,7 +634,7 @@ export default function AbsencesPage() {
                 )}
 
                 {/* Statut (si ce n'est pas un arrêt maladie) */}
-                {!(formData.type.toLowerCase().includes('maladie') || formData.type.toLowerCase().includes('arrêt')) && (
+                {!(formData.type.toUpperCase().includes('MALADIE') || formData.type.toUpperCase().includes('ARRÊT') || formData.type.toUpperCase().includes('ARRET')) && (
                   <Select
                     label="Statut"
                     value={formData.statut}
