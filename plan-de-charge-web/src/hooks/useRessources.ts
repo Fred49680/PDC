@@ -328,10 +328,10 @@ export function useRessources(options: UseRessourcesOptions = {}) {
           table: 'ressources',
           filter: filter || undefined,
         },
-        (payload) => {
-          console.log('[useRessources] Changement Realtime:', payload.eventType)
+        () => {
+          console.log('[useRessources] Changement Realtime détecté - rechargement...')
           
-          // Recharger les ressources et compétences
+          // Recharger les ressources et compétences (loadRessources est stable grâce à useCallback)
           loadRessources()
         }
       )
@@ -349,7 +349,8 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         channelRef.current = null
       }
     }
-  }, [enableRealtime, options.ressourceId, options.site, options.actif, options.type_contrat, getSupabaseClient, loadRessources])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableRealtime, options.ressourceId, options.site, options.actif, options.type_contrat, getSupabaseClient])
 
   // Abonnement Realtime pour les compétences
   useEffect(() => {
@@ -367,10 +368,10 @@ export function useRessources(options: UseRessourcesOptions = {}) {
           schema: 'public',
           table: 'ressources_competences',
         },
-        (payload) => {
-          console.log('[useRessources] Changement Realtime compétences:', payload.eventType)
+        () => {
+          console.log('[useRessources] Changement Realtime compétences détecté - rechargement...')
           
-          // Recharger les ressources et compétences
+          // Recharger les ressources et compétences (loadRessources est stable grâce à useCallback)
           loadRessources()
         }
       )
@@ -388,7 +389,8 @@ export function useRessources(options: UseRessourcesOptions = {}) {
         competencesChannelRef.current = null
       }
     }
-  }, [enableRealtime, getSupabaseClient, loadRessources])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableRealtime, getSupabaseClient])
 
   useEffect(() => {
     loadRessources()
