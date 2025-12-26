@@ -1,0 +1,910 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { normalizeDateToUTC, isBusinessDay } from '@/utils/calendar'
+import { addDays, isSameDay } from 'date-fns'
+import type { PeriodeCharge } from '@/types/charge'
+import type { RealtimeChannel } from '@supabase/supabase-js'
+
+// Variable pour activer/désactiver les logs de debug
+const DEBUG_CHARGE = process.env.NODE_ENV === 'development' && true // Mettre à true pour activer les logs détaillés
+
+// Helper pour les logs de debug
+const debugLog = (...args: unknown[]) => {
+  if (DEBUG_CHARGE) console.log(...args)
+}
+const debugError = (...args: unknown[]) => {
+  if (DEBUG_CHARGE) console.error(...args)
+}
+
+// Type pour les données brutes retournées par Supabase
+interface PeriodeChargeRaw {
+  id: string
+  affaire_id: string
+  site: string
+  competence: string
+  date_debut: string
+  date_fin: string
+  nb_ressources: number
+  force_weekend_ferie?: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string
+  updated_by?: string
+}
+
+interface UseChargeOptions {
+  affaireId: string
+  site: string
+  autoRefresh?: boolean // Option pour désactiver le refresh automatique
+  enableRealtime?: boolean // Option pour activer/désactiver Realtime
+}
+
+export function useCharge({ affaireId, site, autoRefresh = true, enableRealtime = true }: UseChargeOptions) {
+  const [periodes, setPeriodes] = useState<PeriodeCharge[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
+  // Créer le client de manière lazy (seulement côté client)
+  const getSupabaseClient = useCallback(() => {
+    if (typeof window === 'undefined') {
+      throw new Error('Supabase client can only be created on the client side')
+    }
+    return createClient()
+  }, [])
+
+  const loadPeriodes = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire depuis affaire_id
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) {
+        console.error('[useCharge] Erreur recherche affaire:', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+      }
+
+      const { data, error: queryError } = await supabase
+        .from('periodes_charge')
+        .select('*')
+        .eq('affaire_id', affaireData.id)
+        .eq('site', siteNormalized)
+        .order('date_debut', { ascending: true })
+
+      if (queryError) throw queryError
+
+      // Convertir les dates de string ISO en Date
+      const periodesAvecDates = (data || []).map((p: PeriodeChargeRaw) => ({
+        ...p,
+        date_debut: p.date_debut ? new Date(p.date_debut) : new Date(),
+        date_fin: p.date_fin ? new Date(p.date_fin) : new Date(),
+        force_weekend_ferie: p.force_weekend_ferie === true, // Convertir en boolean explicite
+        created_at: p.created_at ? new Date(p.created_at) : new Date(),
+        updated_at: p.updated_at ? new Date(p.updated_at) : new Date(),
+      })) as PeriodeCharge[]
+
+      setPeriodes(periodesAvecDates)
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [affaireId, site, getSupabaseClient])
+
+  // Abonnement Realtime pour les périodes de charge
+  useEffect(() => {
+    if (!enableRealtime || !affaireId || !site) return
+
+    const supabase = getSupabaseClient()
+    
+      // Récupérer l'ID de l'affaire pour le filtre Realtime
+      let affaireDbId: string | null = null
+      
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      
+      const setupRealtime = async () => {
+        try {
+          const { data: affaireData } = await supabase
+            .from('affaires')
+            .select('id')
+            .eq('affaire_id', affaireId)
+            .eq('site', siteNormalized)
+            .single()
+        
+        if (!affaireData) return
+        
+        affaireDbId = affaireData.id
+        const channelName = `periodes-charge-${affaireDbId}-${Date.now()}`
+        
+        const channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'periodes_charge',
+              filter: `affaire_id=eq.${affaireDbId}`,
+            },
+            (payload) => {
+              debugLog('[useCharge] Changement Realtime:', payload.eventType)
+              
+              // Mise à jour optimiste
+              if (payload.eventType === 'INSERT' && payload.new) {
+                const newPeriode = payload.new as PeriodeChargeRaw
+                setPeriodes((prev) => {
+                  const exists = prev.some((p) => p.id === newPeriode.id)
+                  if (exists) return prev
+                  const transformed: PeriodeCharge = {
+                    ...newPeriode,
+                    date_debut: new Date(newPeriode.date_debut),
+                    date_fin: new Date(newPeriode.date_fin),
+                    force_weekend_ferie: newPeriode.force_weekend_ferie === true,
+                    created_at: new Date(newPeriode.created_at),
+                    updated_at: new Date(newPeriode.updated_at),
+                  }
+                  return [...prev, transformed].sort((a, b) => 
+                    new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
+                  )
+                })
+              } else if (payload.eventType === 'UPDATE' && payload.new) {
+                const updatedPeriode = payload.new as PeriodeChargeRaw
+                setPeriodes((prev) =>
+                  prev.map((p) =>
+                    p.id === updatedPeriode.id
+                      ? {
+                          id: updatedPeriode.id,
+                          affaire_id: updatedPeriode.affaire_id,
+                          site: updatedPeriode.site,
+                          competence: updatedPeriode.competence,
+                          date_debut: new Date(updatedPeriode.date_debut),
+                          date_fin: new Date(updatedPeriode.date_fin),
+                          nb_ressources: updatedPeriode.nb_ressources,
+                          force_weekend_ferie: updatedPeriode.force_weekend_ferie === true,
+                          created_at: new Date(updatedPeriode.created_at),
+                          updated_at: new Date(updatedPeriode.updated_at),
+                          created_by: updatedPeriode.created_by,
+                          updated_by: updatedPeriode.updated_by,
+                        }
+                      : p
+                  )
+                )
+              } else if (payload.eventType === 'DELETE' && payload.old) {
+                const deletedPeriode = payload.old as PeriodeChargeRaw
+                setPeriodes((prev) => prev.filter((p) => p.id !== deletedPeriode.id))
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              debugLog('[useCharge] Abonnement Realtime activé')
+            }
+          })
+
+        channelRef.current = channel
+      } catch (err) {
+        console.error('[useCharge] Erreur setup Realtime:', err)
+      }
+    }
+
+    setupRealtime()
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [enableRealtime, affaireId, site, getSupabaseClient])
+
+  useEffect(() => {
+    if (affaireId && site) {
+      loadPeriodes()
+    }
+  }, [affaireId, site, loadPeriodes])
+
+  const savePeriode = useCallback(async (periode: Partial<PeriodeCharge>) => {
+    debugLog('[useCharge] ========== DEBUT savePeriode ==========')
+    debugLog('[useCharge] Étape 1 - Données d\'entrée brutes:', JSON.stringify(periode, null, 2))
+    
+    try {
+      setError(null)
+
+      const supabase = getSupabaseClient()
+      debugLog('[useCharge] Étape 2 - Client Supabase créé')
+
+      // Récupérer l'ID de l'affaire
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      debugLog('[useCharge] Étape 3 - Recherche de l\'affaire:', { affaireId, site, siteNormalized })
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) {
+        debugError('[useCharge] Étape 3 - ERREUR recherche affaire:', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
+        console.error('[useCharge] Étape 3 - Affaire introuvable')
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+      }
+      
+      debugLog('[useCharge] Étape 3 - Affaire trouvée, ID:', affaireData.id)
+
+      // *** NORMALISER LES DATES À MINUIT UTC pour éviter les problèmes de timezone ***
+      // Créer un objet propre en évitant le spread qui peut propager des valeurs invalides
+      // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      const periodeData: {
+        id?: string
+        affaire_id: string
+        site: string
+        competence: string
+        date_debut: Date | string
+        date_fin: Date | string
+        nb_ressources: number
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      } = {
+        affaire_id: affaireData.id,
+        site: siteNormalized,
+        competence: periode.competence || '',
+        // Normaliser date_debut et date_fin si elles sont des objets Date
+        date_debut: (periode.date_debut instanceof Date 
+          ? normalizeDateToUTC(periode.date_debut)
+          : periode.date_debut) || new Date(),
+        date_fin: (periode.date_fin instanceof Date
+          ? normalizeDateToUTC(periode.date_fin)
+          : periode.date_fin) || new Date(),
+        nb_ressources: periode.nb_ressources || 0,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      }
+      
+      // Ajouter l'ID seulement s'il existe
+      if (periode.id) {
+        periodeData.id = periode.id
+      }
+      
+      debugLog('[useCharge] Étape 4 - Données après normalisation initiale:', JSON.stringify(periodeData, null, 2))
+      debugLog('[useCharge] Étape 4 - Types:', {
+        affaire_id: typeof periodeData.affaire_id,
+        site: typeof periodeData.site,
+        competence: typeof periodeData.competence,
+        date_debut: typeof periodeData.date_debut,
+        date_fin: typeof periodeData.date_fin,
+        nb_ressources: typeof periodeData.nb_ressources,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      })
+
+      // Essayer d'abord un upsert
+      let data: PeriodeChargeRaw
+      
+      // S'assurer que les dates sont des strings ISO valides
+      const formatDateForDB = (date: Date | string | undefined): string => {
+        if (!date) return new Date().toISOString().split('T')[0]
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0]
+        }
+        if (typeof date === 'string') {
+          return date.split('T')[0]
+        }
+        return new Date().toISOString().split('T')[0]
+      }
+      
+      // S'assurer que force_weekend_ferie est toujours un booléen valide
+      const normalizeBoolean = (value: unknown): boolean => {
+        debugLog('[useCharge] normalizeBoolean - Input:', { value, type: typeof value })
+        if (value === true || value === 'true' || value === 1 || value === '1') {
+          debugLog('[useCharge] normalizeBoolean - Retourne: true')
+          return true
+        }
+        if (value === false || value === 'false' || value === 0 || value === '0') {
+          debugLog('[useCharge] normalizeBoolean - Retourne: false')
+          return false
+        }
+        // Si undefined, null, ou chaîne vide, retourner false par défaut
+        debugLog('[useCharge] normalizeBoolean - Valeur invalide, retourne: false (défaut)')
+        return false
+      }
+      
+      // Créer un objet propre avec uniquement les champs nécessaires et correctement formatés
+      // Cela évite de propager des valeurs invalides via le spread
+      // Le site est déjà normalisé dans periodeData.site
+      // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      const periodeDataClean: {
+        id?: string
+        affaire_id: string
+        site: string
+        competence: string
+        date_debut: string
+        date_fin: string
+        nb_ressources: number
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      } = {
+        affaire_id: periodeData.affaire_id,
+        site: periodeData.site, // Déjà normalisé en majuscules
+        competence: periodeData.competence,
+        date_debut: formatDateForDB(periodeData.date_debut),
+        date_fin: formatDateForDB(periodeData.date_fin),
+        nb_ressources: periodeData.nb_ressources || 0,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      }
+      
+      // Ajouter l'ID seulement s'il existe (pour UPDATE)
+      if (periodeData.id) {
+        periodeDataClean.id = periodeData.id
+      }
+      
+      debugLog('[useCharge] Étape 5 - Données nettoyées (periodeDataClean):', JSON.stringify(periodeDataClean, null, 2))
+      debugLog('[useCharge] Étape 5 - Types après nettoyage:', {
+        affaire_id: typeof periodeDataClean.affaire_id,
+        site: typeof periodeDataClean.site,
+        competence: typeof periodeDataClean.competence,
+        date_debut: typeof periodeDataClean.date_debut,
+        date_fin: typeof periodeDataClean.date_fin,
+        nb_ressources: typeof periodeDataClean.nb_ressources,
+        // force_weekend_ferie n'est plus inclus car calculé automatiquement par le trigger
+      })
+      
+      debugLog('[useCharge] Étape 8 - Recherche période existante avec clés:', {
+        affaire_id: periodeDataClean.affaire_id,
+        site: periodeDataClean.site,
+        competence: periodeDataClean.competence,
+        date_debut: periodeDataClean.date_debut,
+        date_fin: periodeDataClean.date_fin,
+      })
+      
+      // APPROCHE ALTERNATIVE : Vérifier d'abord si l'enregistrement existe, puis INSERT ou UPDATE
+      // Cela évite le problème de l'upsert qui essaie de mettre à jour tous les champs
+      // Le site est déjà normalisé dans periodeDataClean.site
+      
+      // Vérifier que toutes les valeurs requises sont présentes et valides
+      if (!periodeDataClean.affaire_id || !periodeDataClean.site || !periodeDataClean.competence || 
+          !periodeDataClean.date_debut || !periodeDataClean.date_fin) {
+        const missingFields = []
+        if (!periodeDataClean.affaire_id) missingFields.push('affaire_id')
+        if (!periodeDataClean.site) missingFields.push('site')
+        if (!periodeDataClean.competence) missingFields.push('competence')
+        if (!periodeDataClean.date_debut) missingFields.push('date_debut')
+        if (!periodeDataClean.date_fin) missingFields.push('date_fin')
+        throw new Error(`Champs manquants pour la recherche de période: ${missingFields.join(', ')}`)
+      }
+      
+      const { data: existingData, error: findError } = await supabase
+        .from('periodes_charge')
+        .select('id')
+        .eq('affaire_id', periodeDataClean.affaire_id)
+        .eq('site', periodeDataClean.site)
+        .eq('competence', periodeDataClean.competence)
+        .eq('date_debut', periodeDataClean.date_debut)
+        .eq('date_fin', periodeDataClean.date_fin)
+        .maybeSingle()
+      
+      if (findError) {
+        // Log complet de l'erreur pour diagnostic
+        console.error('[useCharge] Étape 8 - ERREUR lors de la recherche:', {
+          error: findError,
+          code: findError.code,
+          message: findError.message,
+          details: findError.details,
+          hint: findError.hint,
+            status: (findError as { status?: number }).status,
+          queryParams: {
+            affaire_id: periodeDataClean.affaire_id,
+            site: periodeDataClean.site,
+            competence: periodeDataClean.competence,
+            date_debut: periodeDataClean.date_debut,
+            date_fin: periodeDataClean.date_fin,
+          },
+        })
+        
+        // Si c'est une erreur "not found" (PGRST116), c'est normal, continuer
+        if (findError.code === 'PGRST116') {
+          // C'est normal, pas d'enregistrement trouvé
+        } else {
+          // Autre erreur, la lancer
+          throw findError
+        }
+      }
+      
+      debugLog('[useCharge] Étape 8 - Résultat recherche:', existingData ? `Période existante trouvée (ID: ${existingData.id})` : 'Aucune période existante')
+      
+      if (existingData) {
+        // Enregistrement existant : UPDATE avec seulement les champs modifiables
+        // IMPORTANT : Ne pas inclure force_weekend_ferie dans l'UPDATE sauf si on veut vraiment le modifier
+        // Cela évite que le trigger de consolidation reçoive une chaîne vide
+        // Le trigger utilisera la valeur existante dans la base de données
+        
+        // Utiliser la fonction RPC update_periode_charge pour éviter les problèmes avec force_weekend_ferie
+        // Cette fonction gère automatiquement le calcul de force_weekend_ferie via le trigger
+        const rpcUpdateParams = {
+          p_id: existingData.id,
+          p_nb_ressources: periodeDataClean.nb_ressources,
+        }
+        
+        console.log('[useCharge] Étape 9 - UPDATE via RPC - Paramètres:', JSON.stringify(rpcUpdateParams, null, 2))
+        console.log('[useCharge] Étape 9 - nb_ressources:', periodeDataClean.nb_ressources, '(0 = suppression automatique)')
+        debugLog('[useCharge] Étape 9 - UPDATE via RPC - Données à envoyer:', JSON.stringify(rpcUpdateParams, null, 2))
+        
+        const { data: updateDataResult, error: updateError } = await supabase.rpc('update_periode_charge', rpcUpdateParams)
+        
+        if (updateError) {
+          console.error('[useCharge] Étape 9 - ERREUR update RPC:', JSON.stringify(updateError, null, 2))
+          console.error('[useCharge] Étape 9 - Détails erreur:', {
+            code: updateError.code,
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+            status: (updateError as { status?: number }).status,
+          })
+          throw updateError
+        }
+        
+        debugLog('[useCharge] Étape 9 - UPDATE RPC réussi, données retournées:', JSON.stringify(updateDataResult, null, 2))
+        
+        // La fonction RPC retourne un tableau, prendre le premier élément
+        if (updateDataResult && Array.isArray(updateDataResult) && updateDataResult.length > 0) {
+          data = updateDataResult[0] as PeriodeChargeRaw
+        } else {
+          // Si aucune donnée n'est retournée, recharger depuis la base
+          const { data: reloadedData, error: reloadError } = await supabase
+            .from('periodes_charge')
+            .select('*')
+            .eq('id', existingData.id)
+            .maybeSingle()
+          if (reloadError) throw reloadError
+          data = reloadedData || existingData as PeriodeChargeRaw
+        }
+      } else {
+        // Nouvel enregistrement : INSERT
+        // Le site est déjà normalisé dans periodeDataClean.site
+        // NOTE: force_weekend_ferie n'est plus envoyé car il est calculé automatiquement par le trigger
+        // Le trigger calculate_jours_ouvres_periode calcule force_weekend_ferie en fonction de si les dates sont des jours ouvrés
+        
+        const rpcParams = {
+          p_affaire_id: periodeDataClean.affaire_id,
+          p_site: periodeDataClean.site,
+          p_competence: periodeDataClean.competence,
+          p_date_debut: periodeDataClean.date_debut,
+          p_date_fin: periodeDataClean.date_fin,
+          p_nb_ressources: periodeDataClean.nb_ressources,
+          // p_force_weekend_ferie n'est plus nécessaire, le trigger le calcule automatiquement
+        }
+        
+        console.log('[useCharge] Étape 10 - Paramètres RPC (force_weekend_ferie calculé automatiquement par trigger):', JSON.stringify(rpcParams, null, 2))
+        debugLog('[useCharge] Étape 10 - INSERT via RPC - Données à envoyer:', JSON.stringify(rpcParams, null, 2))
+        
+        const { data: insertDataResult, error: insertError } = await supabase.rpc('insert_periode_charge_v2', rpcParams)
+        
+        if (insertError) {
+          console.error('[useCharge] Étape 10 - ERREUR insert:', JSON.stringify(insertError, null, 2))
+          console.error('[useCharge] Étape 10 - Détails erreur:', {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            status: (insertError as { status?: number }).status,
+          })
+          console.error('[useCharge] Étape 10 - Données qui ont causé l\'erreur:', JSON.stringify(rpcParams, null, 2))
+          throw insertError
+        }
+        
+        // La fonction RPC retourne un tableau, prendre le premier élément
+        const periodeResult = Array.isArray(insertDataResult) && insertDataResult.length > 0 ? insertDataResult[0] : insertDataResult
+        debugLog('[useCharge] Étape 10 - INSERT réussi via RPC, données retournées:', JSON.stringify(periodeResult, null, 2))
+        if (!periodeResult) {
+          throw new Error('La fonction RPC n\'a pas retourné de résultat')
+        }
+        data = periodeResult
+      }
+      
+      debugLog('[useCharge] Étape 11 - Transformation des données retournées')
+      
+      // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
+      // Cela évite que le rechargement écrase les valeurs en cours de saisie
+      const periodeAvecDates = {
+        ...data,
+        date_debut: data.date_debut ? new Date(data.date_debut) : new Date(),
+        date_fin: data.date_fin ? new Date(data.date_fin) : new Date(),
+        force_weekend_ferie: data.force_weekend_ferie === true, // Convertir en boolean explicite
+        created_at: data.created_at ? new Date(data.created_at) : new Date(),
+        updated_at: data.updated_at ? new Date(data.updated_at) : new Date(),
+      } as PeriodeCharge
+
+      debugLog('[useCharge] Étape 12 - Mise à jour optimiste de l\'état local')
+      // Mettre à jour optimistement periodes (remplacer ou ajouter la période)
+      setPeriodes((prev) => {
+        const newPeriodes = [...prev]
+        const index = newPeriodes.findIndex(
+          (p) => p.id === periodeAvecDates.id || 
+          (p.affaire_id === periodeAvecDates.affaire_id &&
+           p.site === periodeAvecDates.site &&
+           p.competence === periodeAvecDates.competence &&
+           new Date(p.date_debut).getTime() === periodeAvecDates.date_debut.getTime() &&
+           new Date(p.date_fin).getTime() === periodeAvecDates.date_fin.getTime())
+        )
+        
+        if (index >= 0) {
+          newPeriodes[index] = periodeAvecDates
+        } else {
+          newPeriodes.push(periodeAvecDates)
+        }
+        
+        return newPeriodes
+      })
+
+      // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
+        debugLog('[useCharge] Étape 13 - Rechargement des périodes (autoRefresh activé, Realtime désactivé)')
+        await loadPeriodes()
+      } else {
+        debugLog('[useCharge] Étape 13 - Pas de rechargement (autoRefresh:', autoRefresh, ', Realtime:', enableRealtime, ')')
+      }
+
+      debugLog('[useCharge] ========== FIN savePeriode - SUCCÈS ==========')
+      return periodeAvecDates
+    } catch (err) {
+      console.error('[useCharge] ========== FIN savePeriode - ERREUR ==========') // Toujours afficher les erreurs
+      console.error('[useCharge] Erreur complète:', err)
+      console.error('[useCharge] Stack trace:', (err as Error)?.stack)
+      setError(err as Error)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, enableRealtime, getSupabaseClient])
+
+  const deletePeriode = useCallback(async (periodeId: string) => {
+    try {
+      setError(null)
+
+      const supabase = getSupabaseClient()
+
+      const { error: deleteError } = await supabase
+        .from('periodes_charge')
+        .delete()
+        .eq('id', periodeId)
+
+      if (deleteError) throw deleteError
+
+      // *** OPTIMISATION : Mise à jour optimiste au lieu de recharger immédiatement ***
+      // Supprimer la période de l'état local immédiatement
+      setPeriodes((prev) => prev.filter((p) => p.id !== periodeId))
+
+      // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
+      // Si Realtime est activé, les mises à jour sont gérées automatiquement par les événements postgres_changes
+      if (autoRefresh && !enableRealtime) {
+        await loadPeriodes()
+      }
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur deletePeriode:', err)
+      throw err
+    }
+  }, [loadPeriodes, autoRefresh, enableRealtime, getSupabaseClient])
+
+  // Fonction pour sauvegarder plusieurs périodes en lot (batch)
+  // Cette fonction désactive les triggers, insère toutes les périodes, puis réactive les triggers et consolide
+  // Fonction pour consolider les périodes : regrouper les jours consécutifs avec la même charge
+  const consoliderPeriodes = (periodes: Array<{
+    competence: string
+    date_debut: string
+    date_fin: string
+    nb_ressources: number
+    force_weekend_ferie?: boolean // Optionnel car calculé automatiquement par le trigger
+  }>): Array<{
+    competence: string
+    date_debut: string
+    date_fin: string
+    nb_ressources: number
+    force_weekend_ferie?: boolean
+  }> => {
+    if (periodes.length === 0) return []
+
+    // Trier par compétence, puis par date de début
+    const sorted = [...periodes].sort((a, b) => {
+      if (a.competence !== b.competence) {
+        return a.competence.localeCompare(b.competence)
+      }
+      return a.date_debut.localeCompare(b.date_debut)
+    })
+
+    const result: typeof periodes = []
+    let current = { ...sorted[0] }
+
+    for (let i = 1; i < sorted.length; i++) {
+      const next = sorted[i]
+      const currentDateFin = new Date(current.date_fin)
+      const nextDateDebut = new Date(next.date_debut)
+      
+      // Vérifier si on peut fusionner : même compétence, même charge, dates consécutives
+      // force_weekend_ferie est optionnel car calculé automatiquement par le trigger
+      const canMerge = 
+        current.competence === next.competence &&
+        current.nb_ressources === next.nb_ressources &&
+        (current.force_weekend_ferie ?? false) === (next.force_weekend_ferie ?? false) &&
+        (isSameDay(addDays(currentDateFin, 1), nextDateDebut) || 
+         currentDateFin >= nextDateDebut)
+
+      if (canMerge) {
+        // Fusionner : étendre la date de fin
+        if (nextDateDebut > currentDateFin) {
+          current.date_fin = next.date_fin
+        } else {
+          // Les périodes se chevauchent, prendre la date de fin la plus récente
+          current.date_fin = current.date_fin > next.date_fin ? current.date_fin : next.date_fin
+        }
+      } else {
+        // Nouvelle période : sauvegarder l'ancienne et commencer une nouvelle
+        result.push(current)
+        current = { ...next }
+      }
+    }
+
+    // Ajouter la dernière période
+    result.push(current)
+
+    return result
+  }
+
+  const savePeriodesBatch = useCallback(async (periodes: Partial<PeriodeCharge>[]) => {
+    try {
+      debugLog('[useCharge] ========== DEBUT savePeriodesBatch ==========')
+      debugLog('[useCharge] Nombre de périodes à sauvegarder:', periodes.length)
+      
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      // Normaliser le site en majuscules pour correspondre à la base de données
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) {
+        console.error('[useCharge] Erreur recherche affaire (savePeriodesBatch):', affaireError)
+        throw new Error(`Erreur lors de la recherche de l'affaire ${affaireId} / ${siteNormalized}: ${affaireError.message}`)
+      }
+      
+      if (!affaireData) {
+        throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+      }
+
+      // Normaliser les dates et les booléens pour chaque période
+      const formatDateForDB = (date: Date | string | undefined): string => {
+        if (!date) return new Date().toISOString().split('T')[0]
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0]
+        }
+        if (typeof date === 'string') {
+          return date.split('T')[0]
+        }
+        return new Date().toISOString().split('T')[0]
+      }
+
+      // NOTE: normalizeBoolean n'est plus nécessaire car force_weekend_ferie est calculé automatiquement par le trigger
+
+      // Préparer les données pour le batch insert
+      // NOTE: force_weekend_ferie n'est plus inclus car il est calculé automatiquement par le trigger
+      const periodesData = periodes.map((periode) => ({
+        competence: periode.competence || '',
+        date_debut: formatDateForDB(periode.date_debut),
+        date_fin: formatDateForDB(periode.date_fin),
+        nb_ressources: periode.nb_ressources || 0,
+        // force_weekend_ferie sera calculé automatiquement par le trigger calculate_jours_ouvres_periode
+      }))
+
+      // Consolider les périodes : regrouper les jours consécutifs avec la même charge
+      const periodesConsolidees = consoliderPeriodes(periodesData)
+      debugLog(`[useCharge] Consolidation: ${periodesData.length} période(s) -> ${periodesConsolidees.length} période(s) consolidée(s)`)
+      debugLog('[useCharge] Données préparées pour batch insert:', JSON.stringify(periodesConsolidees.slice(0, 3), null, 2), '... (affiche les 3 premières)')
+
+      // Diviser les insertions en lots plus petits pour éviter les timeouts
+      // Réduit à 20 car même avec les triggers désactivés, de très grandes périodes peuvent causer des timeouts
+      const BATCH_SIZE = 20
+      const batches: typeof periodesConsolidees[] = []
+      for (let i = 0; i < periodesConsolidees.length; i += BATCH_SIZE) {
+        batches.push(periodesConsolidees.slice(i, i + BATCH_SIZE))
+      }
+
+      debugLog(`[useCharge] Insertion en ${batches.length} lot(s) de ${BATCH_SIZE} période(s) maximum`)
+
+      // Traiter chaque lot séquentiellement pour éviter la surcharge
+      const allResults = []
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i]
+        debugLog(`[useCharge] Traitement du lot ${i + 1}/${batches.length} (${batch.length} période(s))`)
+        
+        try {
+      // Appeler la fonction RPC batch_insert_periodes_charge
+      // Le site sera normalisé en majuscules dans la fonction RPC
+          // La fonction SQL attend p_affaire_id comme texte (numéro de compte) et récupère elle-même l'UUID
+          // Filtrer les périodes avec nb_ressources < 0 (nb_ressources = 0 déclenchera la suppression automatique via le trigger)
+          const batchFiltre = batch.filter(p => (p.nb_ressources || 0) >= 0)
+          
+          if (batchFiltre.length === 0) {
+            debugLog(`[useCharge] Lot ${i + 1}/${batches.length} ignoré (toutes les périodes ont nb_ressources <= 0)`)
+            continue
+          }
+          
+      const { data, error: rpcError } = await supabase.rpc('batch_insert_periodes_charge', {
+            p_periodes: batchFiltre,
+            p_affaire_id: affaireId, // Numéro de compte (la fonction SQL récupère l'UUID)
+        p_site: siteNormalized,
+      })
+
+      if (rpcError) {
+            console.error(`[useCharge] Erreur batch_insert_periodes_charge (lot ${i + 1}/${batches.length}):`, rpcError)
+        throw rpcError
+      }
+
+          if (data) {
+            allResults.push(data)
+          }
+          
+          debugLog(`[useCharge] Lot ${i + 1}/${batches.length} inséré avec succès`)
+          
+          // Délai plus long entre les lots pour éviter la surcharge et permettre aux triggers de se déclencher
+          if (i < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200))
+          }
+        } catch (err) {
+          console.error(`[useCharge] Erreur lors du traitement du lot ${i + 1}/${batches.length}:`, err)
+          throw err
+        }
+      }
+
+      debugLog('[useCharge] Tous les lots insérés avec succès')
+
+      // Recharger les périodes pour mettre à jour l'état local
+      if (autoRefresh) {
+        debugLog('[useCharge] Rechargement des périodes après batch insert')
+        await loadPeriodes()
+      } else {
+        debugLog('[useCharge] Pas de rechargement automatique (autoRefresh: false)')
+      }
+
+      debugLog('[useCharge] ========== FIN savePeriodesBatch - SUCCÈS ==========')
+      return allResults
+    } catch (err) {
+      console.error('[useCharge] ========== FIN savePeriodesBatch - ERREUR ==========') // Toujours afficher les erreurs
+      console.error('[useCharge] Erreur complète:', err)
+      setError(err as Error)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, getSupabaseClient])
+
+  // NOTE: La consolidation se fait maintenant automatiquement via les triggers SQL
+  // Cette fonction ne fait plus qu'un simple refresh pour récupérer les périodes consolidées
+  const consolidate = useCallback(async (competence?: string) => {
+    try {
+      setError(null)
+      // La consolidation se fait automatiquement via les triggers SQL après chaque INSERT/UPDATE/DELETE
+      // On fait juste un refresh pour récupérer les périodes consolidées
+      await loadPeriodes()
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur consolidate (refresh):', err)
+      throw err
+    }
+  }, [loadPeriodes])
+
+  // Fonction pour mettre à jour toutes les périodes d'une compétence avec une nouvelle compétence
+  const updateCompetence = useCallback(async (ancienneCompetence: string, nouvelleCompetence: string) => {
+    try {
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) throw affaireError
+      if (!affaireData) throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+
+      // Mettre à jour toutes les périodes de cette compétence
+      const { error: updateError } = await supabase
+        .from('periodes_charge')
+        .update({ competence: nouvelleCompetence })
+        .eq('affaire_id', affaireData.id)
+        .eq('site', siteNormalized)
+        .eq('competence', ancienneCompetence)
+
+      if (updateError) throw updateError
+
+      // Recharger les périodes
+      if (autoRefresh) {
+        await loadPeriodes()
+      }
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur updateCompetence:', err)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, getSupabaseClient])
+
+  // Fonction pour supprimer toutes les périodes d'une compétence
+  const deleteCompetence = useCallback(async (competence: string) => {
+    try {
+      setError(null)
+      const supabase = getSupabaseClient()
+
+      // Récupérer l'ID de l'affaire
+      const siteNormalized = typeof site === 'string' ? site.toUpperCase().trim() : site
+      const { data: affaireData, error: affaireError } = await supabase
+        .from('affaires')
+        .select('id')
+        .eq('affaire_id', affaireId)
+        .eq('site', siteNormalized)
+        .maybeSingle()
+
+      if (affaireError) throw affaireError
+      if (!affaireData) throw new Error(`Affaire ${affaireId} / ${siteNormalized} introuvable`)
+
+      // Supprimer toutes les périodes de cette compétence
+      const { error: deleteError } = await supabase
+        .from('periodes_charge')
+        .delete()
+        .eq('affaire_id', affaireData.id)
+        .eq('site', siteNormalized)
+        .eq('competence', competence)
+
+      if (deleteError) throw deleteError
+
+      // Mise à jour optimiste : supprimer les périodes de l'état local
+      setPeriodes((prev) => prev.filter((p) => p.competence !== competence))
+
+      // Recharger les périodes seulement si autoRefresh est activé ET Realtime est désactivé
+      if (autoRefresh && !enableRealtime) {
+        await loadPeriodes()
+      }
+    } catch (err) {
+      setError(err as Error)
+      console.error('[useCharge] Erreur deleteCompetence:', err)
+      throw err
+    }
+  }, [affaireId, site, loadPeriodes, autoRefresh, enableRealtime, getSupabaseClient])
+
+  return {
+    periodes,
+    loading,
+    error,
+    savePeriode,
+    savePeriodesBatch,
+    deletePeriode,
+    consolidate,
+    updateCompetence,
+    deleteCompetence,
+    refresh: loadPeriodes,
+  }
+}
