@@ -135,21 +135,46 @@ export default function AffairesPage() {
         formData.libelle,
         formData.statut
       )
-      setFormData((prev) => ({
-        ...prev,
-        affaire_id: (formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle') ? generatedId : '',
-      }))
+      if (generatedId !== formData.affaire_id) {
+        setFormData((prev) => ({ ...prev, affaire_id: generatedId }))
+      }
     } else {
-      setFormData((prev) => ({ ...prev, affaire_id: '' }))
+      if (formData.affaire_id) {
+        setFormData((prev) => ({ ...prev, affaire_id: '' }))
+      }
     }
   }, [formData.tranche, formData.site, formData.libelle, formData.statut])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      let affaireIdToSave: string | null = null
+      if (formData.tranche && formData.site && formData.libelle && formData.statut) {
+        const generatedId = generateAffaireId(
+          formData.tranche,
+          formData.site,
+          formData.libelle,
+          formData.statut
+        )
+        affaireIdToSave = generatedId && generatedId.trim() !== '' 
+          ? generatedId.trim() 
+          : (formData.affaire_id && formData.affaire_id.trim() !== '' ? formData.affaire_id.trim() : null)
+      } else {
+        affaireIdToSave = formData.affaire_id && formData.affaire_id.trim() !== '' 
+          ? formData.affaire_id.trim() 
+          : null
+      }
+      
+      const affaireToSave = {
+        ...formData,
+        affaire_id: affaireIdToSave,
+        date_creation: formData.id ? new Date() : new Date(),
+        date_modification: new Date(),
+      }
+      
       const affaireToSave = {
         id: formData.id || undefined,
-        affaire_id: formData.affaire_id || undefined,
+        affaire_id: affaireIdToSave,
         site: formData.site,
         libelle: formData.libelle,
         tranche: formData.tranche,
@@ -157,15 +182,20 @@ export default function AffairesPage() {
         budget_heures: formData.budget_heures,
         raf_heures: formData.raf_heures,
         date_maj_raf: formData.date_maj_raf,
-        responsable: formData.responsable || undefined,
-        compte: formData.compte || undefined,
+        responsable: formData.responsable || null,
+        compte: formData.compte || null,
         actif: formData.actif,
       }
+      
+      console.log('[AffairesPage] handleSubmit - affaireToSave:', affaireToSave)
       await saveAffaire(affaireToSave)
+      
+      // Attendre un peu pour que la sauvegarde soit complète
       await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Forcer le rechargement pour éviter les problèmes de cache Realtime
       await loadAffaires()
-      setShowModal(false)
-      setEditingAffaire(null)
+      
       setFormData({
         id: '',
         affaire_id: '',
@@ -180,6 +210,8 @@ export default function AffairesPage() {
         compte: '',
         actif: true,
       })
+      setEditingAffaire(null)
+      setShowModal(false)
     } catch (err: any) {
       console.error('[AffairesPage] Erreur:', err)
       alert('Erreur lors de l\'enregistrement :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
@@ -260,18 +292,21 @@ export default function AffairesPage() {
               <Building2 className="w-9 h-9 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Gestion des Affaires</h1>
-              <p className="text-gray-600 mt-1">Gérez vos affaires et projets</p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Gestion des Affaires
+              </h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">Créez et gérez les affaires et leurs sites</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <Button
               variant="secondary"
               icon={<FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />}
-              onClick={() => setShowImport(true)}
+              onClick={() => setShowImport(!showImport)}
               className="text-xs sm:text-sm px-3 sm:px-4 py-2"
             >
-              Importer Excel
+              <span className="hidden sm:inline">{showImport ? 'Masquer import' : 'Importer Excel'}</span>
+              <span className="sm:hidden">Import</span>
             </Button>
             <Button
               variant="primary"
@@ -279,12 +314,25 @@ export default function AffairesPage() {
               onClick={handleNew}
               className="text-xs sm:text-sm px-3 sm:px-4 py-2"
             >
-              Nouvelle affaire
+              <span className="hidden sm:inline">Nouvelle affaire</span>
+              <span className="sm:hidden">Nouvelle</span>
             </Button>
           </div>
         </div>
 
-        {/* Filtres */}
+        {/* Import Excel */}
+        {showImport && (
+          <Card>
+            <ImportExcel
+              onImportComplete={() => {
+                loadAffaires()
+                setShowImport(false)
+              }}
+            />
+          </Card>
+        )}
+
+        {/* Filtres modernes */}
         <Card>
           <CardHeader gradient="indigo" icon={<Filter className="w-6 h-6 text-indigo-600" />}>
             <div className="flex items-center justify-between w-full">
@@ -463,18 +511,22 @@ export default function AffairesPage() {
                         </td>
                         
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 hidden sm:table-cell">
-                          {affaire.budget_heures?.toFixed(2) || '0.00'}h
+                          {affaire.budget_heures !== undefined ? affaire.budget_heures.toFixed(2) : '-'}
                         </td>
                         
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="sm"
                             icon={<Trash2 className="w-4 h-4 text-red-600" />}
-                            onClick={() => handleDeleteClick(affaire)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteClick(affaire)
+                            }}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Supprimer l'affaire"
                           >
-                            Supprimer
+                            <span className="hidden sm:inline">Supprimer</span>
                           </Button>
                         </td>
                       </tr>
@@ -487,7 +539,7 @@ export default function AffairesPage() {
         </Card>
         )}
 
-        {/* Gestion affaire */}
+        {/* Onglet Gestion affaire */}
         {activeTab === 'gestion' && (
         <Card>
           <CardHeader gradient="indigo" icon={<Building2 className="w-6 h-6 text-indigo-600" />}>
@@ -517,7 +569,7 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heures Planifiées</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d&apos;affaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d'affaire</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                   </tr>
                 </thead>
@@ -547,7 +599,7 @@ export default function AffairesPage() {
                           {affaire.date_maj_raf ? format(affaire.date_maj_raf, 'dd/MM/yyyy', { locale: fr }) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {affaire.total_planifie !== undefined ? affaire.total_planifie.toFixed(2) : '0.00'}h
+                          {affaire.total_planifie !== undefined && affaire.total_planifie !== null ? affaire.total_planifie.toFixed(2) : '-'}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                           {affaire.date_debut_demande ? format(affaire.date_debut_demande, 'dd/MM/yyyy', { locale: fr }) : '-'}
@@ -567,81 +619,70 @@ export default function AffairesPage() {
 
         {/* Modal de création/modification */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4 flex items-center justify-between rounded-t-xl">
-                <div className="flex items-center gap-3">
-                  {editingAffaire ? (
-                    <Edit className="w-6 h-6 text-white" />
-                  ) : (
-                    <Plus className="w-6 h-6 text-white" />
-                  )}
-                  <h2 className="text-xl font-bold text-white">
-                    {editingAffaire ? 'Modifier affaire' : 'Nouvelle affaire'}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowModal(false)
-                    setEditingAffaire(null)
-                  }}
-                  className="text-white hover:text-gray-200 transition-colors"
-                >
-                  <span className="text-2xl">&times;</span>
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+            onClick={() => {
+              setShowModal(false)
+              setEditingAffaire(null)
+              setFormData({
+                id: '',
+                affaire_id: '',
+                site: '',
+                libelle: '',
+                tranche: '',
+                statut: 'Ouverte',
+                budget_heures: 0,
+                raf_heures: 0,
+                date_maj_raf: undefined,
+                responsable: '',
+                compte: '',
+                actif: true,
+              })
+            }}
+          >
+            <Card className="max-w-3xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <CardHeader gradient="indigo" icon={editingAffaire ? <Edit className="w-6 h-6 text-indigo-600" /> : <Plus className="w-6 h-6 text-indigo-600" />}>
+                <h2 className="text-2xl font-bold text-gray-800">{editingAffaire ? 'Modifier affaire' : 'Nouvelle affaire'}</h2>
+              </CardHeader>
+              
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Affaire ID"
+                    value={formData.affaire_id}
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
+                    placeholder={
+                      formData.statut === 'Ouverte' || formData.statut === 'Prévisionnelle'
+                        ? 'Sera généré automatiquement...'
+                        : 'Vide (statut ≠ Ouverte/Prévisionnelle)'
+                    }
+                  />
                   <Select
-                    label="Site *"
+                    label="Site"
                     value={formData.site}
                     onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                     required
                     options={[
                       { value: '', label: 'Sélectionner un site...' },
-                      ...SITES_LIST.map((s) => ({ value: s, label: s }))
+                      ...SITES_LIST.map((site) => ({ value: site, label: site }))
                     ]}
                   />
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Select
-                    label="Responsable"
-                    value={formData.responsable || ''}
-                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
-                    options={[
-                      { value: '', label: 'Sélectionner un responsable...' },
-                      ...responsablesDisponibles.map((resp) => ({ value: resp, label: resp }))
-                    ]}
-                  />
-
-                  <Input
-                    label="Libellé *"
-                    value={formData.libelle}
-                    onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
-                    required
-                    placeholder="Nom de l'affaire"
-                  />
-
-                  <Select
-                    label="Tranche *"
+                    label="Tranche"
                     value={formData.tranche}
                     onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
                     required
                     options={[
                       { value: '', label: 'Sélectionner une tranche...' },
-                      ...TRANCHES_LIST.map((t) => ({ value: t, label: t }))
+                      ...TRANCHES_LIST.map((tranche) => ({ value: tranche, label: tranche }))
                     ]}
                   />
-
-                  <Input
-                    label="Compte"
-                    value={formData.compte}
-                    onChange={(e) => setFormData({ ...formData, compte: e.target.value })}
-                    placeholder="Numéro de compte"
-                  />
-
                   <Select
-                    label="Statut *"
+                    label="Statut"
                     value={formData.statut}
                     onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
                     required
@@ -651,92 +692,126 @@ export default function AffairesPage() {
                       { value: 'Clôturé', label: 'Clôturé' }
                     ]}
                   />
+                </div>
 
-                  <Input
-                    label="Budget (heures)"
-                    type="number"
-                    step="0.01"
-                    value={formData.budget_heures}
-                    onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
+                <Input
+                  label="Libellé (Affaire)"
+                  value={formData.libelle}
+                  onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
+                  required
+                  placeholder="Ex: PACK TEM"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Select
+                    label="Responsable"
+                    value={formData.responsable || ''}
+                    onChange={(e) => setFormData({ ...formData, responsable: e.target.value })}
+                    options={[
+                      { value: '', label: 'Sélectionner un responsable...' },
+                      ...responsablesDisponibles.map((resp) => ({ value: resp, label: resp }))
+                    ]}
                   />
-
                   <Input
-                    label="RAF (heures)"
-                    type="number"
-                    step="0.01"
-                    value={formData.raf_heures}
-                    onChange={(e) => setFormData({ ...formData, raf_heures: parseFloat(e.target.value) || 0 })}
-                  />
-
-                  <Input
-                    label="Date de mise à jour RAF"
-                    type="date"
-                    value={formData.date_maj_raf ? format(formData.date_maj_raf, 'yyyy-MM-dd') : ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      date_maj_raf: e.target.value ? new Date(e.target.value) : undefined 
-                    })}
+                    label="Numéro de compte"
+                    value={formData.compte || ''}
+                    onChange={(e) => setFormData({ ...formData, compte: e.target.value })}
+                    placeholder="Ex: 123ABC456"
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-4 pt-4 border-t">
+                <Input
+                  label="Budget (H)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.budget_heures || ''}
+                  onChange={(e) => setFormData({ ...formData, budget_heures: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                   <Button
-                    type="button"
                     variant="ghost"
                     onClick={() => {
                       setShowModal(false)
                       setEditingAffaire(null)
+                      setFormData({
+                        id: '',
+                        affaire_id: '',
+                        site: '',
+                        libelle: '',
+                        tranche: '',
+                        statut: 'Ouverte',
+                        budget_heures: 0,
+                        raf_heures: 0,
+                        date_maj_raf: undefined,
+                        responsable: '',
+                        compte: '',
+                        actif: true,
+                      })
                     }}
                   >
                     Annuler
                   </Button>
                   <Button
-                    type="submit"
                     variant="primary"
-                    icon={editingAffaire ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    icon={<CheckCircle2 className="w-5 h-5" />}
+                    type="submit"
                   >
                     {editingAffaire ? 'Enregistrer' : 'Créer'}
                   </Button>
                 </div>
               </form>
-            </div>
+            </Card>
           </div>
         )}
 
-        {/* Modal de suppression */}
+        {/* Modal de confirmation de suppression */}
         {showDeleteModal && affaireToDelete && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-              <div className="bg-gradient-to-r from-red-500 to-rose-600 px-6 py-4 flex items-center justify-between rounded-t-xl">
-                <div className="flex items-center gap-3">
-                  <Trash2 className="w-6 h-6 text-white" />
-                  <h2 className="text-xl font-bold text-white">Supprimer l'affaire</h2>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowDeleteModal(false)
-                    setAffaireToDelete(null)
-                    setDeleteConfirmText('')
-                  }}
-                  className="text-white hover:text-gray-200 transition-colors"
-                >
-                  <span className="text-2xl">&times;</span>
-                </button>
-              </div>
-
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+            onClick={() => {
+              setShowDeleteModal(false)
+              setAffaireToDelete(null)
+              setDeleteConfirmText('')
+            }}
+          >
+            <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
+              <CardHeader gradient="orange" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
+                <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
+              </CardHeader>
+              
               <div className="p-6 space-y-4">
-                <p className="text-gray-700">
-                  Êtes-vous sûr de vouloir supprimer l'affaire <strong>{affaireToDelete.libelle}</strong> ?
-                </p>
-                <p className="text-sm text-gray-500">
-                  Cette action est irréversible. Tapez &quot;Effacer&quot; pour confirmer :
-                </p>
-                <Input
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="Effacer"
-                />
-                <div className="flex items-center justify-end gap-4 pt-4">
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                  <p className="text-red-800 font-semibold mb-2">⚠️ Attention : Cette action est irréversible</p>
+                  <p className="text-gray-700 text-sm">
+                    Vous êtes sur le point de supprimer l'affaire :
+                  </p>
+                  <p className="text-gray-900 font-bold mt-2">
+                    {affaireToDelete.affaire_id || affaireToDelete.libelle} - {affaireToDelete.site}
+                  </p>
+                  {affaireToDelete.affaire_id && (
+                    <p className="text-gray-600 text-xs mt-1">
+                      ID: {affaireToDelete.affaire_id}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pour confirmer, tapez <span className="font-bold text-red-600">"Effacer"</span> :
+                  </label>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Effacer"
+                    className="border-2 border-red-300 focus:border-red-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                   <Button
                     variant="ghost"
                     onClick={() => {
@@ -758,19 +833,8 @@ export default function AffairesPage() {
                   </Button>
                 </div>
               </div>
-            </div>
+            </Card>
           </div>
-        )}
-
-        {/* Modal d'import Excel */}
-        {showImport && (
-          <ImportExcel
-            onClose={() => setShowImport(false)}
-            onSuccess={() => {
-              setShowImport(false)
-              loadAffaires()
-            }}
-          />
         )}
       </div>
     </Layout>
