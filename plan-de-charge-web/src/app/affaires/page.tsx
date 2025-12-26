@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState } from 'react'
 import { Layout } from '@/components/Common/Layout'
 import { useAffaires } from '@/hooks/useAffaires'
 import { useRessources } from '@/hooks/useRessources'
@@ -90,26 +90,30 @@ export default function AffairesPage() {
       )
     : affairesFiltreesParTranche
 
-  useEffect(() => {
-    if (responsable) {
+  // Handlers pour réinitialiser les filtres dépendants
+  const handleResponsableChange = (value: string) => {
+    setResponsable(value)
+    if (value) {
       setSite('')
       setTranche('')
       setNumeroCompte('')
     }
-  }, [responsable])
+  }
 
-  useEffect(() => {
-    if (site) {
+  const handleSiteChange = (value: string) => {
+    setSite(value)
+    if (value) {
       setTranche('')
       setNumeroCompte('')
     }
-  }, [site])
+  }
 
-  useEffect(() => {
-    if (tranche) {
+  const handleTrancheChange = (value: string) => {
+    setTranche(value)
+    if (value) {
       setNumeroCompte('')
     }
-  }, [tranche])
+  }
 
   const [formData, setFormData] = useState({
     id: '',
@@ -129,23 +133,14 @@ export default function AffairesPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingAffaire, setEditingAffaire] = useState<Affaire | null>(null)
 
-  useEffect(() => {
-    if (formData.tranche && formData.site && formData.libelle && formData.statut) {
-      const generatedId = generateAffaireId(
-        formData.tranche,
-        formData.site,
-        formData.libelle,
-        formData.statut
-      )
-      if (generatedId !== formData.affaire_id) {
-        setFormData((prev) => ({ ...prev, affaire_id: generatedId }))
-      }
-    } else {
-      if (formData.affaire_id) {
-        setFormData((prev) => ({ ...prev, affaire_id: '' }))
-      }
-    }
-  }, [formData.tranche, formData.site, formData.libelle, formData.statut])
+  // Fonction helper pour mettre à jour formData avec l'affaire_id généré
+  const updateFormDataWithGeneratedId = (updates: Partial<typeof formData>) => {
+    const updatedData = { ...formData, ...updates }
+    const generatedId = (updatedData.tranche && updatedData.site && updatedData.libelle && updatedData.statut)
+      ? generateAffaireId(updatedData.tranche, updatedData.site, updatedData.libelle, updatedData.statut)
+      : ''
+    setFormData({ ...updatedData, affaire_id: generatedId })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -184,9 +179,10 @@ export default function AffairesPage() {
       })
       setEditingAffaire(null)
       setShowModal(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string }
       console.error('[AffairesPage] Erreur:', err)
-      alert('Erreur lors de l\'enregistrement :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+      alert('Erreur lors de l\'enregistrement :\n\n' + (error.message || 'Une erreur inattendue s\'est produite'))
     }
   }
 
@@ -266,9 +262,10 @@ export default function AffairesPage() {
       setShowDeleteModal(false)
       setAffaireToDelete(null)
       setDeleteConfirmText('')
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string }
       console.error('[AffairesPage] Erreur suppression:', err)
-      alert('Erreur lors de la suppression :\n\n' + (err.message || 'Une erreur inattendue s\'est produite'))
+      alert('Erreur lors de la suppression :\n\n' + (error.message || 'Une erreur inattendue s\'est produite'))
     }
   }
 
@@ -415,7 +412,7 @@ export default function AffairesPage() {
             <Select
               label="Responsable"
               value={responsable}
-              onChange={(e) => setResponsable(e.target.value)}
+              onChange={(e) => handleResponsableChange(e.target.value)}
               options={[
                 { value: '', label: 'Tous les responsables...' },
                 ...responsablesDisponibles.map((resp) => ({ value: resp, label: resp }))
@@ -424,7 +421,7 @@ export default function AffairesPage() {
             <Select
               label="Site"
               value={site}
-              onChange={(e) => setSite(e.target.value)}
+              onChange={(e) => handleSiteChange(e.target.value)}
               disabled={!responsable && responsablesDisponibles.length > 0}
               options={[
                 { value: '', label: 'Tous les sites...' },
@@ -434,7 +431,7 @@ export default function AffairesPage() {
             <Select
               label="Tranche"
               value={tranche}
-              onChange={(e) => setTranche(e.target.value)}
+              onChange={(e) => handleTrancheChange(e.target.value)}
               disabled={!site}
               options={[
                 { value: '', label: 'Toutes les tranches...' },
@@ -625,7 +622,7 @@ export default function AffairesPage() {
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Budget RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date de Maj RAF</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Heures Planifiées</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d'affaire</th>
+                    <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date début d&apos;affaire</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date fin</th>
                   </tr>
                 </thead>
@@ -778,7 +775,7 @@ export default function AffairesPage() {
                   <Select
                     label="Site"
                     value={formData.site}
-                    onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                    onChange={(e) => updateFormDataWithGeneratedId({ site: e.target.value })}
                     required
                     options={[
                       { value: '', label: 'Sélectionner un site...' },
@@ -791,7 +788,7 @@ export default function AffairesPage() {
                   <Select
                     label="Tranche"
                     value={formData.tranche}
-                    onChange={(e) => setFormData({ ...formData, tranche: e.target.value })}
+                    onChange={(e) => updateFormDataWithGeneratedId({ tranche: e.target.value })}
                     required
                     options={[
                       { value: '', label: 'Sélectionner une tranche...' },
@@ -801,7 +798,7 @@ export default function AffairesPage() {
                   <Select
                     label="Statut"
                     value={formData.statut}
-                    onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
+                    onChange={(e) => updateFormDataWithGeneratedId({ statut: e.target.value })}
                     required
                     options={[
                       { value: 'Ouverte', label: 'Ouverte' },
@@ -814,7 +811,7 @@ export default function AffairesPage() {
                 <Input
                   label="Libellé (Affaire)"
                   value={formData.libelle}
-                  onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
+                  onChange={(e) => updateFormDataWithGeneratedId({ libelle: e.target.value })}
                   required
                   placeholder="Ex: PACK TEM"
                 />
@@ -896,14 +893,14 @@ export default function AffairesPage() {
           >
             <Card className="max-w-md w-full mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
               <CardHeader gradient="orange" icon={<Trash2 className="w-6 h-6 text-red-600" />}>
-                <h2 className="text-2xl font-bold text-gray-800">Supprimer l'affaire</h2>
+                <h2 className="text-2xl font-bold text-gray-800">Supprimer l&apos;affaire</h2>
               </CardHeader>
               
               <div className="p-6 space-y-4">
                 <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
                   <p className="text-red-800 font-semibold mb-2">⚠️ Attention : Cette action est irréversible</p>
                   <p className="text-gray-700 text-sm">
-                    Vous êtes sur le point de supprimer l'affaire :
+                    Vous êtes sur le point de supprimer l&apos;affaire :
                   </p>
                   <p className="text-gray-900 font-bold mt-2">
                     {affaireToDelete.affaire_id || affaireToDelete.libelle} - {affaireToDelete.site}
@@ -917,7 +914,7 @@ export default function AffairesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pour confirmer, tapez <span className="font-bold text-red-600">"Effacer"</span> :
+                    Pour confirmer, tapez <span className="font-bold text-red-600">&quot;Effacer&quot;</span> :
                   </label>
                   <Input
                     value={deleteConfirmText}
