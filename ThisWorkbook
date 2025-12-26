@@ -1,0 +1,592 @@
+
+Option Explicit
+
+Private Const SLC_AFFAIRE As String = "Segment_AffaireID1"
+Private Const SHEET_CHARGE As String = "Charge"
+Private Const CELL_AFF_CUR As String = "B1"
+Private Const CELL_AFF_OLD As String = "A1"
+
+' Flags
+Public BusyGlobal As Boolean
+Private mLastAffaire As String
+Private mInitDone As Boolean
+Public mStartupDone As Boolean
+
+
+' ============================
+'       LOG
+' ============================
+Private Sub LogMsg(msg As String)
+    Debug.Print "[" & Format(Now, "hh:mm:ss") & "] " & msg
+End Sub
+
+
+
+' ============================================================
+'                 WORKBOOK OPEN SAFE (NO REFRESH)
+' ============================================================
+Private Sub Workbook_Open()
+
+    Dim t0 As Double: t0 = Timer
+    LogMsg "=== Workbook_Open START ==="
+    
+    Dim prevDisplayAlerts As Boolean, prevEvents As Boolean
+    prevDisplayAlerts = Application.DisplayAlerts
+    prevEvents = Application.EnableEvents
+    
+    BusyGlobal = True
+    Application.EnableEvents = False
+    Application.DisplayAlerts = False
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+
+    Dim t1 As Double: t1 = Timer
+    ResetSlicerAffaire_NoEvents
+    Debug.Print "[Workbook_Open] Step 1 - Reset slicer : " & Format(Timer - t1, "0.000") & " sec"
+
+    Dim t2 As Double: t2 = Timer
+    ModuleExec.ForceSingleSlicerSelection SLC_AFFAIRE, "AUCUNE"
+    Debug.Print "[Workbook_Open] Step 2 - Force sélection neutre : " & Format(Timer - t2, "0.000") & " sec"
+
+    Dim t3 As Double: t3 = Timer
+    SafeWrite Sheets(SHEET_CHARGE), CELL_AFF_CUR, ""
+    SafeWrite Sheets(SHEET_CHARGE), CELL_AFF_OLD, ""
+    mLastAffaire = ""
+    mInitDone = False
+    mStartupDone = False
+    ' Mettre à jour les détails de l'affaire (vide) après reset de B1
+    On Error Resume Next
+    Application.Run "Feuil12.UpdateAffaireDetails", Sheets(SHEET_CHARGE)
+    On Error GoTo 0
+    Debug.Print "[Workbook_Open] Step 3 - Reset mirrors : " & Format(Timer - t3, "0.000") & " sec"
+    
+    Dim t4 As Double: t4 = Timer
+    ModuleExec.InitializeCache
+    Debug.Print "[Workbook_Open] Step 4 - InitializeCache : " & Format(Timer - t4, "0.000") & " sec"
+    
+    Dim t5 As Double: t5 = Timer
+    LoadCalendar
+    Debug.Print "[Workbook_Open] Step 5 - LoadCalendar : " & Format(Timer - t5, "0.000") & " sec"
+    
+    Dim t6 As Double: t6 = Timer
+    ModuleErrorHandling.InitializeErrorLog
+    Debug.Print "[Workbook_Open] Step 6 - InitializeErrorLog : " & Format(Timer - t6, "0.000") & " sec"
+    
+    Dim t7 As Double: t7 = Timer
+    ModuleAbsence.VerifierEtRetirerAffectationsAbsences
+    Debug.Print "[Workbook_Open] Step 7 - VerifierEtRetirerAffectationsAbsences : " & Format(Timer - t7, "0.000") & " sec"
+    
+    Dim t8 As Double: t8 = Timer
+    ModuleAbsence.MasquerAbsencesAnciennes 10
+    Debug.Print "[Workbook_Open] Step 8 - MasquerAbsencesAnciennes : " & Format(Timer - t8, "0.000") & " sec"
+    
+    Dim t8b As Double: t8b = Timer
+    ModuleAbsence.VerifierEtAlerterArretsMaladie30J
+    Debug.Print "[Workbook_Open] Step 8b - VerifierEtAlerterArretsMaladie30J : " & Format(Timer - t8b, "0.000") & " sec"
+    
+    Dim t9 As Double: t9 = Timer
+    ModuleInterim.InitialiserInterims
+    Debug.Print "[Workbook_Open] Step 9 - InitialiserInterims : " & Format(Timer - t9, "0.000") & " sec"
+    
+    Dim t10 As Double: t10 = Timer
+    ModuleInterim.VerifierEtAlerterRenouvellements
+    Debug.Print "[Workbook_Open] Step 10 - VerifierEtAlerterRenouvellements : " & Format(Timer - t10, "0.000") & " sec"
+    
+    Dim t11 As Double: t11 = Timer
+    ModuleInterim.MettreAJourStatutsRenouvellement
+    Debug.Print "[Workbook_Open] Step 11 - MettreAJourStatutsRenouvellement : " & Format(Timer - t11, "0.000") & " sec"
+    
+    Dim t12 As Double: t12 = Timer
+    ModuleTransfert.InitialiserTransferts
+    Debug.Print "[Workbook_Open] Step 12 - InitialiserTransferts : " & Format(Timer - t12, "0.000") & " sec"
+    
+    'Dim t13 As Double: t13 = Timer
+    'ModuleChantier.InitialiserChantiers
+    'Debug.Print "[Workbook_Open] Step 13 - InitialiserChantiers : " & Format(Timer - t13, "0.000") & " sec"
+    
+    Dim t14 As Double: t14 = Timer
+    ModuleAbsence.EnsureAlertesSheetAndTable
+    Debug.Print "[Workbook_Open] Step 14 - EnsureAlertesSheetAndTable : " & Format(Timer - t14, "0.000") & " sec"
+
+    Dim t15 As Double: t15 = Timer
+    Sheets("Dashboard").Activate
+    Debug.Print "[Workbook_Open] Step 15 - Activate Dashboard : " & Format(Timer - t15, "0.000") & " sec"
+
+CleanExit:
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = prevEvents
+    Application.DisplayAlerts = prevDisplayAlerts
+    Application.ScreenUpdating = True
+    BusyGlobal = False
+
+    LogMsg "=== Workbook_Open END (" & Format(Timer - t0, "0.000") & " sec) ==="
+End Sub
+
+
+
+' ============================================================
+'                SLICER EVENT SAFE
+' ============================================================
+Private Sub Workbook_SlicerChange(ByVal SlicerCache As SlicerCache)
+
+    ' Exit immédiat sans log au démarrage
+    If Not mStartupDone Then Exit Sub
+
+    ' Ignorer aussi si BusyGlobal (sans log pour éviter spam)
+    If BusyGlobal Then Exit Sub
+
+    If SlicerCache Is Nothing Then Exit Sub
+
+    If SlicerCache.name <> SLC_AFFAIRE Then Exit Sub
+
+    SyncSlicerMirrors_Safe
+End Sub
+
+
+
+' ============================================================
+'              SHEET CHANGE (pour tables TblAffectations et TblAbsences)
+' ============================================================
+Private Sub Workbook_SheetChange(ByVal sh As Object, ByVal Target As Range)
+    ' Exit immédiat sans log au démarrage
+    If Not mStartupDone Then Exit Sub
+    
+    ' Ignorer aussi si BusyGlobal
+    If BusyGlobal Then Exit Sub
+    
+    ' Vérifier si c'est la feuille Paramètres et que L1 ou L2 a changé
+    If sh.name = "Paramètres" Then
+        If Not Intersect(Target, sh.Range("L1:L2")) Is Nothing Then
+            ' Les paramètres de période ont changé, marquer Dashboard pour refresh
+            Debug.Print "[Workbook_SheetChange] Paramètres de période modifiés (L1/L2)"
+            ModuleExec.mDashboardNeedsRefresh = True
+            ModuleExec.TriggerAutoChecks
+        End If
+        Exit Sub
+    End If
+    
+    ' Vérifier si c'est la feuille Affectations
+    If sh.name = "Affectations" Then
+        ' Appeler le gestionnaire de modifications de la table
+        ModuleFeuilleAffectations.HandleAffectationsTableChange Target
+    End If
+    
+    ' Vérifier si c'est la feuille Absences
+    If sh.name = "Absences" Then
+        ' Appeler le gestionnaire de modifications de la table
+        ModuleAbsence.HandleAbsencesTableChange Target
+    End If
+    
+    ' Vérifier si c'est la feuille Transferts
+    If sh.name = "Transferts" Then
+        ' Appeler le gestionnaire de modifications de la table
+        ModuleTransfert.HandleTransfertsTableChange Target
+    End If
+    
+    ' Vérifier si c'est la feuille Interims
+    If sh.name = "Interims" Then
+        ' Appeler le gestionnaire de modifications de la table
+        ModuleInterim.HandleInterimsTableChange Target
+    End If
+    
+    ' Vérifier si c'est la feuille Alertes
+    If sh.name = "Alertes" Then
+        ' Appeler le gestionnaire de modifications de la table
+        ModuleAbsence.HandleAlertesTableChange Target
+    End If
+    
+    ' Vérifier si c'est la feuille Ressources (pour mettre à jour les intérims si DateFin change)
+    If sh.name = "Ressources" Then
+        ' Vérifier si c'est une modification dans tblRessources (colonne DateFin ou Actif)
+        ' NOTE : La modification est toujours dans la feuille locale (DONNEES est en lecture seule)
+        On Error Resume Next
+        Dim lo As ListObject
+        Set lo = sh.ListObjects("tblRessources")
+        ' Si la table n'est pas dans la feuille locale, utiliser ModuleExec (pour cohérence)
+        If lo Is Nothing Then
+            Set lo = ModuleExec.GetRessourcesTable()
+            ' Si la table de ModuleExec n'est pas dans la feuille modifiée, ignorer
+            If Not lo Is Nothing And lo.Parent.name <> sh.name Then
+                On Error GoTo 0
+                Exit Sub
+            End If
+        End If
+        If Not lo Is Nothing And Not lo.DataBodyRange Is Nothing Then
+            If Not Intersect(Target, lo.DataBodyRange) Is Nothing Then
+                ' Vérifier si c'est la colonne DateFin ou Actif qui a été modifiée
+                Dim cDateFin As Long, cActif As Long
+                cDateFin = FindTableColumnIndex(lo, "DateFin")
+                cActif = FindTableColumnIndex(lo, "Actif")
+                
+                If cDateFin > 0 And Target.Column = lo.ListColumns(cDateFin).Index Then
+                    ' Si DateFin a été modifié, réinitialiser les intérims
+                    ModuleInterim.InitialiserInterims
+                ElseIf cActif > 0 And Target.Column = lo.ListColumns(cActif).Index Then
+                    ' Si Actif a été modifié à "NON", vérifier les affectations
+                    Dim rowIndex As Long
+                    rowIndex = Target.Row - lo.DataBodyRange.Row + 1
+                    If rowIndex > 0 And rowIndex <= lo.ListRows.count Then
+                        Dim lr As ListRow
+                        Set lr = lo.ListRows(rowIndex)
+                        Dim actifVal As String
+                        actifVal = Trim$(UCase$(CStr(lr.Range(1, cActif).value)))
+                        
+                        If actifVal = "NON" Then
+                            ' Si Actif = "NON", supprimer les affectations après la date de fin
+                            Dim ressource As String, siteVal As String
+                            Dim cNom As Long, cSite As Long
+                            cNom = FindTableColumnIndex(lo, "NomPrenom")
+                            cSite = FindTableColumnIndex(lo, "Site")
+                            
+                            If cNom > 0 And cSite > 0 Then
+                                ressource = Trim$(CStr(lr.Range(1, cNom).value))
+                                siteVal = Trim$(CStr(lr.Range(1, cSite).value))
+                                
+                                If cDateFin > 0 And IsDate(lr.Range(1, cDateFin).value) Then
+                                    Dim dateFin As Date
+                                    dateFin = CDate(lr.Range(1, cDateFin).value)
+                                    ModuleInterim.SupprimerAffectationsApresDate ressource, siteVal, dateFin
+                                    
+                                    ' Logger dans les alertes
+                                    ModuleAbsence.LoggerAlerte "RESSOURCE_DESACTIVEE", ressource, "", siteVal, "", _
+                                                               dateFin, dateFin, _
+                                                               "Ressource désactivée : Actif = NON"
+                                End If
+                            End If
+                        End If
+                    End If
+                End If
+            End If
+        End If
+        On Error GoTo 0
+    End If
+End Sub
+
+' ============================================================
+'              PIVOT UPDATE SAFE
+' ============================================================
+Private Sub Workbook_SheetPivotTableUpdate(ByVal sh As Object, ByVal Target As PivotTable)
+
+    ' Exit immédiat sans log au démarrage
+    If Not mStartupDone Then Exit Sub
+    
+    ' Ignorer aussi si BusyGlobal (sans log pour éviter spam)
+    If BusyGlobal Then Exit Sub
+
+    ' Vérifier que Target n'est pas Nothing avant de continuer
+    If Target Is Nothing Then Exit Sub
+    
+    ' Seulement loguer et sync après démarrage
+    LogMsg "PivotUpdate: " & Target.name
+    SyncSlicerMirrors_Safe
+End Sub
+
+
+
+' ============================================================
+'         SYNC MIRRORS + TRIGGER CHARGE
+' ============================================================
+Private Sub SyncSlicerMirrors_Safe()
+
+    BusyGlobal = True
+    Application.EnableEvents = False
+
+    LogMsg ">>> Sync START"
+
+    On Error GoTo CleanErr
+
+    Dim ws As Worksheet: Set ws = Sheets(SHEET_CHARGE)
+    Dim curAff As String: curAff = GetSlicerSelectionText(SLC_AFFAIRE)
+    
+    ' Calculer le nombre d'items (éviter pollution avec sélections multiples)
+    Dim nbItems As Long
+    If Len(curAff) = 0 Then
+        nbItems = 0
+    Else
+        nbItems = Len(curAff) - Len(Replace(curAff, ",", "")) + 1
+    End If
+
+    ' --- Première sync après démarrage ---
+    If Not mInitDone Then
+        If nbItems <= 5 Then
+            Debug.Print "[SyncSlicerMirrors_Safe] Première sync - écriture dans B1: '" & curAff & "'"
+        Else
+            Debug.Print "[SyncSlicerMirrors_Safe] Première sync - écriture dans B1: " & nbItems & " item(s)"
+        End If
+        SafeWrite ws, CELL_AFF_CUR, curAff
+        SafeWrite ws, CELL_AFF_OLD, ""
+        mLastAffaire = curAff
+        mInitDone = True
+        ' Activer les événements après la première sync
+        mStartupDone = True
+        ' Mettre à jour les détails de l'affaire après modification de B1
+        On Error Resume Next
+        Application.Run "Feuil12.UpdateAffaireDetails", ws
+        On Error GoTo 0
+        GoTo Trigger
+    End If
+
+    ' --- Protection ---
+    If curAff = mLastAffaire Then
+        ' Log minimal pour sélection identique (éviter pollution)
+        GoTo CleanExit
+    End If
+
+    ' --- Nouveau choix ---
+    If nbItems <= 5 Then
+        Debug.Print "[SyncSlicerMirrors_Safe] Nouvelle sélection: '" & curAff & "'"
+    Else
+        Debug.Print "[SyncSlicerMirrors_Safe] Nouvelle sélection: " & nbItems & " item(s)"
+    End If
+    SafeWrite ws, CELL_AFF_OLD, mLastAffaire
+    SafeWrite ws, CELL_AFF_CUR, curAff
+    mLastAffaire = curAff
+    ' Mettre à jour les détails de l'affaire après modification de B1
+    On Error Resume Next
+    Application.Run "Charge.UpdateAffaireDetails", ws
+    On Error GoTo 0
+
+Trigger:
+    LogMsg "Calling Charge_OnSlicerChanged"
+    On Error Resume Next
+    Application.Run "Charge_OnSlicerChanged"
+    On Error GoTo 0
+
+CleanExit:
+    LogMsg "<<< Sync END"
+    BusyGlobal = False
+    Application.EnableEvents = True
+    Exit Sub
+
+CleanErr:
+    LogMsg "ERROR in Sync: " & Err.Description
+    Resume CleanExit
+End Sub
+
+
+
+' ============================================================
+'             RESET SLICER
+' ============================================================
+Private Sub ResetSlicerAffaire_NoEvents()
+
+    On Error Resume Next
+    Application.EnableEvents = False
+
+    Dim slc As SlicerCache
+    Set slc = ThisWorkbook.SlicerCaches(SLC_AFFAIRE)
+
+    If Not slc Is Nothing Then
+        Dim it As SlicerItem
+        For Each it In slc.SlicerItems
+            it.Selected = False
+        Next it
+    End If
+
+    Application.EnableEvents = True
+End Sub
+
+
+
+' ============================================================
+'                      UTILS
+' ============================================================
+' Utilise ModuleExec.ForceSingleSlicerSelection (fonction centralisée)
+
+' ============================================================
+' FONCTION UTILITAIRE : Trouver l'index d'une colonne dans un ListObject
+' ============================================================
+Private Function FindTableColumnIndex(lo As ListObject, header As String) As Long
+    On Error Resume Next
+    If lo Is Nothing Then Exit Function
+    
+    Dim i As Long
+    Dim colCount As Long
+    colCount = lo.ListColumns.count
+    If Err.Number <> 0 Then
+        Err.Clear
+        Exit Function
+    End If
+    
+    For i = 1 To colCount
+        If StrComp(lo.ListColumns(i).name, header, vbTextCompare) = 0 Then
+            FindTableColumnIndex = i
+            Exit Function
+        End If
+    Next
+    On Error GoTo 0
+End Function
+
+Private Function GetSlicerSelectionText(cacheName As String) As String
+
+    Dim slc As SlicerCache
+    Dim it As SlicerItem
+    Dim res As String
+    Dim nbSelected As Long: nbSelected = 0
+
+    On Error GoTo Fin
+    Set slc = ThisWorkbook.SlicerCaches(cacheName)
+    
+    If slc Is Nothing Then
+        Debug.Print "[GetSlicerSelectionText] ERREUR: SlicerCache '" & cacheName & "' introuvable"
+        GetSlicerSelectionText = ""
+        Exit Function
+    End If
+
+    ' Log uniquement si sélection unique ou peu d'items (éviter pollution avec sélections multiples)
+    If slc.SlicerItems.count <= 50 Then
+        Debug.Print "[GetSlicerSelectionText] SlicerCache trouvé: '" & slc.name & "' (nombre d'items: " & slc.SlicerItems.count & ")"
+    End If
+
+    For Each it In slc.SlicerItems
+        If it.Selected Then
+            nbSelected = nbSelected + 1
+            If Len(res) > 0 Then res = res & ", "
+            res = res & it.value
+            ' Ne pas logger chaque item individuellement (pollution)
+        End If
+    Next it
+
+    If nbSelected = 0 Then
+        Debug.Print "[GetSlicerSelectionText] Aucun item sélectionné dans le slicer"
+    ElseIf nbSelected <= 5 Then
+        ' Log complet seulement pour 5 items ou moins
+        Debug.Print "[GetSlicerSelectionText] " & nbSelected & " item(s) sélectionné(s): '" & res & "'"
+    Else
+        ' Pour sélections multiples, log résumé seulement
+        Debug.Print "[GetSlicerSelectionText] " & nbSelected & " item(s) sélectionné(s) (sélection multiple)"
+    End If
+    
+    GetSlicerSelectionText = res
+    Exit Function
+
+Fin:
+    Debug.Print "[GetSlicerSelectionText] ERREUR: " & Err.Number & " - " & Err.Description
+    GetSlicerSelectionText = ""
+End Function
+
+
+
+Private Sub SafeWrite(ws As Worksheet, addr As String, val As Variant)
+    On Error GoTo ErrSafeWrite
+    
+    Debug.Print "[SafeWrite] START - Feuille: '" & ws.name & "' / Adresse: '" & addr & "' / Valeur: '" & CStr(val) & "'"
+    
+    Application.EnableEvents = False
+    ws.Range(addr).value = val
+    
+    ' Vérifier que la valeur a bien été écrite
+    Dim valVerif As Variant
+    valVerif = ws.Range(addr).value
+    Debug.Print "[SafeWrite] Vérification après écriture - Valeur lue: '" & CStr(valVerif) & "'"
+    
+    Application.EnableEvents = True
+    Debug.Print "[SafeWrite] END - Écriture réussie"
+    Exit Sub
+    
+ErrSafeWrite:
+    Debug.Print "[SafeWrite] ERREUR : " & Err.Number & " - " & Err.Description
+    Application.EnableEvents = True
+    Err.Clear
+End Sub
+
+' ============================================================
+'              SHEET DEACTIVATE (pour feuille Absences)
+' ============================================================
+Private Sub Workbook_SheetDeactivate(ByVal sh As Object)
+    ' Exit immédiat sans log au démarrage
+    If Not mStartupDone Then Exit Sub
+    
+    ' Ignorer aussi si BusyGlobal
+    If BusyGlobal Then Exit Sub
+    
+    ' Vérifier si c'est la feuille Absences
+    If sh.name = "Absences" Then
+        On Error GoTo ErrHandler
+        
+        Dim t0 As Double: t0 = Timer
+        Debug.Print "---- Workbook_SheetDeactivate Absences START ----"
+        
+        ModuleExec.BeginFastExec "Vérification automatique des absences..."
+        
+        ' 1) Vérifier et retirer automatiquement les affectations en conflit avec des absences
+        Debug.Print "[Workbook_SheetDeactivate Absences] Vérification automatique des absences..."
+        ModuleAbsence.VerifierEtRetirerAffectationsAbsences
+        
+        ' 2) Vérifier et alerter les arrêts maladie > 30 jours calendaires
+        Debug.Print "[Workbook_SheetDeactivate Absences] Vérification arrêts maladie > 30 jours..."
+        ModuleAbsence.VerifierEtAlerterArretsMaladie30J
+        
+        ' 3) Masquer les absences anciennes (> 10 jours après date de fin)
+        Debug.Print "[Workbook_SheetDeactivate Absences] Masquage des absences anciennes..."
+        ModuleAbsence.MasquerAbsencesAnciennes 10
+        
+        ModuleExec.EndFastExec
+        
+        Debug.Print "---- Workbook_SheetDeactivate Absences END (" & Format(Timer - t0, "0.000") & " sec) ----"
+        Exit Sub
+        
+ErrHandler:
+        ModuleExec.EndFastExec
+        Debug.Print "[Workbook_SheetDeactivate Absences] ERREUR : " & Err.Number & " - " & Err.Description
+        ModuleErrorHandling.HandleError "modeworkbook", "Workbook_SheetDeactivate", False
+        Err.Clear
+    End If
+    
+    ' Vérifier si c'est la feuille Interims
+    If sh.name = "Interims" Then
+        On Error GoTo ErrHandlerInterims
+        
+        Dim t0Interims As Double: t0Interims = Timer
+        Debug.Print "---- Workbook_SheetDeactivate Interims START ----"
+        
+        ModuleExec.BeginFastExec "Vérification automatique des intérims..."
+        
+        ' 1) Vérifier et alerter les renouvellements de contrat
+        Debug.Print "[Workbook_SheetDeactivate Interims] Vérification des renouvellements..."
+        ModuleInterim.VerifierEtAlerterRenouvellements
+        
+        ' 2) Mettre à jour les statuts de renouvellement (désactiver les expirés)
+        Debug.Print "[Workbook_SheetDeactivate Interims] Mise à jour des statuts..."
+        ModuleInterim.MettreAJourStatutsRenouvellement
+        
+        ModuleExec.EndFastExec
+        
+        Debug.Print "---- Workbook_SheetDeactivate Interims END (" & Format(Timer - t0Interims, "0.000") & " sec) ----"
+        Exit Sub
+        
+ErrHandlerInterims:
+        ModuleExec.EndFastExec
+        Debug.Print "[Workbook_SheetDeactivate Interims] ERREUR : " & Err.Number & " - " & Err.Description
+        ModuleErrorHandling.HandleError "modeworkbook", "Workbook_SheetDeactivate", False
+        Err.Clear
+    End If
+    
+    ' Vérifier si c'est la feuille Transferts
+    If sh.name = "Transferts" Then
+        On Error GoTo ErrHandlerTransferts
+        
+        Dim t0Transferts As Double: t0Transferts = Timer
+        Debug.Print "---- Workbook_SheetDeactivate Transferts START ----"
+        
+        ModuleExec.BeginFastExec "Application automatique des transferts..."
+        
+        ' Appliquer automatiquement les transferts planifiés dont la date de début est atteinte
+        Debug.Print "[Workbook_SheetDeactivate Transferts] Application automatique des transferts..."
+        ModuleTransfert.AppliquerTransfertsAuto
+        
+        ModuleExec.EndFastExec
+        
+        Debug.Print "---- Workbook_SheetDeactivate Transferts END (" & Format(Timer - t0Transferts, "0.000") & " sec) ----"
+        Exit Sub
+        
+ErrHandlerTransferts:
+        ModuleExec.EndFastExec
+        Debug.Print "[Workbook_SheetDeactivate Transferts] ERREUR : " & Err.Number & " - " & Err.Description
+        ModuleErrorHandling.HandleError "modeworkbook", "Workbook_SheetDeactivate", False
+        Err.Clear
+    End If
+End Sub
+
+
+

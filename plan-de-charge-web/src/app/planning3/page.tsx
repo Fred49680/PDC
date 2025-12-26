@@ -1,0 +1,428 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Layout } from '@/components/Common/Layout'
+import { Planning3 } from '@/components/Planning3'
+import { Target, AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useAffaires } from '@/hooks/useAffaires'
+import { startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, addWeeks, subWeeks, startOfMonth as startOfMonthFn, endOfMonth as endOfMonthFn } from 'date-fns'
+import { formatPlageSemainesISO } from '@/utils/calendar'
+import type { Precision } from '@/types/charge'
+import { DateRangePickerModal } from '@/components/Common/DateRangePickerModal'
+
+// Forcer le rendu dynamique
+export const dynamic = 'force-dynamic'
+
+export default function Planning3Page() {
+  const { affaires, loading: loadingAffaires } = useAffaires()
+
+  const [affaireId, setAffaireId] = useState('')
+  const [site, setSite] = useState('')
+  const [responsable, setResponsable] = useState('')
+  const [numeroCompte, setNumeroCompte] = useState('')
+  
+  // État pour la période - Initialisation à la date de base : 01/01/2026
+  // Vue JOUR par défaut : 1 mois (01/01/2026 → 31/01/2026)
+  const baseDate = new Date(2026, 0, 1) // 01/01/2026
+  const [dateDebut, setDateDebut] = useState(baseDate)
+  const [dateFin, setDateFin] = useState(endOfMonthFn(baseDate)) // 31/01/2026
+  const [precision, setPrecision] = useState<Precision>('JOUR')
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
+
+  // Filtrer les affaires actives et ouvertes/prévisionnelles
+  const affairesActives = affaires.filter(
+    (a) => a.actif && (a.statut === 'Ouverte' || a.statut === 'Prévisionnelle')
+  )
+
+  // Extraire les responsables uniques
+  const responsablesDisponibles = Array.from(
+    new Set(affairesActives.map((a) => a.responsable).filter(Boolean))
+  ).sort()
+
+  // Filtrer les affaires selon le responsable
+  const affairesFiltreesParResponsable = responsable
+    ? affairesActives.filter((a) => a.responsable === responsable)
+    : affairesActives
+
+  // Extraire les sites uniques depuis les affaires filtrées par responsable
+  const sitesDisponibles = Array.from(
+    new Set(affairesFiltreesParResponsable.map((a) => a.site).filter(Boolean))
+  ).sort()
+
+  // Filtrer les affaires selon le responsable et le site sélectionnés
+  const affairesFiltreesParResponsableEtSite = site
+    ? affairesFiltreesParResponsable.filter((a) => a.site === site)
+    : affairesFiltreesParResponsable
+
+  // Filtrer par numéro de compte si renseigné
+  const affairesFiltreesFinales = numeroCompte
+    ? affairesFiltreesParResponsableEtSite.filter((a) =>
+        a.affaire_id && a.affaire_id.toLowerCase().includes(numeroCompte.toLowerCase())
+      )
+    : affairesFiltreesParResponsableEtSite
+
+  // Réinitialiser les filtres en cascade
+  useEffect(() => {
+    if (responsable) {
+      setSite('')
+      setAffaireId('')
+    }
+  }, [responsable])
+
+  useEffect(() => {
+    if (site) {
+      setAffaireId('')
+    }
+  }, [site])
+
+  // Mettre à jour le site automatiquement quand une affaire est sélectionnée
+  useEffect(() => {
+    if (affaireId) {
+      const affaire = affairesFiltreesFinales.find((a) => a.affaire_id === affaireId)
+      if (affaire && affaire.site !== site) {
+        setSite(affaire.site)
+      }
+    }
+  }, [affaireId, affairesFiltreesFinales, site])
+
+  // Sélection automatique de l'affaire si un numéro de compte correspond exactement
+  useEffect(() => {
+    if (numeroCompte && numeroCompte.trim() !== '') {
+      const affaireTrouvee = affairesFiltreesFinales.find(
+        (a) => a.affaire_id && a.affaire_id.toLowerCase() === numeroCompte.toLowerCase().trim()
+      )
+      if (affaireTrouvee && affaireTrouvee.affaire_id && affaireTrouvee.affaire_id !== affaireId) {
+        setAffaireId(affaireTrouvee.affaire_id)
+        setSite(affaireTrouvee.site)
+      }
+    }
+  }, [numeroCompte, affairesFiltreesFinales, affaireId])
+
+  return (
+    <Layout>
+      <div className="space-y-8">
+        {/* En-tête */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl">
+              <Target className="w-9 h-9 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Planning v3
+              </h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
+                Gestion des besoins et affectations par Affaire / Compétence / Période
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sélection affaire - Compactée sur une ligne (modèle Charge) */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Titre compact */}
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <Target className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-base font-semibold text-gray-800">Sélection affaire</h2>
+            </div>
+            {/* Numéro de compte */}
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Numéro de compte
+              </label>
+              <input
+                type="text"
+                value={numeroCompte}
+                onChange={(e) => setNumeroCompte(e.target.value)}
+                placeholder="Rechercher..."
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+              />
+            </div>
+
+            {/* Responsable */}
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Responsable</label>
+              <select
+                value={responsable}
+                onChange={(e) => setResponsable(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+              >
+                <option value="">Tous...</option>
+                {responsablesDisponibles.map((resp) => (
+                  <option key={resp} value={resp}>
+                    {resp}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Site */}
+            <div className="flex-1 min-w-[120px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Site <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={site}
+                onChange={(e) => setSite(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+              >
+                <option value="">Sélectionner...</option>
+                {sitesDisponibles.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Affaire */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Affaire <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={affaireId}
+                onChange={(e) => {
+                  const selectedAffaireId = e.target.value
+                  if (selectedAffaireId) {
+                    const affaire = affairesFiltreesFinales.find(
+                      (a) => a.affaire_id === selectedAffaireId
+                    )
+                    if (affaire) {
+                      setAffaireId(selectedAffaireId)
+                      setSite(affaire.site)
+                      setNumeroCompte('')
+                    }
+                  } else {
+                    setAffaireId('')
+                  }
+                }}
+                disabled={!site}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Sélectionner...</option>
+                {affairesFiltreesFinales.map((affaire) => (
+                  <option key={affaire.id} value={affaire.affaire_id || ''}>
+                    {affaire.affaire_id || 'Sans ID'} - {affaire.libelle}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation et paramètres de période - Même sélection que Gantt */}
+        {affaireId && site && (
+          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Sélection de précision - Style segmented control */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="inline-flex bg-gray-200 rounded-lg p-1 gap-1">
+                  <button
+                    onClick={() => {
+                      const newPrecision: Precision = 'JOUR'
+                      setPrecision(newPrecision)
+                      
+                      // Vue JOUR : 1 mois (01/01/2026 → 31/01/2026)
+                      const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                      const monthEnd = endOfMonthFn(baseDate) // 31/01/2026
+                      setDateDebut(baseDate)
+                      setDateFin(monthEnd)
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                      precision === 'JOUR'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                  >
+                    Jour
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newPrecision: Precision = 'SEMAINE'
+                      setPrecision(newPrecision)
+                      
+                      // Vue SEMAINE : 1 mois (01/01/2026 → 31/01/2026)
+                      const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                      const monthStart = startOfMonthFn(baseDate)
+                      const monthEnd = endOfMonthFn(monthStart) // 31/01/2026
+                      setDateDebut(monthStart)
+                      setDateFin(monthEnd)
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                      precision === 'SEMAINE'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                  >
+                    Semaine
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newPrecision: Precision = 'MOIS'
+                      setPrecision(newPrecision)
+                      
+                      // Réinitialiser à la date de base : 01/01/2026
+                      const baseDate = new Date(2026, 0, 1) // 01/01/2026
+                      const monthStart = startOfMonthFn(baseDate)
+                      setDateDebut(monthStart)
+                      setDateFin(endOfMonthFn(new Date(monthStart.getFullYear(), monthStart.getMonth() + 11, 1)))
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                      precision === 'MOIS'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                  >
+                    Mois
+                  </button>
+                </div>
+              </div>
+
+              {/* Navigation de période - S'étend sur toute la largeur restante */}
+              <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-1.5 border border-blue-100 shadow-sm flex-1 min-w-[300px]">
+                <button
+                  onClick={() => {
+                    let newDateDebut: Date
+                    let newDateFin: Date
+                    
+                    if (precision === 'JOUR') {
+                      // En mode JOUR : naviguer mois par mois, toujours commencer le 01
+                      const previousMonth = subMonths(startOfMonthFn(dateDebut), 1)
+                      newDateDebut = previousMonth
+                      newDateFin = endOfMonthFn(previousMonth)
+                    } else if (precision === 'SEMAINE') {
+                      const monthStart = startOfMonthFn(dateDebut)
+                      const previousMonthStart = subMonths(monthStart, 1)
+                      const dayOfWeekNew = previousMonthStart.getDay()
+                      const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+                      newDateDebut = new Date(previousMonthStart)
+                      newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+                      newDateFin = endOfMonthFn(previousMonthStart)
+                    } else if (precision === 'MOIS') {
+                      const monthStart = startOfMonthFn(dateDebut)
+                      newDateDebut = subMonths(monthStart, 1)
+                      newDateFin = endOfMonthFn(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
+                    } else {
+                      newDateDebut = subWeeks(dateDebut, 1)
+                      newDateFin = subWeeks(dateFin, 1)
+                    }
+                    
+                    setDateDebut(newDateDebut)
+                    setDateFin(newDateFin)
+                  }}
+                  className="p-2 hover:bg-blue-200 rounded-lg transition-all text-blue-700 hover:text-blue-900 flex-shrink-0"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div 
+                  className="px-4 py-2 text-center flex-1 cursor-pointer hover:bg-blue-100 rounded-lg transition-colors relative z-10"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsDatePickerOpen(true)
+                  }}
+                  title="Cliquer pour sélectionner une période personnalisée"
+                >
+                  <div className="font-semibold text-gray-800">
+                    {dateDebut.toLocaleDateString('fr-FR')} - {dateFin.toLocaleDateString('fr-FR')}
+                  </div>
+                  <div className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-0.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {formatPlageSemainesISO(dateDebut, dateFin)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    let newDateDebut: Date
+                    let newDateFin: Date
+                    
+                    if (precision === 'JOUR') {
+                      // En mode JOUR : naviguer mois par mois, toujours commencer le 01
+                      const nextMonth = addMonths(startOfMonthFn(dateDebut), 1)
+                      newDateDebut = nextMonth
+                      newDateFin = endOfMonthFn(nextMonth)
+                    } else if (precision === 'SEMAINE') {
+                      const currentMonthEnd = endOfMonthFn(dateFin)
+                      const nextMonthStart = addMonths(startOfMonthFn(currentMonthEnd), 1)
+                      const dayOfWeekNew = nextMonthStart.getDay()
+                      const daysToMondayNew = dayOfWeekNew === 0 ? 6 : dayOfWeekNew - 1
+                      newDateDebut = new Date(nextMonthStart)
+                      newDateDebut.setDate(newDateDebut.getDate() - daysToMondayNew)
+                      newDateFin = endOfMonthFn(nextMonthStart)
+                    } else if (precision === 'MOIS') {
+                      const monthStart = startOfMonthFn(dateDebut)
+                      newDateDebut = addMonths(monthStart, 1)
+                      newDateFin = endOfMonthFn(new Date(newDateDebut.getFullYear(), newDateDebut.getMonth() + 11, 1))
+                    } else {
+                      newDateDebut = addWeeks(dateDebut, 1)
+                      newDateFin = addWeeks(dateFin, 1)
+                    }
+                    
+                    if (isNaN(newDateDebut.getTime()) || isNaN(newDateFin.getTime())) {
+                      console.error('[Planning3Page] Dates invalides calculées', { newDateDebut, newDateFin })
+                      return
+                    }
+                    
+                    setDateDebut(newDateDebut)
+                    setDateFin(newDateFin)
+                  }}
+                  className="p-2 hover:bg-blue-200 rounded-lg transition-all text-blue-700 hover:text-blue-900 flex-shrink-0"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Composant Planning3 (modèle Charge) */}
+        {affaireId && site ? (
+          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-6">
+            <Planning3 
+              affaireId={affaireId} 
+              site={site} 
+              dateDebut={dateDebut} 
+              dateFin={dateFin} 
+              precision={precision}
+              onModalClose={() => {
+                // Reset des champs de sélection d'affaire à la fermeture du modal
+                setAffaireId('')
+                setSite('')
+                setResponsable('')
+                setNumeroCompte('')
+              }}
+            />
+          </div>
+        ) : (
+          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-white" />
+              </div>
+              <p className="text-amber-800 font-medium">
+                Veuillez sélectionner une affaire et un site pour afficher le planning.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de sélection de dates personnalisées - Toujours rendu pour éviter les problèmes de z-index */}
+        {isDatePickerOpen && (
+          <DateRangePickerModal
+            isOpen={isDatePickerOpen}
+            dateDebut={dateDebut}
+            dateFin={dateFin}
+            onConfirm={(newDateDebut, newDateFin) => {
+              setDateDebut(newDateDebut)
+              setDateFin(newDateFin)
+              setIsDatePickerOpen(false)
+            }}
+            onCancel={() => setIsDatePickerOpen(false)}
+          />
+        )}
+      </div>
+    </Layout>
+  )
+}
+

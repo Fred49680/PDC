@@ -1,0 +1,97 @@
+
+Option Explicit
+
+Private mLastDashboardRefresh As Double
+Private Const DASHBOARD_REFRESH_COOLDOWN_SEC As Long = 5
+
+' ============================================================
+' FONCTION PUBLIQUE : Rafraîchir le Dashboard (utilisable depuis autres modules)
+' ============================================================
+Public Sub RefreshDashboard(Optional forceRefresh As Boolean = False)
+    Dim t0 As Double: t0 = Timer
+    
+    If Not forceRefresh Then
+        Dim elapsed As Double: elapsed = Timer - mLastDashboardRefresh
+        If elapsed < DASHBOARD_REFRESH_COOLDOWN_SEC And mLastDashboardRefresh > 0 Then
+            Debug.Print "[Dashboard] Refresh ignoré (cooldown: " & Format(elapsed, "0.0") & "s)"
+            Exit Sub
+        End If
+    End If
+    
+    Debug.Print "[Dashboard] Refresh START"
+    
+    Dim prevBusy As Boolean, prevEvents As Boolean, prevScreen As Boolean
+    prevBusy = ThisWorkbook.BusyGlobal
+    prevEvents = Application.EnableEvents
+    prevScreen = Application.ScreenUpdating
+    
+    ThisWorkbook.BusyGlobal = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    
+    On Error Resume Next
+    
+    Dim t1 As Double: t1 = Timer
+    
+    With Sheets("TCD").PivotTables("TCD_Princ")
+        .RefreshTable
+    End With
+    Dim tTCDTotal As Double: tTCDTotal = Timer - t1
+    
+    If tTCDTotal > 0 Then
+        Debug.Print "  TCD Refresh (inclut PQ automatique) : " & Format(tTCDTotal, "0.000") & " sec"
+    End If
+    
+    mLastDashboardRefresh = Timer
+    
+    On Error GoTo 0
+    
+    ' Restaurer état
+    ThisWorkbook.BusyGlobal = prevBusy
+    Application.EnableEvents = prevEvents
+    Application.ScreenUpdating = prevScreen
+    
+    Debug.Print "[Dashboard] Refresh END (" & Format(Timer - t0, "0.000") & " sec)"
+End Sub
+
+' Fonction supprimée : le refresh Dashboard se fait uniquement à l'activation
+' de la feuille Dashboard (via Worksheet_Activate) pour éviter tout blocage
+
+' ============================================================
+' ÉVÉNEMENT : Activation de la feuille Dashboard
+' ============================================================
+Private Sub Worksheet_Activate()
+
+    ' Ne rafraîchir que si le startup est terminé
+    If Not ThisWorkbook.mStartupDone Then
+        ThisWorkbook.mStartupDone = True
+        Exit Sub
+    End If
+
+    Debug.Print "---------- Dashboard_Activate START ----------"
+    
+    If ModuleExec.mDashboardNeedsRefresh Then
+        Debug.Print "[Dashboard] Refresh nécessaire (modifications détectées)"
+    RefreshDashboard True  ' Force refresh à l'activation
+        ModuleExec.mDashboardNeedsRefresh = False  ' Reset le flag
+    Else
+        Debug.Print "[Dashboard] Pas de refresh nécessaire"
+    End If
+    
+    Debug.Print "---------- Dashboard_Activate END ----------"
+End Sub
+
+' ============================================================
+' UTILITAIRES (conservés pour compatibilité)
+' ============================================================
+Private Sub DisablePivotEvents()
+    On Error Resume Next
+    Application.CommandBars("PivotTable Context Menu").Enabled = False
+End Sub
+
+Private Sub EnablePivotEvents()
+    On Error Resume Next
+    Application.CommandBars("PivotTable Context Menu").Enabled = True
+End Sub
+
+

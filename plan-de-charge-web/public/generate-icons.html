@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Générateur d'icônes PWA</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+    canvas {
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      margin: 20px 0;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: scale(1.05);
+    }
+    .preview {
+      display: flex;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .preview-item {
+      text-align: center;
+    }
+    .preview-item img {
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Générateur d'icônes PWA</h1>
+    <p>Générez les icônes 192x192 et 512x512 pour votre PWA</p>
+    
+    <canvas id="iconCanvas" width="512" height="512"></canvas>
+    
+    <div>
+      <button onclick="generateIcon()">Générer l'icône</button>
+      <button onclick="downloadIcon(192)">Télécharger 192x192</button>
+      <button onclick="downloadIcon(512)">Télécharger 512x512</button>
+    </div>
+    
+    <div class="preview">
+      <div class="preview-item">
+        <h3>192x192</h3>
+        <img id="preview192" width="192" height="192" style="display: none;">
+      </div>
+      <div class="preview-item">
+        <h3>512x512</h3>
+        <img id="preview512" width="512" height="512" style="display: none;">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function generateIcon() {
+      const canvas = document.getElementById('iconCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Fond dégradé
+      const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+      gradient.addColorStop(0, '#6366f1');
+      gradient.addColorStop(1, '#8b5cf6');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 512, 512);
+      
+      // Cercle blanc pour l'icône
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      ctx.arc(256, 256, 200, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Icône graphique (barres de progression)
+      ctx.fillStyle = '#6366f1';
+      ctx.font = 'bold 180px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('📊', 256, 256);
+      
+      // Générer les previews
+      const img192 = document.getElementById('preview192');
+      const img512 = document.getElementById('preview512');
+      
+      img192.src = canvas.toDataURL('image/png');
+      img192.style.display = 'block';
+      
+      img512.src = canvas.toDataURL('image/png');
+      img512.style.display = 'block';
+    }
+    
+    function downloadIcon(size) {
+      const canvas = document.getElementById('iconCanvas');
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = size;
+      tempCanvas.height = size;
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      // Redessiner à la nouvelle taille
+      const gradient = tempCtx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#6366f1');
+      gradient.addColorStop(1, '#8b5cf6');
+      tempCtx.fillStyle = gradient;
+      tempCtx.fillRect(0, 0, size, size);
+      
+      tempCtx.fillStyle = 'white';
+      tempCtx.beginPath();
+      tempCtx.arc(size/2, size/2, size * 0.39, 0, Math.PI * 2);
+      tempCtx.fill();
+      
+      tempCtx.fillStyle = '#6366f1';
+      tempCtx.font = `bold ${size * 0.35}px Arial`;
+      tempCtx.textAlign = 'center';
+      tempCtx.textBaseline = 'middle';
+      tempCtx.fillText('📊', size/2, size/2);
+      
+      // Télécharger
+      const link = document.createElement('a');
+      link.download = `icon-${size}.png`;
+      link.href = tempCanvas.toDataURL('image/png');
+      link.click();
+    }
+    
+    // Générer automatiquement au chargement
+    window.onload = generateIcon;
+  </script>
+</body>
+</html>
