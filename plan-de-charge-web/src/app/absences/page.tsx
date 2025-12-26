@@ -482,7 +482,7 @@ export default function AbsencesPage() {
 
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gradient-to-r from-purple-50 to-indigo-50 sticky top-0 z-10">
+              <thead className="bg-gradient-to-r from-purple-50 to-indigo-50 sticky top-0 z-0">
                   <tr>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ressource</th>
                     <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Site</th>
