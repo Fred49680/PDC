@@ -13,15 +13,19 @@ La propriété `rootDirectory` ne peut **pas** être définie dans `vercel.json`
 ### 1. Accéder aux paramètres du projet
 
 1. Connectez-vous à [vercel.com](https://vercel.com)
-2. Sélectionnez votre projet **PDC** (ou le nom de votre projet)
+2. Sélectionnez votre projet **PDC** (le nom du projet dans Vercel)
 3. Allez dans **Settings** (Paramètres)
 4. Cliquez sur **General** dans le menu de gauche
 
 ### 2. Configurer le Root Directory
 
+**Important** : Le projet s'appelle **PDC** dans Vercel, mais le répertoire dans le dépôt Git est `plan-de-charge-web`.
+
 1. Dans la section **Root Directory**, cliquez sur **Edit**
-2. Entrez : `plan-de-charge-web`
+2. Entrez : `plan-de-charge-web` (le nom du dossier dans votre dépôt Git)
 3. Cliquez sur **Save**
+
+**Note** : Même si votre projet Vercel s'appelle "PDC", le Root Directory doit pointer vers `plan-de-charge-web` car c'est le nom réel du dossier dans votre dépôt GitHub.
 
 ### 3. Vérifier la configuration
 
