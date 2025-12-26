@@ -51,7 +51,7 @@ export default function Home() {
       color: 'green'
     },
     { 
-      href: '/planning2', 
+      href: '/planning3', 
       label: 'Planning', 
       icon: Sparkles, 
       gradient: 'from-indigo-500 to-purple-600',
